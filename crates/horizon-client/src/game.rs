@@ -17176,6 +17176,16 @@ impl ApplicationHandler for Game<'_> {
             }
             return;
         }
+        // iOS: the system keyboard's return key arrives as a typed line break (touch.rs).
+        if cfg!(target_os = "ios")
+            && let WindowEvent::KeyboardInput { event: key, .. } = &event
+            && matches!(&key.logical_key, winit::keyboard::Key::Character(c) if c == "\n" || c == "\r")
+        {
+            if key.state == ElementState::Pressed {
+                self.keyboard_return();
+            }
+            return;
+        }
         let key = if self.window.as_ref().is_some_and(|w| w.id() == id)
             && let WindowEvent::KeyboardInput {
                 event,

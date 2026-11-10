@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 use winit::event::{
     DeviceId, ElementState, MouseButton, MouseScrollDelta, Touch, TouchPhase, WindowEvent,
 };
+use winit::keyboard::KeyCode;
 use winit::window::{Window, WindowId};
 
 /// A press held this long without moving becomes a drag instead of a scroll.
@@ -239,6 +240,11 @@ pub(super) struct Controls {
     pulse: PadState,
     /// A finger has touched the glass in this run.
     pub(super) used: bool,
+    /// iOS: the system keyboard was put away (its return key, or a tap off any text field)
+    /// while a field keeps the focus, as the game's fields do.
+    pub(super) keyboard_hidden: bool,
+    /// A text field had the focus at the last `sync_ime`.
+    pub(super) field_focused: bool,
 }
 
 impl Controls {
@@ -479,6 +485,14 @@ impl Game<'_> {
         );
         let at = touch_pixels(&window, size, &touch);
         let world = self.touch_world();
+        // The system keyboard covers half the screen and the game's fields keep the focus: a tap
+        // on a text field brings it up, a tap anywhere else puts it away.
+        if !world && touch.phase == TouchPhase::Started {
+            let scale = HudBatch::new(size).scale;
+            let gui = (at[0] as f32 / scale, at[1] as f32 / scale);
+            self.touch.keyboard_hidden =
+                !super::pad_menu::field_at(&self.pad_visible_targets(), gui);
+        }
         let outs = self
             .touch
             .touch(touch.id, touch.phase, at, Instant::now(), world, &layout);
@@ -502,6 +516,16 @@ impl Game<'_> {
                 _ => {}
             }
         }
+    }
+
+    /// iOS: the system keyboard's return key, which types a line break the game's fields don't
+    /// take: Enter (sends a chat line, confirms a screen), and the keyboard goes away.
+    pub(super) fn keyboard_return(&mut self) {
+        self.touch.keyboard_hidden = true;
+        if let Err(e) = self.key_pressed(KeyCode::Enter, KeyCode::Enter) {
+            log::warn!("Horizon: Enter: {e}");
+        }
+        self.sync_ime();
     }
 
     /// iOS: the app stopped being the active one (the app switcher, a call, the lock screen) or
