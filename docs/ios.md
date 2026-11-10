@@ -31,6 +31,20 @@ for your own device only.
 Sign and install `Horizon.ipa` with a sideloading tool (Sideloadly, AltStore, SideStore) and your
 own Apple ID. A free Apple ID signs for 7 days at a time.
 
+## Signing in
+
+Every start opens a screen of its own (`game/ios_boot.rs`, `ios_screen.rs`). With no launcher
+to hand the game a session, the app signs in itself (`game/ios_account.rs`): a Microsoft device
+code with Cazza Launcher's Azure app (`967c7b5b-8b53-4975-b4e3-7c9a394ed3af`, personal accounts,
+public client), then Xbox Live, XSTS and the Minecraft services. "Open sign-in page" opens Safari
+with the code filled in; "Play offline" skips the sign-in. The first start signs in while the
+resources unpack.
+
+The Microsoft refresh token, the name and the uuid are kept in the app's
+`Library/Application Support/horizon/account.json`, readable by the app only and not shown in
+the Files app; later starts sign in with it without asking. A refused token is forgotten and the
+code comes back. Deleting the app deletes it.
+
 ## Where things are
 
 The game folder is the app's Documents, visible in the Files app: `saves/`, `options.txt`,
@@ -52,8 +66,6 @@ A controller paired with the phone is not read yet (gilrs has no iOS backend).
 ## What does not work
 
 - Native Rust mods and the launcher's pages (instances, servers, mod browser).
-- Signing in: the launcher handed the game its Microsoft session, so the iOS build plays
-  offline (singleplayer, LAN, offline-mode servers).
 - The system clipboard: text copied in the game pastes in the game only.
 - Hardware controllers, the narrator.
 
