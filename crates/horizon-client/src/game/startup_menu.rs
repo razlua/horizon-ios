@@ -1276,6 +1276,7 @@ mod tests {
 
     fn loading(receiver: Receiver<LoaderMsg>) -> Loading {
         Loading {
+            touch: Default::default(),
             window: None,
             renderer: None,
             boot: horizon_client::hud::HudAtlas::boot(),

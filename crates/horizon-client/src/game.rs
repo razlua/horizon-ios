@@ -2528,8 +2528,6 @@ struct Game<'a> {
     pad: pad::Pads,
     /// Fingers on the glass (touch.rs).
     touch: touch::Controls,
-    /// iOS: the app is not the active one. Drawing from the background ends the process there.
-    backgrounded: bool,
     frames: u64,
     /// The glint clock and options, read once at the start of each frame
     /// (game/item_draw.rs).
@@ -17070,13 +17068,30 @@ impl Game<'_> {
         }
     }
 }
+/// iOS: sideways only, nothing of the system over the game, and the edges of the screen are the
+/// game's first (a swipe from one needs a second swipe to reach the system). The window as it
+/// is elsewhere.
+fn phone_window(attributes: winit::window::WindowAttributes) -> winit::window::WindowAttributes {
+    #[cfg(target_os = "ios")]
+    let attributes = {
+        use winit::platform::ios::{ScreenEdge, ValidOrientations, WindowAttributesExtIOS};
+        attributes
+            .with_valid_orientations(ValidOrientations::Landscape)
+            .with_prefers_status_bar_hidden(true)
+            .with_prefers_home_indicator_hidden(true)
+            .with_preferred_screen_edges_deferring_system_gestures(ScreenEdge::ALL)
+    };
+    attributes
+}
+/// iOS: the app is in the background, where drawing ends the process. Set and cleared by the
+/// `Occluded` events of the window; nothing draws or ticks in between.
+static IN_BACKGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// `computeNextAutosaveInterval`'s arithmetic: `Math.max(100, (int)(rate * 300.0F))`.
 fn autosave_interval(rate: f32) -> i64 {
     i64::from((rate * 300.0) as i32).max(100)
 }
 impl ApplicationHandler for Game<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.backgrounded = false;
         if self.window.is_some() {
             return;
         }
@@ -17092,17 +17107,7 @@ impl ApplicationHandler for Game<'_> {
         let attributes = winit::platform::wayland::WindowAttributesExtWayland::with_name(
             attributes, "horizon", "horizon",
         );
-        // iOS: sideways only, nothing of the system's over the game, and the screen's edges are
-        // the game's first (a swipe from one needs a second swipe to reach the system).
-        #[cfg(target_os = "ios")]
-        let attributes = {
-            use winit::platform::ios::{ScreenEdge, ValidOrientations, WindowAttributesExtIOS};
-            attributes
-                .with_valid_orientations(ValidOrientations::Landscape)
-                .with_prefers_status_bar_hidden(true)
-                .with_prefers_home_indicator_hidden(true)
-                .with_preferred_screen_edges_deferring_system_gestures(ScreenEdge::ALL)
-        };
+        let attributes = phone_window(attributes);
         // `--offscreen` renders into a texture: its window would only show white.
         let window_step = startup::step("window.create");
         let window = match event_loop.create_window(
@@ -17182,16 +17187,7 @@ impl ApplicationHandler for Game<'_> {
         }
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        // iOS ends an app that draws from the background: wait there until `resumed`.
-        if self.backgrounded {
-            ActiveEventLoop::set_control_flow(event_loop, ControlFlow::Wait);
-            return;
-        }
         self.idle(event_loop);
-    }
-    /// iOS: another app, the app switcher or the lock screen took over.
-    fn suspended(&mut self, _: &ActiveEventLoop) {
-        self.backgrounded = cfg!(target_os = "ios");
     }
     /// The application is ending. On macOS, Quit (Cmd+Q) ends it through
     /// applicationWillTerminate without a CloseRequested; vanilla's GLFW
@@ -18943,7 +18939,6 @@ impl<'a> Game<'a> {
             regrab_on_refocus: false,
             keyboard_mouse: true,
             touch: Default::default(),
-            backgrounded: false,
             split_window: false,
             view_at: [0, 0],
             split_hud: Default::default(),
@@ -21043,6 +21038,8 @@ struct Loading {
     ui_at: Option<Instant>,
     title_drawn: bool,
     menu: startup_menu::StartupMenu,
+    /// Fingers on the glass (touch.rs): the pointer of the title.
+    touch: touch::Controls,
     error: Option<Box<dyn std::error::Error>>,
 }
 /// How long the handoff waits for the first title frame before building the
@@ -21078,6 +21075,7 @@ impl Loading {
         let attributes = winit::platform::wayland::WindowAttributesExtWayland::with_name(
             attributes, "horizon", "horizon",
         );
+        let attributes = phone_window(attributes);
         // `--offscreen` renders into a texture: its window would only show white.
         let window_step = startup::step("window.create");
         let window = match event_loop.create_window(
@@ -21150,6 +21148,31 @@ impl Loading {
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, mut event: WindowEvent) {
         if self.window.as_ref().is_none_or(|w| w.id() != id) {
+            return;
+        }
+        // A finger is the mouse of the title (touch.rs).
+        if let WindowEvent::Touch(touch) = event {
+            if !touch::Controls::enabled() {
+                return;
+            }
+            let Some(size) = self.window.as_ref().map(|w| w.inner_size().into()) else {
+                return;
+            };
+            let outs = self.touch.touch(
+                touch.id,
+                touch.phase,
+                [touch.location.x, touch.location.y],
+                Instant::now(),
+                false,
+                &touch::layout_for(size),
+            );
+            for event in outs.into_iter().filter_map(touch::Out::window_event) {
+                if let Err(error) = self.menu_event(event_loop, event) {
+                    self.error = Some(error);
+                    event_loop.exit();
+                    return;
+                }
+            }
             return;
         }
         follow_keymap(&mut event);
@@ -21354,13 +21377,36 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         match self {
             App::Loading(loading) => loading.resumed(event_loop),
-            App::Ready(game) => game.resumed(event_loop),
+            App::Ready(game) => {
+                game.resumed(event_loop);
+                if cfg!(target_os = "ios") {
+                    game.host.app_active(event_loop, true);
+                }
+            }
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        // iOS: `Occluded` is the app entering and leaving the background (`IN_BACKGROUND`).
+        if cfg!(target_os = "ios")
+            && let WindowEvent::Occluded(hidden) = event
+        {
+            IN_BACKGROUND.store(hidden, std::sync::atomic::Ordering::Relaxed);
+            if !hidden {
+                ActiveEventLoop::set_control_flow(event_loop, ControlFlow::Poll);
+            }
+        }
         match self {
             App::Loading(loading) => loading.window_event(event_loop, id, event),
             App::Ready(game) => game.window_event(event_loop, id, event),
+        }
+    }
+    /// iOS: the app is no longer the active one. Still on screen for a moment: the game hears
+    /// that its window lost focus, pauses and saves while it may still run.
+    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+        if cfg!(target_os = "ios")
+            && let App::Ready(game) = self
+        {
+            game.host.app_active(event_loop, false);
         }
     }
     fn device_event(&mut self, event_loop: &ActiveEventLoop, id: DeviceId, event: DeviceEvent) {
@@ -21374,6 +21420,10 @@ impl ApplicationHandler for App {
             Ready(Box<split::Split<'static>>),
             Done,
             Failed(Box<dyn std::error::Error>),
+        }
+        if IN_BACKGROUND.load(std::sync::atomic::Ordering::Relaxed) {
+            ActiveEventLoop::set_control_flow(event_loop, ControlFlow::Wait);
+            return;
         }
         let step = match self {
             App::Ready(game) => {
@@ -21471,6 +21521,7 @@ fn run_loading(
         startup_menu::spawn_loader(&options, &settings, &vanilla_root, started, &progress)?;
     let menu = startup_menu::StartupMenu::new(&options, pack_error.as_deref())?;
     let loading = Loading {
+        touch: Default::default(),
         window: None,
         renderer: None,
         boot: horizon_client::hud::HudAtlas::boot(),

@@ -137,6 +137,40 @@ pub(super) enum Out {
     Look(f64, f64),
 }
 
+impl Out {
+    /// The event a mouse would have made; `None` for a turn of the view, which is no event.
+    pub(super) fn window_event(self) -> Option<WindowEvent> {
+        let device_id = DeviceId::dummy();
+        Some(match self {
+            Out::Cursor([x, y]) => WindowEvent::CursorMoved {
+                device_id,
+                position: winit::dpi::PhysicalPosition::new(x, y),
+            },
+            Out::Mouse(button, down) => WindowEvent::MouseInput {
+                device_id,
+                state: if down {
+                    ElementState::Pressed
+                } else {
+                    ElementState::Released
+                },
+                button,
+            },
+            Out::Wheel(lines) => WindowEvent::MouseWheel {
+                device_id,
+                delta: MouseScrollDelta::LineDelta(0.0, lines),
+                phase: TouchPhase::Moved,
+            },
+            Out::Look(..) => return None,
+        })
+    }
+}
+
+/// The layout for a window of `size` pixels, at the GUI scale the HUD draws it with.
+pub(super) fn layout_for(size: [u32; 2]) -> Layout {
+    let scale = HudBatch::new(size).scale;
+    Layout::new([size[0] as f32, size[1] as f32], scale)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Role {
     /// A screen's pointer, before it is known to be a tap, a scroll or a drag.
@@ -383,8 +417,7 @@ impl Game<'_> {
             || window.inner_size().into(),
             |r| [r.config.width, r.config.height],
         );
-        let scale = HudBatch::new(size).scale;
-        Some(Layout::new([size[0] as f32, size[1] as f32], scale))
+        Some(layout_for(size))
     }
 
     /// A finger on the glass (`WindowEvent::Touch`).
@@ -401,50 +434,43 @@ impl Game<'_> {
             .touch
             .touch(touch.id, touch.phase, at, Instant::now(), world, &layout);
         self.last_input = Instant::now();
-        let device_id = DeviceId::dummy();
-        let origin = input_trace::InputOrigin::User;
         for out in outs {
-            match out {
-                Out::Cursor([x, y]) => self.handle_window_event(
-                    event_loop,
-                    id,
-                    WindowEvent::CursorMoved {
-                        device_id,
-                        position: winit::dpi::PhysicalPosition::new(x, y),
-                    },
-                    origin,
-                ),
-                Out::Mouse(button, down) => self.handle_window_event(
-                    event_loop,
-                    id,
-                    WindowEvent::MouseInput {
-                        device_id,
-                        state: if down {
-                            ElementState::Pressed
-                        } else {
-                            ElementState::Released
-                        },
-                        button,
-                    },
-                    origin,
-                ),
-                Out::Wheel(lines) => self.handle_window_event(
-                    event_loop,
-                    id,
-                    WindowEvent::MouseWheel {
-                        device_id,
-                        delta: MouseScrollDelta::LineDelta(0.0, lines),
-                        phase: TouchPhase::Moved,
-                    },
-                    origin,
-                ),
+            match (out, out.window_event()) {
+                (_, Some(event)) => {
+                    self.handle_window_event(event_loop, id, event, input_trace::InputOrigin::User);
+                }
                 // MouseHandler.onMove with the pointer grabbed, as `device_event` does.
-                Out::Look(x, y) => {
+                (Out::Look(x, y), None) => {
                     if self.pending_save.is_none() && self.touch_world() {
                         self.mouse.add_motion(x, y);
                     }
                 }
+                _ => {}
             }
+        }
+    }
+
+    /// iOS: the app stopped being the active one (the app switcher, a call, the lock screen) or
+    /// is active again. The window's focus says so to the game: it pauses, which saves the
+    /// world, and lets go of what was held.
+    pub(super) fn app_active(&mut self, event_loop: &dyn EventLoopCtl, active: bool) {
+        let Some(id) = self.window.as_ref().map(|w| w.id()) else {
+            return;
+        };
+        if self.focused != active {
+            self.handle_window_event(
+                event_loop,
+                id,
+                WindowEvent::Focused(active),
+                input_trace::InputOrigin::User,
+            );
+        }
+        if !active {
+            // Now, not after the half second a desktop window waits: the app may be off the
+            // screen and stopped before then, and the pause is what saves the world.
+            let now = Instant::now();
+            self.focus_lost = Some(now.checked_sub(Duration::from_secs(1)).unwrap_or(now));
+            self.pause_if_inactive();
         }
     }
 

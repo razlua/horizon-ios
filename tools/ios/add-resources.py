@@ -21,7 +21,7 @@ APP = "Payload/Horizon.app/"
 # `horizon-data.bin`, which is tied to the folder it was written in (the game writes its own).
 SKIP_DIRS = {"classes", "client-classes"}
 SKIP_SUFFIXES = (".log", ".tmp")
-SKIP_FILES = {"horizon-data.bin", ".unpacked-from"}
+SKIP_FILES = {"horizon-data.bin", ".unpacked-from", ".horizon-prepare.lock"}
 # Already compressed: stored as they are, which unpacks faster on the phone.
 STORED = (".png", ".ogg", ".jpg", ".jpeg", ".webp", ".zip", ".jar", ".gz")
 
