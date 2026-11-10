@@ -28,8 +28,21 @@ pub enum Stage {
     Accumulate,
 }
 
-/// What the device must support: max blending on 32-bit float targets.
+/// What the device must support: max blending on 32-bit float targets. The feature alone is not
+/// enough: with `TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES` on, the device checks each format's own
+/// flags, and Apple's iOS GPUs offer the feature without blending `Rgba32Float`, which ended the
+/// game when the option was turned on. Without blending there, the option has no effect.
 pub fn features(adapter: &wgpu::Adapter) -> wgpu::Features {
+    let blends = |format| {
+        adapter
+            .get_texture_format_features(format)
+            .flags
+            .contains(wgpu::TextureFormatFeatureFlags::BLENDABLE)
+    };
+    if !blends(BOUNDS_FORMAT) || !blends(COEFFICIENT_FORMAT) {
+        log::info!("Horizon renderer: improved transparency unavailable (no blending on its formats)");
+        return wgpu::Features::empty();
+    }
     adapter.features() & wgpu::Features::FLOAT32_BLENDABLE
 }
 

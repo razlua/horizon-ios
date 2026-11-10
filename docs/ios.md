@@ -61,6 +61,14 @@ The game folder is the app's Documents, visible in the Files app: `saves/`, `opt
   its edge to sprint), the buttons are Jump, Sneak, Use, Hit, pause, inventory, chat, drop,
   camera and the hotbar's previous and next, and a finger anywhere else turns the view.
 
+A small Esc button at the top centre does what Escape does, in the world and in every screen.
+
+**Edit HUD** (the title's button in Quit Game's place) moves, adds, removes and resizes the
+buttons (`game/touch_editor.rs`). Besides the controller's actions there are keyboard ones: F1,
+F2, F3, the F3 combinations (B, G, H, N, T, F4) and `/`, pressed through `horizon-ctl key`'s
+path. The layout is kept in `touch-controls.json` in the game folder; Reset puts the defaults
+back.
+
 A controller paired with the phone is not read yet (gilrs has no iOS backend).
 
 ## What does not work

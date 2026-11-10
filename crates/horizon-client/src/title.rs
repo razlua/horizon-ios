@@ -1752,7 +1752,12 @@ impl Title {
                         cx + 2.0,
                         y + 96.0,
                         98.0,
-                        &lang::get_or("menu.quit", "Quit Game"),
+                        // iOS apps don't quit themselves: the place is Edit HUD's (touch_editor.rs).
+                        &if cfg!(target_os = "ios") {
+                            "Edit HUD".to_string()
+                        } else {
+                            lang::get_or("menu.quit", "Quit Game").to_string()
+                        },
                         true,
                         2,
                     ),

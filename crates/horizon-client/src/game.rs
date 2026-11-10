@@ -335,6 +335,7 @@ mod titles;
 mod tnt;
 mod totem;
 mod touch;
+mod touch_editor;
 #[cfg(target_os = "ios")]
 mod ios_account;
 #[cfg(target_os = "ios")]
@@ -12141,6 +12142,7 @@ impl Game<'_> {
         match action {
             // A splitscreen player's title never ends the process (P1's does).
             Action::Quit if self.options.split_guest => {}
+            Action::Quit if cfg!(target_os = "ios") => self.open_touch_editor(),
             Action::Quit => event_loop.exit(),
             Action::Options => self.open_options(true),
             Action::Accessibility => {
