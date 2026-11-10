@@ -19,6 +19,10 @@ fn main() {
         };
         println!("cargo:rustc-link-arg-bin=horizon-client={arg}");
     }
+    // iOS gives the main thread 1 MB too; the linker's own option raises it.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
+        println!("cargo:rustc-link-arg-bin=horizon-client=-Wl,-stack_size,0x800000");
+    }
     #[cfg(windows)]
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let mut resource = winresource::WindowsResource::new();

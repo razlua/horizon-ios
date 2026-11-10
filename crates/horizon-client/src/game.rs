@@ -334,6 +334,7 @@ mod text_displays;
 mod titles;
 mod tnt;
 mod totem;
+mod touch;
 mod trading;
 mod transient_blocks;
 mod trial_spawner;
@@ -609,6 +610,9 @@ impl Options {
         let mut o = Self {
             resources: if sibling.join("horizon-resources.json").exists() {
                 sibling
+            } else if cfg!(target_os = "ios") {
+                // Not in the app: `resources` in its Documents, copied there with the Files app.
+                "resources".into()
             } else {
                 std::path::Path::new(".local/horizon-client").join(horizon_core::VANILLA_VERSION)
             },
@@ -2522,6 +2526,10 @@ struct Game<'a> {
     last_input: Instant,
     /// Controllers (Horizon's own).
     pad: pad::Pads,
+    /// Fingers on the glass (touch.rs).
+    touch: touch::Controls,
+    /// iOS: the app is not the active one. Drawing from the background ends the process there.
+    backgrounded: bool,
     frames: u64,
     /// The glint clock and options, read once at the start of each frame
     /// (game/item_draw.rs).
@@ -8154,7 +8162,9 @@ impl Game<'_> {
         };
         let scale = HudBatch::new(size).scale;
         let was_grabbed = self.captured;
-        if self.options.offscreen && !self.split_window {
+        // iOS has no pointer to grab: the grab is the game's own, and fingers turn the view
+        // (touch.rs).
+        if cfg!(target_os = "ios") || (self.options.offscreen && !self.split_window) {
             // A genuinely hidden `--offscreen` run leaves the system pointer where
             // the person at the computer has it. Its grab is internal (an
             // agent turns the view with `mouse-move`).
@@ -8444,6 +8454,7 @@ impl Game<'_> {
         } else {
             self.hud_layers(size)
         };
+        self.draw_touch_controls(&mut batch);
         // Vanilla's confirmation replaces the dialog as the screen.
         if self.command_prompt.is_none() {
             self.draw_dialog(&mut batch);
@@ -17065,6 +17076,7 @@ fn autosave_interval(rate: f32) -> i64 {
 }
 impl ApplicationHandler for Game<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.backgrounded = false;
         if self.window.is_some() {
             return;
         }
@@ -17080,6 +17092,17 @@ impl ApplicationHandler for Game<'_> {
         let attributes = winit::platform::wayland::WindowAttributesExtWayland::with_name(
             attributes, "horizon", "horizon",
         );
+        // iOS: sideways only, nothing of the system's over the game, and the screen's edges are
+        // the game's first (a swipe from one needs a second swipe to reach the system).
+        #[cfg(target_os = "ios")]
+        let attributes = {
+            use winit::platform::ios::{ScreenEdge, ValidOrientations, WindowAttributesExtIOS};
+            attributes
+                .with_valid_orientations(ValidOrientations::Landscape)
+                .with_prefers_status_bar_hidden(true)
+                .with_prefers_home_indicator_hidden(true)
+                .with_preferred_screen_edges_deferring_system_gestures(ScreenEdge::ALL)
+        };
         // `--offscreen` renders into a texture: its window would only show white.
         let window_step = startup::step("window.create");
         let window = match event_loop.create_window(
@@ -17115,6 +17138,13 @@ impl ApplicationHandler for Game<'_> {
         self.previous = Instant::now();
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        // Fingers become the pointer or the virtual pad (touch.rs).
+        if let WindowEvent::Touch(touch) = event {
+            if self.window.as_ref().is_some_and(|w| w.id() == id) {
+                self.touch_event(event_loop, id, touch);
+            }
+            return;
+        }
         let key = if self.window.as_ref().is_some_and(|w| w.id() == id)
             && let WindowEvent::KeyboardInput {
                 event,
@@ -17152,7 +17182,16 @@ impl ApplicationHandler for Game<'_> {
         }
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // iOS ends an app that draws from the background: wait there until `resumed`.
+        if self.backgrounded {
+            ActiveEventLoop::set_control_flow(event_loop, ControlFlow::Wait);
+            return;
+        }
         self.idle(event_loop);
+    }
+    /// iOS: another app, the app switcher or the lock screen took over.
+    fn suspended(&mut self, _: &ActiveEventLoop) {
+        self.backgrounded = cfg!(target_os = "ios");
     }
     /// The application is ending. On macOS, Quit (Cmd+Q) ends it through
     /// applicationWillTerminate without a CloseRequested; vanilla's GLFW
@@ -18903,6 +18942,8 @@ impl<'a> Game<'a> {
             capture_mode: None,
             regrab_on_refocus: false,
             keyboard_mouse: true,
+            touch: Default::default(),
+            backgrounded: false,
             split_window: false,
             view_at: [0, 0],
             split_hud: Default::default(),

@@ -198,8 +198,11 @@ impl Game<'_> {
             );
         }
         self.ui.options.pad_style = self.settings.controller.glyphs.resolve(self.pad.style);
-        let state = hardware.merge(&self.pad.injected);
-        self.pad.virtual_input = self.pad.injected != PadState::default();
+        // Fingers on the glass are one more pad (touch.rs).
+        let touch = self.touch.poll();
+        let state = hardware.merge(&self.pad.injected).merge(&touch);
+        self.pad.virtual_input =
+            self.pad.injected != PadState::default() || touch != PadState::default();
         for button in std::mem::take(&mut self.pad.taps) {
             self.pad.injected.set(button, false);
         }
