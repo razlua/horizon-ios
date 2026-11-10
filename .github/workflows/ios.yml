@@ -5,6 +5,8 @@ name: iOS
 on:
   push:
     branches: [ios-port]
+    # Text alone changes no build.
+    paths-ignore: ["**.md", "docs/**", "LICENSE"]
   workflow_dispatch:
 
 concurrency:

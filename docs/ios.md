@@ -1,8 +1,8 @@
 # Horizon on iOS (unofficial, experimental)
 
 An unofficial build of the game for iPhone and iPad, sideloaded: there is no App Store or
-TestFlight build, and upstream lists iOS as a long-term goal only (ROADMAP.md, "Android, iOS and
-the browser"). It is the game alone. The launcher has no iOS counterpart: iOS lets an app neither
+TestFlight build, and upstream lists iOS as a long-term goal only (docs/upstream/ROADMAP.md,
+"Android, iOS and the browser"). This port's own plans are in ROADMAP.md. It is the game alone. The launcher has no iOS counterpart: iOS lets an app neither
 download and start another program nor compile native mods.
 
 ## What is in the build
