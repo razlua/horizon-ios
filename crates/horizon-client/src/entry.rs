@@ -56,6 +56,44 @@ fn ios_folders() -> Option<Box<dyn FnOnce() + Send>> {
     }))
 }
 
+/// iOS: what the app holds and what its Documents hold, for a bug report's log.
+#[cfg(target_os = "ios")]
+fn ios_log_bundle() {
+    let exe = std::env::current_exe();
+    let bundle = exe
+        .as_ref()
+        .ok()
+        .and_then(|e| e.parent())
+        .map(|p| p.to_path_buf());
+    let archive = bundle
+        .as_ref()
+        .and_then(|b| std::fs::metadata(b.join("resources.zip")).ok())
+        .map(|m| m.len());
+    log::info!(
+        "Horizon iOS: executable {exe:?}; resources.zip in the app: {}",
+        archive.map_or_else(|| "none".to_owned(), |n| format!("{} MB", n / 1_000_000))
+    );
+    let listing = |dir: &std::path::Path| -> String {
+        std::fs::read_dir(dir).map_or_else(
+            |e| format!("({e})"),
+            |entries| {
+                let mut names: Vec<String> = entries
+                    .filter_map(|e| e.ok())
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .collect();
+                names.sort();
+                names.join(", ")
+            },
+        )
+    };
+    if let Some(bundle) = &bundle {
+        log::info!("Horizon iOS: the app holds {}", listing(bundle));
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        log::info!("Horizon iOS: {} holds {}", cwd.display(), listing(&cwd));
+    }
+}
+
 /// Unpacks the app's `resources.zip` into `Documents/resources`, with a marker file naming the
 /// archive it came from.
 #[cfg(target_os = "ios")]
@@ -124,6 +162,8 @@ pub fn main_with(mods: crate::mod_api::Mods) {
         );
         // The log's first line names the build, so a bug report that carries the log says which one it was.
         log::info!("Horizon {}", crash::version());
+        #[cfg(target_os = "ios")]
+        ios_log_bundle();
         crash::install(home.clone(), side);
         ram_limit::start(&home, side);
     }

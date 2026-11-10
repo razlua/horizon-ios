@@ -547,7 +547,7 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
     ];
     // Only Windows and Linux have more than one graphics API, and translucent batching
     // (Metal draws flat).
-    if cfg!(target_os = "macos") {
+    if cfg!(target_vendor = "apple") {
         for (_, groups) in &mut pages {
             for (_, rows) in groups {
                 rows.retain(|r| {
@@ -3156,7 +3156,7 @@ mod tests {
             .into_iter()
             .find(|(_, i)| *i == item)
             .map(|(p, _)| p);
-        if cfg!(target_os = "macos") {
+        if cfg!(target_vendor = "apple") {
             // Metal draws flat: never offered, so not shown.
             assert_eq!(page, None);
             return;

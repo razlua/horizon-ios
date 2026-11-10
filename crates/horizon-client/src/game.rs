@@ -21480,6 +21480,17 @@ fn missing_resources(root: &std::path::Path) -> Option<String> {
         return None;
     }
     let shown = std::path::absolute(root).unwrap_or_else(|_| root.to_path_buf());
+    // iOS: the resources come inside the app (docs/ios.md), not from a launcher.
+    if cfg!(target_os = "ios") {
+        return Some(format!(
+            "Horizon's game files are missing: no horizon-resources.json in {}\n\
+             This copy of the app has no resources.zip inside it. Install Horizon.ipa, the large \
+             file (about 450 MB) that tools/ios/make-ipa.sh writes with your own game files, \
+             not Horizon-unsigned.ipa. Or copy the resources folder into On My iPhone > Horizon \
+             > resources with the Files app.",
+            shown.display()
+        ));
+    }
     Some(format!(
         "Horizon's prepared game files are missing: no horizon-resources.json in {}\n\
          Horizon is started from its launcher: download it at {} (Download). It needs your \
