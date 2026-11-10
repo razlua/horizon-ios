@@ -17094,6 +17094,20 @@ fn phone_window(attributes: winit::window::WindowAttributes) -> winit::window::W
     };
     attributes
 }
+/// iOS: a window always fills the screen. winit makes the window's frame the size asked for
+/// (`WindowAttributes::inner_size`), and the desktop's 1280 x 720 points is far larger than a
+/// phone's screen, which then shows the window's top-left corner only.
+trait ScreenSizeOnPhone {
+    fn with_screen_size_on_phone(self) -> Self;
+}
+impl ScreenSizeOnPhone for winit::window::WindowAttributes {
+    fn with_screen_size_on_phone(mut self) -> Self {
+        if cfg!(target_os = "ios") {
+            self.inner_size = None;
+        }
+        self
+    }
+}
 /// iOS: the app is in the background, where drawing ends the process. Set and cleared by the
 /// `Occluded` events of the window; nothing draws or ticks in between.
 static IN_BACKGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -17124,6 +17138,7 @@ impl ApplicationHandler for Game<'_> {
         let window = match event_loop.create_window(
             attributes
                 .with_inner_size(winit::dpi::LogicalSize::new(size[0], size[1]))
+                .with_screen_size_on_phone()
                 .with_fullscreen(fullscreen.then_some(winit::window::Fullscreen::Borderless(None)))
                 .with_visible(!self.options.offscreen),
         ) {
@@ -21092,6 +21107,7 @@ impl Loading {
         let window = match event_loop.create_window(
             attributes
                 .with_inner_size(winit::dpi::LogicalSize::new(size[0], size[1]))
+                .with_screen_size_on_phone()
                 .with_fullscreen(fullscreen.then_some(winit::window::Fullscreen::Borderless(None)))
                 .with_visible(!self.options.as_ref().is_some_and(|o| o.offscreen)),
         ) {
