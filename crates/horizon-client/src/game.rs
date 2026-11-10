@@ -335,6 +335,8 @@ mod titles;
 mod tnt;
 mod totem;
 mod touch;
+#[cfg(target_os = "ios")]
+pub mod ios_boot;
 mod trading;
 mod transient_blocks;
 mod trial_spawner;
@@ -21545,7 +21547,13 @@ fn run_loading(
         menu,
         error: None,
     };
-    let mut app = App::Loading(Box::new(loading));
+    let app = App::Loading(Box::new(loading));
+    // iOS, when the loop already runs (ios_boot.rs): it takes the app from here.
+    #[cfg(target_os = "ios")]
+    let Some(app) = ios_boot::hand_over(app) else {
+        return Ok(());
+    };
+    let mut app = app;
     let result = EventLoop::new()?.run_app(&mut app);
     narrator::stop();
     match &mut app {

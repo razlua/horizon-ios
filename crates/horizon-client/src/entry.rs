@@ -11,57 +11,68 @@ pub fn main() {
 /// crash reports) is `home` in it. The prepared resources are `resources` there: unpacked at the
 /// first start from the `resources.zip` the player added to the app (tools/ios/add-resources.py),
 /// or copied in with the Files app.
+///
+/// Returns the unpacking, when there is some to do: it takes too long to run before the event
+/// loop starts (`game::ios_boot`).
 #[cfg(target_os = "ios")]
-fn ios_folders() {
-    let Some(container) = std::env::var_os("HOME") else {
-        return;
-    };
+fn ios_folders() -> Option<Box<dyn FnOnce() + Send>> {
+    let container = std::env::var_os("HOME")?;
     let documents = std::path::Path::new(&container).join("Documents");
     let _ = std::fs::create_dir_all(&documents);
     let _ = std::env::set_current_dir(&documents);
     logging::set_game_home(documents.join("home"));
-    // Before the log opens: what went wrong is a file the Files app shows.
-    if let Err(e) = ios_unpack_resources(&documents) {
-        let _ = std::fs::write(
-            documents.join("ios-resources-error.txt"),
-            format!("Unpacking the game's resources failed: {e}
-"),
-        );
-    }
-}
-
-/// Unpacks the app's `resources.zip` into `Documents/resources`, once per archive: a marker
-/// file names the archive it came from, so an updated app unpacks again.
-#[cfg(target_os = "ios")]
-fn ios_unpack_resources(documents: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-    let exe = std::env::current_exe()?;
-    let archive = exe
-        .parent()
-        .ok_or("missing executable directory")?
-        .join("resources.zip");
-    let Ok(meta) = std::fs::metadata(&archive) else {
-        return Ok(());
-    };
+    let archive = std::env::current_exe().ok()?.parent()?.join("resources.zip");
+    let meta = std::fs::metadata(&archive).ok()?;
     let modified = meta
         .modified()
         .ok()
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map_or(0, |d| d.as_secs());
+    // Names the archive: an updated app unpacks again.
     let stamp = format!("{} {modified}", meta.len());
     let target = documents.join("resources");
-    let marker = target.join(".unpacked-from");
-    if std::fs::read_to_string(&marker).is_ok_and(|m| m == stamp) {
-        return Ok(());
+    if std::fs::read_to_string(target.join(".unpacked-from")).is_ok_and(|m| m == stamp) {
+        return None;
     }
+    Some(Box::new(move || {
+        let started = std::time::Instant::now();
+        match ios_unpack_resources(&archive, &documents, &stamp) {
+            Ok(()) => {
+                let _ = std::fs::remove_file(documents.join("ios-resources-error.txt"));
+                log::info!(
+                    "Horizon: unpacked the resources in {} ms",
+                    started.elapsed().as_millis()
+                );
+            }
+            // A file the Files app shows.
+            Err(e) => {
+                log::error!("Horizon: unpacking the resources failed: {e}");
+                let _ = std::fs::write(
+                    documents.join("ios-resources-error.txt"),
+                    format!("Unpacking the game's resources failed: {e}\n"),
+                );
+            }
+        }
+    }))
+}
+
+/// Unpacks the app's `resources.zip` into `Documents/resources`, with a marker file naming the
+/// archive it came from.
+#[cfg(target_os = "ios")]
+fn ios_unpack_resources(
+    archive: &std::path::Path,
+    documents: &std::path::Path,
+    stamp: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let target = documents.join("resources");
     // Into a folder of its own first: a start cut short leaves no half-filled `resources`.
     let staging = documents.join("resources.unpacking");
     let _ = std::fs::remove_dir_all(&staging);
-    let mut zip = zip::ZipArchive::new(std::io::BufReader::new(std::fs::File::open(&archive)?))?;
+    let mut zip = zip::ZipArchive::new(std::io::BufReader::new(std::fs::File::open(archive)?))?;
     zip.extract(&staging)?;
-    std::fs::write(staging.join(".unpacked-from"), &stamp)?;
+    std::fs::write(staging.join(".unpacked-from"), stamp)?;
     let _ = std::fs::remove_dir_all(&target);
     std::fs::rename(&staging, &target)?;
-    let _ = std::fs::remove_file(documents.join("ios-resources-error.txt"));
     Ok(())
 }
 
@@ -72,7 +83,7 @@ pub fn main_with(mods: crate::mod_api::Mods) {
         log::warn!("Trait mods already installed; ignoring the second list");
     }
     #[cfg(target_os = "ios")]
-    ios_folders();
+    let unpacking = ios_folders();
     horizon_threads::configure_allocator();
     horizon_client::telemetry::mark_start();
     horizon_client::spans::startup::init(std::time::Instant::now());
@@ -235,7 +246,14 @@ pub fn main_with(mods: crate::mod_api::Mods) {
         log::warn!("Native client hooks already installed; keeping the first callbacks");
     }
     raise_open_file_limit();
-    if let Err(error) = game::run_with() {
+    #[cfg(target_os = "ios")]
+    let ran = match unpacking {
+        Some(job) => game::ios_boot::run_after(job),
+        None => game::run_with(),
+    };
+    #[cfg(not(target_os = "ios"))]
+    let ran = game::run_with();
+    if let Err(error) = ran {
         // A bad command line is the caller's mistake, not a crash: no report.
         let usage = error.is::<game::UsageError>();
         log::error!("Horizon: {error}");
