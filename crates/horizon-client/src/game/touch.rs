@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use winit::event::{
     DeviceId, ElementState, MouseButton, MouseScrollDelta, Touch, TouchPhase, WindowEvent,
 };
-use winit::window::WindowId;
+use winit::window::{Window, WindowId};
 
 /// A press held this long without moving becomes a drag instead of a scroll.
 const HOLD: Duration = Duration::from_millis(220);
@@ -56,6 +56,8 @@ pub(super) struct Layout {
     pub slop: f32,
     /// Finger travel per scrolled line in a screen.
     pub line: f32,
+    /// The Esc button, top centre: shown in the world and in every screen.
+    pub escape: [f32; 4],
 }
 
 impl Layout {
@@ -87,11 +89,10 @@ impl Layout {
             key(col(1.0), row(0.0), u, Key::Pad(Button::RightStick), "Sneak"),
             key(col(0.0), row(1.0), u, Key::Trigger(0), "Use"),
             key(col(1.0), row(1.0), u, Key::Trigger(1), "Hit"),
-            key(top_col(0.0), top, small, Key::Pad(Button::Start), "II"),
-            key(top_col(1.0), top, small, Key::Pad(Button::North), "Inv"),
-            key(top_col(2.0), top, small, Key::Pad(Button::DPadRight), "Chat"),
-            key(top_col(3.0), top, small, Key::Pad(Button::East), "Drop"),
-            key(top_col(4.0), top, small, Key::Pad(Button::DPadUp), "Cam"),
+            key(top_col(0.0), top, small, Key::Pad(Button::North), "Inv"),
+            key(top_col(1.0), top, small, Key::Pad(Button::DPadRight), "Chat"),
+            key(top_col(2.0), top, small, Key::Pad(Button::East), "Drop"),
+            key(top_col(3.0), top, small, Key::Pad(Button::DPadUp), "Cam"),
             key(
                 w / 2.0 - hotbar_half,
                 hot_y,
@@ -113,6 +114,7 @@ impl Layout {
             stick_radius: u * 0.8,
             slop: u * 0.14,
             line: u * 0.35,
+            escape: [w / 2.0 - u * 0.4, u * 0.12, u * 0.8, u * 0.5],
         }
     }
     fn key_at(&self, at: [f32; 2]) -> Option<usize> {
@@ -135,6 +137,8 @@ pub(super) enum Out {
     Wheel(f32),
     /// Turn the view by this much grabbed-mouse motion.
     Look(f64, f64),
+    /// The Esc button: what Escape does where the player is (`pad_back`).
+    Escape,
 }
 
 impl Out {
@@ -160,9 +164,37 @@ impl Out {
                 delta: MouseScrollDelta::LineDelta(0.0, lines),
                 phase: TouchPhase::Moved,
             },
-            Out::Look(..) => return None,
+            Out::Look(..) | Out::Escape => return None,
         })
     }
+}
+
+/// A touch in the renderer's pixels. winit scales a touch by the view's content scale and the
+/// window's size by the screen's (iOS): where the two differ, a tap landed away from the button
+/// drawn under it. Elsewhere a touch is in the window's pixels already.
+pub(super) fn touch_pixels(window: &Window, surface: [u32; 2], touch: &Touch) -> [f64; 2] {
+    let at = [touch.location.x, touch.location.y];
+    if !cfg!(target_os = "ios") {
+        return at;
+    }
+    let outer = window.outer_size();
+    let ratio = |s: u32, o: u32| if o == 0 || s == 0 { 1.0 } else { f64::from(s) / f64::from(o) };
+    let (fx, fy) = (ratio(surface[0], outer.width), ratio(surface[1], outer.height));
+    static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        log::info!(
+            "Horizon iOS: touches scaled by {fx:.3} x {fy:.3} (view scale {}, window {}x{}, \
+             frame {}x{}); the first at {:.0}, {:.0}",
+            window.scale_factor(),
+            outer.width,
+            outer.height,
+            surface[0],
+            surface[1],
+            at[0],
+            at[1],
+        );
+    }
+    [at[0] * fx, at[1] * fy]
 }
 
 /// The layout for a window of `size` pixels, at the GUI scale the HUD draws it with.
@@ -182,6 +214,8 @@ enum Role {
     Stick,
     Look,
     Key(usize),
+    /// On the Esc button: nothing more until it lifts.
+    Escape,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -233,6 +267,11 @@ impl Controls {
             .map(|f| (f.start, f.last))
     }
 
+    /// Whether a finger is on the Esc button.
+    pub(super) fn escape_held(&self) -> bool {
+        self.fingers.iter().any(|f| f.role == Role::Escape)
+    }
+
     /// Whether the button at `index` of the layout is held.
     pub(super) fn key_held(&self, index: usize) -> bool {
         self.fingers.iter().any(|f| f.role == Role::Key(index))
@@ -272,7 +311,10 @@ impl Controls {
                 if let Some(i) = known {
                     self.lift(i, at, false, layout, &mut out);
                 }
-                let role = if world {
+                let role = if inside(layout.escape, [at[0] as f32, at[1] as f32]) {
+                    out.push(Out::Escape);
+                    Role::Escape
+                } else if world {
                     self.world_role(at, layout)
                 } else if self.fingers.is_empty() {
                     out.push(Out::Cursor(at));
@@ -346,7 +388,7 @@ impl Controls {
                     out.push(Out::Look(dx * LOOK_SCALE, dy * LOOK_SCALE));
                 }
             }
-            Role::Stick | Role::Second => {}
+            Role::Stick | Role::Second | Role::Escape => {}
         }
     }
 
@@ -428,7 +470,14 @@ impl Game<'_> {
         let Some(layout) = self.touch_layout() else {
             return;
         };
-        let at = [touch.location.x, touch.location.y];
+        let Some(window) = self.window.clone() else {
+            return;
+        };
+        let size = self.renderer.as_ref().map_or_else(
+            || window.inner_size().into(),
+            |r| [r.config.width, r.config.height],
+        );
+        let at = touch_pixels(&window, size, &touch);
         let world = self.touch_world();
         let outs = self
             .touch
@@ -443,6 +492,11 @@ impl Game<'_> {
                 (Out::Look(x, y), None) => {
                     if self.pending_save.is_none() && self.touch_world() {
                         self.mouse.add_motion(x, y);
+                    }
+                }
+                (Out::Escape, None) => {
+                    if let Err(e) = self.pad_back() {
+                        log::warn!("Horizon: Esc: {e}");
                     }
                 }
                 _ => {}
@@ -476,7 +530,7 @@ impl Game<'_> {
 
     /// The buttons and the stick over the HUD, while the fingers play the world.
     pub(super) fn draw_touch_controls(&mut self, batch: &mut HudBatch) {
-        if !Controls::enabled() || !self.touch_world() || self.ui.hide_gui {
+        if !Controls::enabled() {
             return;
         }
         let Some(layout) = self.touch_layout() else {
@@ -487,6 +541,28 @@ impl Game<'_> {
         let idle = rgba(255, 255, 255, 34);
         let down = rgba(255, 255, 255, 96);
         let edge = rgba(0, 0, 0, 70);
+        {
+            let [x, y, w, h] = layout.escape.map(|v| v / s);
+            batch.fill(atlas, x - 1.0, y - 1.0, w + 2.0, h + 2.0, edge);
+            let plate = if self.touch.escape_held() {
+                down
+            } else {
+                rgba(0, 0, 0, 90)
+            };
+            batch.fill(atlas, x, y, w, h, plate);
+            let tw = HudBatch::text_width(atlas, "Esc");
+            batch.text(
+                atlas,
+                "Esc",
+                x + (w - tw) / 2.0,
+                y + (h - 8.0) / 2.0,
+                rgba(255, 255, 255, 220),
+                true,
+            );
+        }
+        if !self.touch_world() || self.ui.hide_gui {
+            return;
+        }
         for (i, key) in layout.keys.iter().enumerate() {
             let [x, y, w, h] = key.rect.map(|v| v / s);
             batch.fill(atlas, x - 1.0, y - 1.0, w + 2.0, h + 2.0, edge);
@@ -552,9 +628,28 @@ mod tests {
                     let apart = x + w <= bx || bx + bw <= x || y + h <= by || by + bh <= y;
                     assert!(apart, "{a:?} overlaps {b:?} at {size:?}");
                 }
+                let [ex, ey, ew, eh] = l.escape;
+                let clear = x + w <= ex || ex + ew <= x || y + h <= ey || ey + eh <= y;
+                assert!(clear, "{a:?} overlaps Esc at {size:?}");
                 // The stick's area holds no button but the hotbar's, which a finger meets first.
                 assert!(!inside(l.stick_zone, [x + w / 2.0, y + h / 2.0]) || a.label == "<");
             }
+        }
+    }
+
+    #[test]
+    fn esc_works_in_the_world_and_in_screens_and_does_nothing_else() {
+        let (l, t0) = (layout(), Instant::now());
+        let [x, y, w, h] = l.escape;
+        let esc = [f64::from(x + w / 2.0), f64::from(y + h / 2.0)];
+        for world in [true, false] {
+            let mut c = Controls::default();
+            assert_eq!(c.touch(1, TouchPhase::Started, esc, t0, world, &l), [Out::Escape]);
+            assert!(c.escape_held());
+            let away = [esc[0] + 200.0, esc[1] + 200.0];
+            assert!(c.touch(1, TouchPhase::Moved, away, t0, world, &l).is_empty());
+            assert!(c.touch(1, TouchPhase::Ended, away, t0, world, &l).is_empty());
+            assert_eq!(c.poll(), PadState::default());
         }
     }
 

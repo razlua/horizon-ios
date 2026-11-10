@@ -21182,13 +21182,17 @@ impl Loading {
             if !touch::Controls::enabled() {
                 return;
             }
-            let Some(size) = self.window.as_ref().map(|w| w.inner_size().into()) else {
+            let Some(window) = self.window.clone() else {
                 return;
             };
+            let size = self.renderer.as_ref().map_or_else(
+                || window.inner_size().into(),
+                |r| [r.config.width, r.config.height],
+            );
             let outs = self.touch.touch(
                 touch.id,
                 touch.phase,
-                [touch.location.x, touch.location.y],
+                touch::touch_pixels(&window, size, &touch),
                 Instant::now(),
                 false,
                 &touch::layout_for(size),

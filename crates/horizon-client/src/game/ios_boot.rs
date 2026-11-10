@@ -459,7 +459,11 @@ impl ApplicationHandler for Boot {
                 ..
             } => self.click(event_loop),
             WindowEvent::Touch(touch) => {
-                self.pointer = (touch.location.x, touch.location.y);
+                let at = match &self.window {
+                    Some(window) => super::touch::touch_pixels(window, self.size(), &touch),
+                    None => [touch.location.x, touch.location.y],
+                };
+                self.pointer = (at[0], at[1]);
                 self.drawn = 0;
                 if touch.phase == TouchPhase::Ended {
                     self.click(event_loop);
