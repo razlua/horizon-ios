@@ -1790,6 +1790,7 @@ dependencies = [
  "libc",
  "libmimalloc-sys",
  "mimalloc",
+ "objc2 0.6.5",
  "windows-sys 0.61.2",
 ]
 

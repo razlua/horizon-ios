@@ -287,10 +287,7 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     }
     raise_open_file_limit();
     #[cfg(target_os = "ios")]
-    let ran = match unpacking {
-        Some(job) => game::ios_boot::run_after(job),
-        None => game::run_with(),
-    };
+    let ran = game::ios_boot::run_after(unpacking);
     #[cfg(not(target_os = "ios"))]
     let ran = game::run_with();
     if let Err(error) = ran {

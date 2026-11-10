@@ -97,6 +97,7 @@ pub mod native_client_hooks;
 pub mod native_data;
 pub mod net;
 pub mod nether_portal;
+pub mod ios_screen;
 pub mod no_resources;
 pub mod offline_name;
 pub mod old_world;

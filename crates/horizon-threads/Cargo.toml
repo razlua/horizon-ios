@@ -13,6 +13,10 @@ libmimalloc-sys = { version = "0.1.49", default-features = false, features = ["e
 [target.'cfg(any(target_vendor = "apple", target_os = "linux", target_os = "android"))'.dependencies]
 libc = "0.2"
 
+# iOS: opening a web page in Safari (ios_url.rs); already in the tree through winit and cpal.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Console", "Win32_System_IO", "Win32_System_Memory", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
 

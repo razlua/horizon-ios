@@ -336,6 +336,8 @@ mod tnt;
 mod totem;
 mod touch;
 #[cfg(target_os = "ios")]
+mod ios_account;
+#[cfg(target_os = "ios")]
 pub mod ios_boot;
 mod trading;
 mod transient_blocks;
@@ -565,6 +567,13 @@ impl Options {
                 .filter(|p| !p.is_empty())
                 .map(|path| horizon_client::auth::AuthSession::load(path.as_ref()))
                 .transpose()
+        };
+        #[cfg(target_os = "ios")]
+        let session = match session {
+            Ok(None) => ios_boot::take_session()
+                .map(|text| horizon_client::auth::AuthSession::parse(&text))
+                .transpose(),
+            other => other,
         };
         match session {
             Ok(Some(session)) => {
