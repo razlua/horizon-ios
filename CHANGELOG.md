@@ -9,6 +9,9 @@ All builds so far are based on upstream Horizon `6475f62`.
 
 ### Added
 
+- **Hotbar slot buttons** 1 to 9 in Edit HUD: a tap selects that slot.
+- **120 Hz** on ProMotion screens: the app asks iOS for the screen's highest frame rate (it stayed
+  at 60 without asking).
 - **Edit HUD**, on iOS in Quit Game's place on the main menu. You can move, add, remove and
   resize the touch buttons, and Reset brings back the defaults. Your layout is kept in
   `touch-controls.json`.
@@ -27,6 +30,9 @@ All builds so far are based on upstream Horizon `6475f62`.
 
 ### Fixed
 
+- **Chat did not send.** The iPhone keyboard's return key now sends the message (and runs
+  commands, confirms signs and screens) as Enter does.
+- **The controller's on-screen keyboard** opened over chat beside the iPhone's; it is off on iOS.
 - Servers behind a DNS redirect (an SRV record, as most hosted servers use) refused the
   connection: an iOS app can't read `/etc/resolv.conf`, so the redirect was never looked up. It
   is now asked of the system's resolver.

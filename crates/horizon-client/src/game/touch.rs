@@ -20,7 +20,6 @@ use std::time::{Duration, Instant};
 use winit::event::{
     DeviceId, ElementState, MouseButton, MouseScrollDelta, Touch, TouchPhase, WindowEvent,
 };
-use winit::keyboard::KeyCode;
 use winit::window::{Window, WindowId};
 
 /// A press held this long without moving becomes a drag instead of a scroll.
@@ -80,6 +79,15 @@ pub(super) const ACTIONS: &[Action] = &[
     action("advancements", "Adv", "Advancements", Key::Pad(Button::DPadDown)),
     action("player_list", "List", "Player list", Key::Pad(Button::Select)),
     action("command", "/", "Command (/)", Key::Keys(&["slash"])),
+    action("hotbar_1", "1", "Hotbar slot 1", Key::Keys(&["1"])),
+    action("hotbar_2", "2", "Hotbar slot 2", Key::Keys(&["2"])),
+    action("hotbar_3", "3", "Hotbar slot 3", Key::Keys(&["3"])),
+    action("hotbar_4", "4", "Hotbar slot 4", Key::Keys(&["4"])),
+    action("hotbar_5", "5", "Hotbar slot 5", Key::Keys(&["5"])),
+    action("hotbar_6", "6", "Hotbar slot 6", Key::Keys(&["6"])),
+    action("hotbar_7", "7", "Hotbar slot 7", Key::Keys(&["7"])),
+    action("hotbar_8", "8", "Hotbar slot 8", Key::Keys(&["8"])),
+    action("hotbar_9", "9", "Hotbar slot 9", Key::Keys(&["9"])),
     action("f1", "F1", "F1 Hide HUD", Key::Keys(&["f1"])),
     action("f2", "F2", "F2 Screenshot", Key::Keys(&["f2"])),
     action("f3", "F3", "F3 Debug screen", Key::Keys(&["f3"])),
@@ -758,11 +766,13 @@ impl Game<'_> {
     }
 
     /// iOS: the system keyboard's return key, which types a line break the game's fields don't
-    /// take: Enter (sends a chat line, confirms a screen), and the keyboard goes away.
-    pub(super) fn keyboard_return(&mut self) {
+    /// take: Enter, as the keyboard's would be (it sends a chat line, runs a command, confirms a
+    /// sign or a screen), and the keyboard goes away. Over the title, with no world, the screens
+    /// have their Done buttons: the keyboard goes away only.
+    pub(super) fn keyboard_return(&mut self, event_loop: &dyn EventLoopCtl) {
         self.touch.keyboard_hidden = true;
-        if let Err(e) = self.key_pressed(KeyCode::Enter, KeyCode::Enter) {
-            log::warn!("Horizon: Enter: {e}");
+        if self.title.is_none() && self.player.is_some() {
+            self.replay_line("key enter tap", event_loop);
         }
         self.sync_ime();
     }

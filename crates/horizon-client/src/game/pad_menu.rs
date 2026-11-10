@@ -1355,6 +1355,11 @@ impl Game<'_> {
     /// Steam's on a Steam Deck (`steam://open/keyboard`, which types into
     /// the window like a real keyboard).
     fn pad_open_keyboard(&mut self) {
+        // iOS types with the system keyboard (ime.rs): the touch buttons are a pad, and this one
+        // opened over chat beside it.
+        if cfg!(target_os = "ios") {
+            return;
+        }
         // Without xdg-open (macOS, Windows), Horizon's keyboard instead.
         if gamepad::steam_keyboard(self.settings.controller.keyboard)
             && std::process::Command::new("xdg-open")

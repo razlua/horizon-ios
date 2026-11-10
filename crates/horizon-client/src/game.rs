@@ -17184,7 +17184,7 @@ impl ApplicationHandler for Game<'_> {
             && matches!(&key.logical_key, winit::keyboard::Key::Character(c) if c == "\n" || c == "\r")
         {
             if key.state == ElementState::Pressed {
-                self.keyboard_return();
+                self.keyboard_return(event_loop);
             }
             return;
         }

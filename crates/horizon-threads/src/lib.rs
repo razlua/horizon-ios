@@ -5,6 +5,8 @@
 #[cfg(target_os = "windows")]
 pub mod boot_paint;
 #[cfg(target_os = "ios")]
+pub mod ios_display;
+#[cfg(target_os = "ios")]
 pub mod ios_url;
 pub mod capped;
 pub mod heap_census;
