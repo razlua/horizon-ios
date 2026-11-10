@@ -27,6 +27,9 @@ All builds so far are based on upstream Horizon `6475f62`.
 
 ### Fixed
 
+- Servers behind a DNS redirect (an SRV record, as most hosted servers use) refused the
+  connection: an iOS app can't read `/etc/resolv.conf`, so the redirect was never looked up. It
+  is now asked of the system's resolver.
 - **Crash with improved transparency.** Turning it on ended the game on iOS GPUs, which can't
   blend the texture format it uses. On those GPUs the option now does nothing.
 - **Black screen.** The renderer looked for Vulkan and OpenGL instead of Metal.

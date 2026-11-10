@@ -90,6 +90,62 @@ pub(super) fn query_srv(
     None
 }
 
+/// iOS: the system resolver asks (libresolv's `res_query`), with the name servers and the search
+/// rules the system has; the answer is parsed as one from a name server would be.
+#[cfg(target_os = "ios")]
+pub(super) fn query_srv_system(name: &str) -> Option<(String, u16)> {
+    let reply = system::query(name, TYPE_SRV)?;
+    let id = u16::from_be_bytes([*reply.first()?, *reply.get(1)?]);
+    match parse_reply(id, &reply) {
+        Reply::Answer(srv) => srv,
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "ios")]
+#[allow(unsafe_code)]
+mod system {
+    use std::ffi::{CString, c_char, c_int};
+    use std::sync::Mutex;
+
+    // `res_query` in <resolv.h>, which names it `res_9_query`.
+    #[link(name = "resolv")]
+    unsafe extern "C" {
+        fn res_9_query(
+            dname: *const c_char,
+            class: c_int,
+            kind: c_int,
+            answer: *mut u8,
+            anslen: c_int,
+        ) -> c_int;
+    }
+
+    /// `res_query` keeps its state in a process global: one question at a time (the server
+    /// list pings its servers on threads of their own).
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+    /// The raw reply to a question of `kind` (class IN) about `name`.
+    pub(super) fn query(name: &str, kind: u16) -> Option<Vec<u8>> {
+        let name = CString::new(name).ok()?;
+        let mut answer = vec![0u8; 4096];
+        let _guard = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: `name` is a NUL-terminated string that outlives the call, `answer` holds the
+        // length passed, and the global state the call uses is held by `_guard`.
+        let len = unsafe {
+            res_9_query(
+                name.as_ptr(),
+                1,
+                c_int::from(kind),
+                answer.as_mut_ptr(),
+                answer.len() as c_int,
+            )
+        };
+        let len = usize::try_from(len).ok()?;
+        answer.truncate(len.min(4096));
+        Some(answer)
+    }
+}
+
 fn ask_udp(server: SocketAddr, query: &[u8], timeout: Duration) -> Option<Vec<u8>> {
     let local: SocketAddr = if server.is_ipv4() {
         ([0, 0, 0, 0], 0).into()

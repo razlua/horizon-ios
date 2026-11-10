@@ -287,6 +287,12 @@ impl Connection {
         timeout: Duration,
     ) -> Result<(Self, String, u16)> {
         let resolved = crate::resolver::resolve(host, port)?;
+        log::info!(
+            "Horizon: connecting to {host}:{port} -> {}:{} {:?}",
+            resolved.host,
+            resolved.port,
+            resolved.addresses
+        );
         let connection = Self::connect_addresses(host, resolved.addresses, timeout)?;
         Ok((connection, resolved.host, resolved.port))
     }
