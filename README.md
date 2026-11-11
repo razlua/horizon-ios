@@ -59,9 +59,9 @@ What you need:
 
 Steps:
 
-1. **Get the app.** Download `Horizon-ios-unsigned` from the latest successful
-   [iOS workflow run](../../actions/workflows/ios.yml). It holds `Horizon-unsigned.ipa`, about
-   30 MB.
+1. **Get the app.** Download `Horizon-unsigned.ipa` (about 30 MB) from the latest
+   [release](../../releases/latest). Newer builds are also on each
+   [iOS workflow run](../../actions/workflows/ios.yml), as `Horizon-ios-unsigned`.
 2. **Add your game files** on the computer. The prepared folder is the one holding
    `horizon-resources.json`, usually
    `<launcher data>/versions/<version>/.local/horizon-client/26.3`. Run:
