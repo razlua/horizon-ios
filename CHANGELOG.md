@@ -12,6 +12,9 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
 
 ### Added
 
+- **Simple Voice Chat, listening.** On servers with Simple Voice Chat you hear the players who
+  use it, from where they stand. The engine is Horizon's voicechat native mod's (an unofficial
+  client), built into the app with Opus 1.5.2 linked in. The microphone is never opened.
 - **Accounts.** Several Microsoft accounts. The start screen lists them before the game: tap one
   to play as it, **Add account**, **Remove an account**, or **Play offline**. An account saved by
   an earlier build carries over.

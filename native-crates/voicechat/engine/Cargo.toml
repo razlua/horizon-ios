@@ -1,0 +1,16 @@
+[package]
+name = "voicechat-engine"
+version = "1.0.0"
+edition = "2024"
+license = "MIT"
+description = "An unofficial Simple Voice Chat protocol client for Horizon: protocol, Opus and audio"
+publish = false
+
+# Only crates in Horizon's Cargo.lock, by version requirement.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(opus_linked)"] }
+
+[dependencies]
+cpal = "0.16"
+libloading = "0.8"
+ring = "0.17"

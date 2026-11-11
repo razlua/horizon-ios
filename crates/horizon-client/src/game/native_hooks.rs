@@ -2050,6 +2050,11 @@ impl Game<'_> {
     }
     /// Once a frame, in a world or not, after Horizon's extras.
     pub(super) fn native_frame(&mut self, elapsed: Duration) {
+        // Off a server (the title, single player, a lost connection): Simple Voice Chat hangs up.
+        let on_server = self.remote.as_ref().is_some_and(|r| r.joined);
+        if !on_server || !self.native_on(voicechat_engine::ID) {
+            voicechat_engine::tick(None, &|_| None);
+        }
         mod_api::dispatch_frame(self, mod_api::mods(), elapsed);
     }
     /// Client-side evaluation of a mod's namespaced conditional item model property.

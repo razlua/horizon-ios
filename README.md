@@ -38,6 +38,10 @@ rewrite of Minecraft: Java Edition 26.3, to iPhone and iPad. You sideload it you
 - **Clipboard.** Copy and paste work with other apps. iOS asks before the game reads what you
   copied.
 - **120 Hz** on ProMotion screens.
+- **Simple Voice Chat, listening.** On servers with the Simple Voice Chat plugin or mod, you hear
+  the players who use it, from where they stand. The iPhone doesn't send your voice: it never
+  opens the microphone. The client is unofficial (Horizon's voicechat native mod's engine) and
+  not affiliated with Simple Voice Chat.
 - **Your files in the Files app.** Saves, options, resource packs and logs are under
   *On My iPhone → Horizon*.
 - **Pausing in the background.** The game pauses and saves when you leave the app.
@@ -114,6 +118,8 @@ the app deletes them.
 
 - **Controllers.** A paired game controller is not read yet.
 - **Narrator.** There is no text-to-speech.
+- **Voice chat, talking.** You can hear Simple Voice Chat but not speak, and its menu (V on a
+  keyboard) isn't on the touch controls.
 - **Screen edges.** The game draws edge to edge, so part of it can sit under the Dynamic Island,
   the notch or the home indicator. Edit HUD can move the touch buttons away from them.
 - **Missing launcher features.** Native Rust mods, the mod browser, modpacks and server hosting

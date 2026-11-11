@@ -751,6 +751,54 @@ impl Game<'_> {
         }
     }
     /// Position of an entity `ClientboundSoundEntityPacket` names.
+    /// Each client tick on a server: where the player and the other players are for Simple
+    /// Voice Chat (an unofficial client: native-crates/voicechat/engine), then the payloads it has
+    /// for the server, its settings and its chat lines. The voices play on its own threads.
+    fn tick_voice_chat(&mut self) {
+        use voicechat_engine as vc;
+        let Some(r) = self.remote.as_ref() else {
+            return;
+        };
+        if !self.native_on(vc::ID) || !r.joined || r.reconfiguring.is_some() {
+            vc::tick(None, &|_| None);
+            return;
+        }
+        let address = r.session.address.clone();
+        let players: Vec<(u128, [f64; 3])> = r
+            .level_players
+            .iter()
+            .filter_map(|(&id, &uuid)| {
+                let [x, y, z] = self.remote_entity_position(id)?;
+                Some((uuid, [x, y + vc::EYE_HEIGHT, z]))
+            })
+            .collect();
+        let listener = self.native_player().map(|p| vc::mix::Listener {
+            eye: [p.x, p.y + vc::EYE_HEIGHT, p.z],
+            yaw: p.yaw,
+        });
+        let world = vc::World {
+            address: &address,
+            listener,
+            players,
+            redirect: horizon_protocol::server_redirect,
+        };
+        let done = {
+            let game = &*self;
+            vc::tick(Some(world), &|key| game.native_setting(vc::ID, key))
+        };
+        for (channel, data) in done.payloads {
+            self.send(horizon_protocol::packets::play::Serverbound::CustomPayload(
+                horizon_protocol::packets::configuration::CustomPayload { channel, data },
+            ));
+        }
+        for (key, value) in done.store {
+            self.native_set_setting(vc::ID, &key, &value);
+        }
+        for line in done.chat {
+            self.native_chat(&line);
+        }
+    }
+
     fn remote_entity_position(&self, id: i32) -> Option<[f64; 3]> {
         let r = self.remote.as_ref()?;
         let player = self
@@ -3039,6 +3087,10 @@ impl Game<'_> {
     }
 
     fn handle_packet(&mut self, packet: C) -> Result<()> {
+        // Simple Voice Chat's payloads go to the voice chat (the game ignores them either way).
+        if let C::CustomPayload(p) = &packet {
+            voicechat_engine::payload(&p.channel, &p.data);
+        }
         match packet {
             // ClientCommonPacketListenerImpl.handlePing runs on the game
             // thread, after all preceding packets (especially teleports).
@@ -5763,6 +5815,7 @@ impl Game<'_> {
 
     /// One client tick while connected (Minecraft.tick with a ClientLevel).
     pub(super) fn tick_remote(&mut self) -> Result<()> {
+        self.tick_voice_chat();
         self.tick_remote_level()?;
         // The rockets boosting this player tick after it, also while it waits
         // for chunks.

@@ -31,6 +31,8 @@ redstone, multiplayer and so on) comes from upstream.
 - [x] Pausing and saving when the app leaves the screen.
 - [x] Your files in the Files app.
 - [x] Servers behind an SRV redirect can be joined.
+- [x] **Simple Voice Chat, listening.** Hearing the players who use Simple Voice Chat, through
+      Horizon's voicechat engine, with Opus linked into the app. No microphone.
 - [x] Improved transparency no longer crashes on iOS GPUs.
 
 ## Next
@@ -47,6 +49,8 @@ Nothing is queued right now: the items above were the last Next list. Suggestion
 - [ ] **Game controllers.** Read paired controllers through Apple's GameController framework.
       `gilrs` has no iOS backend, and the virtual pad already takes their input.
 - [ ] **Narrator.** Text-to-speech through `AVSpeechSynthesizer`.
+- [ ] **Voice chat, talking.** The microphone, push to talk, and the voice chat's menu on the
+      touch controls.
 
 ## Not planned
 
