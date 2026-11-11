@@ -30,6 +30,18 @@ unsafe extern "C" {
     static NSRunLoopCommonModes: *mut AnyObject;
 }
 
+/// Keeps the screen on (`UIApplication.idleTimerDisabled`), or lets it sleep again. Call it on
+/// the main thread.
+pub fn keep_awake(on: bool) {
+    // SAFETY: UIKit's documented property on the shared application, on the main thread.
+    unsafe {
+        let app: *mut AnyObject = msg_send![class!(UIApplication), sharedApplication];
+        if !app.is_null() {
+            let _: () = msg_send![app, setIdleTimerDisabled: objc2::runtime::Bool::new(on)];
+        }
+    }
+}
+
 /// Asks for the screen's highest frame rate, once. Call it on the main thread. The rate the
 /// system picked, or `None` when it could not be asked.
 pub fn high_frame_rate() -> Option<i64> {

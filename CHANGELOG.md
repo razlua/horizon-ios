@@ -3,6 +3,17 @@
 The iOS port's changes, newest first. Upstream Horizon's own release notes are at
 [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/releases).
 
+## Next
+
+### Added
+
+- **No computer needed.** The 30 MB app downloads the game files itself after a Microsoft sign-in:
+  your Minecraft 26.3 from Mojang (about 520 MB), checked against Mojang's checksums, and
+  Horizon's tables from this repository's `tables-6475f62` release (no Minecraft files in it),
+  checked against the SHA-256 in the app. A progress bar shows the download, the screen stays on,
+  and an interrupted download goes on where it stopped. The result is the same as a computer's
+  preparation, file for file (all 28,166 files compared).
+
 ## 2026-11-11
 
 ### Removed

@@ -10,6 +10,10 @@ redstone, multiplayer and so on) comes from upstream.
       as an unsigned `.ipa`.
 - [x] Drawing with Metal, in a window that fills the screen, sideways only, at up to 120 Hz on
       ProMotion screens.
+- [x] **No computer needed for the game files.** After a Microsoft sign-in the app downloads
+      the player's own Minecraft from Mojang and combines it with Horizon's published tables (the
+      part that needs Java, worked out once), as upstream issue #1750 proposes. The result is the
+      same as a computer's preparation, file for file.
 - [x] Your own game files added to the app on your computer, never uploaded. The app unpacks
       them on its first launch, beside the event loop, so iOS doesn't kill a slow start.
 - [x] A start screen from the first frame, with a progress bar while the first launch unpacks.
@@ -41,8 +45,6 @@ Nothing is queued right now: the items above were the last Next list. Suggestion
 
 ## Later
 
-- [ ] **No computer needed.** Prepare the game files on the device. This needs upstream's
-      "preparing without Java" work (upstream issue #1750).
 - [ ] **iPad.** Pointer and keyboard support and Split View sizes. The maintainer doesn't own
       an iPad and can't test this. If you'd like to volunteer, DM `4rnz` on Discord.
 - [ ] **Updates in the app.** Show when a newer build exists.

@@ -59,9 +59,22 @@ enum Account {
     Offline,
 }
 
+/// The on-device setup of the game files (ios_setup.rs), when the app carries none.
+#[derive(Clone, Debug, PartialEq)]
+enum Setup {
+    /// The files are there (prepared, or unpacked from the app).
+    NotNeeded,
+    /// Waiting for a Microsoft sign-in: the files come with an account that owns the game.
+    Waiting,
+    Running,
+    Failed(String),
+    Done,
+}
+
 /// What the threads and the screen share.
 struct Shared {
     unpacking: bool,
+    setup: Setup,
     account: Account,
     /// The saved accounts, the one played last first.
     accounts: Vec<ios_account::Saved>,
@@ -204,14 +217,19 @@ struct Boot {
     hidden: bool,
     app: Option<App>,
     failed: bool,
+    /// The setup's downloads.
+    progress: Arc<super::ios_setup::Progress>,
+    /// The screen is kept on (while the setup downloads).
+    awake: bool,
 }
 
-/// Opens the event loop, unpacks (`job`) and signs in beside it, and starts the game when both
-/// are done.
-pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>) -> super::Result<()> {
+/// Opens the event loop, unpacks (`job`) or sets the game files up (`setup`) and signs in beside
+/// it, and starts the game when both are done.
+pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::Result<()> {
     let accounts = ios_account::saved();
     let first = accounts.is_empty();
     let state: State = Arc::new(Mutex::new(Shared {
+        setup: if setup { Setup::Waiting } else { Setup::NotNeeded },
         unpacking: job.is_some(),
         account: Account::Choose { removing: false },
         accounts,
@@ -243,6 +261,8 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>) -> super::Result<()> {
         hidden: false,
         app: None,
         failed: false,
+        progress: Arc::default(),
+        awake: false,
     };
     EventLoop::new()?.run_app(&mut boot)?;
     Ok(())
@@ -347,7 +367,78 @@ impl Boot {
                 screen.status = unpacking.or(Some("Starting...".into()));
             }
         }
+        // The game files' setup takes the screen once it runs, or when it can't yet.
+        use std::sync::atomic::Ordering::Relaxed;
+        match (&shared.setup, &shared.account) {
+            (Setup::Running | Setup::Waiting, Account::Signed { .. }) => {
+                let (done, total) = (self.progress.done.load(Relaxed), self.progress.total.load(Relaxed));
+                let stage = self.progress.stage.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                screen.title = "Getting the game files".into();
+                screen.lines = vec![
+                    "Horizon downloads your Minecraft 26.3 from Mojang (about 520 MB) and its own \
+                     tables, and sets them up. This happens once. Keep Horizon open, on Wi-Fi."
+                        .into(),
+                ];
+                screen.code = None;
+                screen.buttons.clear();
+                screen.status = Some(if total > 0 {
+                    format!("{stage}: {} of {} MB", done / 1_000_000, total / 1_000_000)
+                } else {
+                    format!("{stage}...")
+                });
+                screen.progress = Some(if total > 0 { done as f32 / total as f32 } else { 0.0 });
+            }
+            (Setup::Failed(why), _) => {
+                screen.title = "The download stopped".into();
+                screen.lines = vec![why.clone(), "Try again goes on where it stopped.".into()];
+                screen.code = None;
+                screen.buttons = vec![button("Try again", Action::RetrySetup, Look::Primary)];
+                screen.status = None;
+                screen.progress = None;
+            }
+            (Setup::Waiting, Account::Offline) => {
+                screen.title = "Sign in once first".into();
+                screen.lines = vec![
+                    "Horizon downloads the game files from Mojang with a Microsoft account that \
+                     owns Minecraft: Java Edition. Sign in once; after that you can play offline \
+                     too."
+                        .into(),
+                ];
+                screen.buttons = vec![button("Sign in", Action::Back, Look::Primary)];
+                screen.status = None;
+            }
+            _ => {}
+        }
         screen
+    }
+
+    /// Starts the game files' setup (ios_setup.rs) on a thread of its own.
+    fn start_setup(&self) {
+        use std::sync::atomic::Ordering::Relaxed;
+        update(&self.state, |s| s.setup = Setup::Running);
+        self.progress.done.store(0, Relaxed);
+        self.progress.total.store(0, Relaxed);
+        self.progress.cancel.store(false, Relaxed);
+        let (state, progress) = (self.state.clone(), self.progress.clone());
+        spawn("Game files", move || {
+            let resources = std::env::current_dir()
+                .map(|d| d.join("resources"))
+                .unwrap_or_else(|_| "resources".into());
+            let work = std::env::var_os("HOME")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_default()
+                .join("Library/Caches/horizon-setup");
+            let result = super::ios_setup::run(&resources, &work, &progress);
+            if let Err(e) = &result {
+                log::warn!("Horizon setup: {e}");
+            }
+            update(&state, |s| {
+                s.setup = match result {
+                    Ok(()) => Setup::Done,
+                    Err(e) => Setup::Failed(e),
+                }
+            });
+        });
     }
 
     fn with_ui<R>(
@@ -446,9 +537,16 @@ impl Boot {
             }
             Action::Back => {
                 let accounts = ios_account::saved();
-                begin_attempt(&state, Account::Choose { removing: false });
-                update(&state, |s| s.accounts = accounts);
+                if accounts.is_empty() {
+                    // Nothing to go back to: a new sign-in.
+                    let attempt = begin_attempt(&state, Account::Asking);
+                    spawn("Sign-in", move || sign_in_new(state, attempt));
+                } else {
+                    begin_attempt(&state, Account::Choose { removing: false });
+                    update(&state, |s| s.accounts = accounts);
+                }
             }
+            Action::RetrySetup => self.start_setup(),
             Action::Offline => {
                 begin_attempt(&state, Account::Offline);
             }
@@ -462,7 +560,7 @@ impl Boot {
     /// The game can start: unpacked, and signed in or offline. Its session, if any.
     fn ready(&self) -> Option<Option<String>> {
         let shared = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        if shared.unpacking {
+        if shared.unpacking || !matches!(shared.setup, Setup::NotNeeded | Setup::Done) {
             return None;
         }
         match &shared.account {
@@ -601,12 +699,28 @@ impl ApplicationHandler for Boot {
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
+        // Signed in with the files still to come: the setup starts.
+        let (waiting, running) = {
+            let shared = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            (
+                shared.setup == Setup::Waiting && matches!(shared.account, Account::Signed { .. }),
+                shared.setup == Setup::Running,
+            )
+        };
+        if waiting {
+            self.start_setup();
+        }
+        if running != self.awake {
+            self.awake = running;
+            horizon_threads::ios_display::keep_awake(running);
+        }
         if let Some(session) = self.ready() {
             return self.start(event_loop, session);
         }
-        // The unpacking's progress draws again too.
+        // The unpacking's and the setup's progress draw again too.
         let version = self.state.lock().unwrap_or_else(|e| e.into_inner()).version
-            + UNPACKED[0].load(std::sync::atomic::Ordering::Relaxed) as u64;
+            + UNPACKED[0].load(std::sync::atomic::Ordering::Relaxed) as u64
+            + self.progress.done.load(std::sync::atomic::Ordering::Relaxed) / 1_000_000;
         if version != self.drawn && !self.hidden {
             self.drawn = version;
             if let Some(window) = &self.window {

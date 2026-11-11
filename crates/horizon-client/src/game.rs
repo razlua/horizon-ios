@@ -340,6 +340,7 @@ mod touch_editor;
 mod ios_account;
 #[cfg(target_os = "ios")]
 pub mod ios_boot;
+mod ios_setup;
 mod trading;
 mod transient_blocks;
 mod trial_spawner;

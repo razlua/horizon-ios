@@ -22,6 +22,8 @@ pub enum Action {
     Remove(usize),
     /// Back to the account list.
     Back,
+    /// Start the game files' download again (it goes on where it stopped).
+    RetrySetup,
 }
 
 /// How a button looks.

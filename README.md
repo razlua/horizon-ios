@@ -52,33 +52,39 @@ What you need:
 
 - **An iPhone or iPad** with iOS 16 or later. Developer Mode must be on (*Settings → Privacy &
   Security → Developer Mode*).
-- **A computer** with the [Horizon launcher](https://playhorizon.dev) that has prepared a game
-  version, or the prepared resources folder copied from one.
+- **A Microsoft account that owns Minecraft: Java Edition.**
 - **A sideloading tool** such as [Sideloadly](https://sideloadly.io) or
   [AltStore](https://altstore.io), and your own Apple ID.
 
 Steps:
 
 1. **Get the app.** Download `Horizon-unsigned.ipa` (about 30 MB) from the latest
-   [release](../../releases/latest). Newer builds are also on each
-   [iOS workflow run](../../actions/workflows/ios.yml), as `Horizon-ios-unsigned`.
-2. **Add your game files** on the computer. The prepared folder is the one holding
-   `horizon-resources.json`, usually
-   `<launcher data>/versions/<version>/.local/horizon-client/26.3`. Run:
-
-   ```sh
-   python tools/ios/add-resources.py Horizon-unsigned.ipa "<prepared folder>" Horizon.ipa
-   ```
-
-   The resulting `Horizon.ipa` (about 450 MB) contains your own copy of the game's files. It is
-   for your device only, so **do not share it**.
-3. **Sideload `Horizon.ipa`** with your tool.
-4. **Trust your profile** on the phone: *Settings → General → VPN & Device Management → your
+   [release](../../releases/latest).
+2. **Sideload it** with your tool.
+3. **Trust your profile** on the phone: *Settings → General → VPN & Device Management → your
    Apple ID → Trust*. The phone needs internet for this, and a VPN or DNS filter can block it.
-5. **Open Horizon.** The first launch unpacks the game files, then shows the sign-in.
+4. **Open Horizon and sign in** with Microsoft. The first time, the app downloads your
+   Minecraft 26.3 from Mojang (about 520 MB) and Horizon's tables, and sets them up. Stay on
+   Wi-Fi with Horizon open. After that it starts straight away, offline too.
 
 With a free Apple ID, the app has to be signed again every 7 days, and you can have at most 3
 sideloaded apps at once.
+
+### How the game files get there
+
+Horizon's preparation runs a few of Mojang's own Java classes to work out data tables (blocks,
+entities, collision, world generation), and a phone can't run Java. Those tables are the same for
+everyone on a version, so they are worked out once and published in this repository's
+`tables-<revision>` release. That release holds **none of Minecraft's files**: no textures,
+sounds, models or languages. The app downloads all of those from Mojang, after a sign-in with an
+account that owns the game, and checks every file against Mojang's checksum and the tables
+against the SHA-256 built into the app. The folder it makes is the same, file for file, as a
+computer's preparation.
+
+You can still add the game files on a computer instead: run
+`python tools/ios/add-resources.py Horizon-unsigned.ipa "<prepared folder>" Horizon.ipa` with
+the folder the [Horizon launcher](https://playhorizon.dev) prepared, and sideload `Horizon.ipa`.
+That app holds your game files, so don't share it.
 
 ## Controls
 
