@@ -22,8 +22,8 @@ redstone, multiplayer and so on) comes from upstream.
 - [x] An Esc button.
 - [x] Edit HUD: move, add, remove, resize and reset buttons. Buttons can press hotbar slots 1 to
       9, F1, F2, F3, the F3 combinations and `/`.
-- [x] **Edit HUD extras.** Button opacity, moving and resizing the stick area, moving the Esc
-      button, and three saved layouts.
+- [x] **Edit HUD extras.** Moving and resizing the stick area, moving the Esc button, and three
+      saved layouts.
 - [x] The iPhone keyboard opens on a tap on a text box and closes with return or a tap anywhere
       else. Return sends chat. The controller's on-screen keyboard is off.
 - [x] Chat's own Tab, Paste and Enter buttons, and tapping chat's line to type again.

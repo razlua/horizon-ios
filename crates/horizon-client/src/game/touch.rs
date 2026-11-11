@@ -204,9 +204,9 @@ fn parse_layout(value: &serde_json::Value, defaults: &HudLayout) -> Option<HudLa
         buttons: parse_buttons(&value["buttons"]),
         stick: numbers(&value["stick"]).unwrap_or(defaults.stick),
         esc: numbers(&value["esc"]).unwrap_or(defaults.esc),
-        opacity: value["opacity"]
-            .as_f64()
-            .map_or(defaults.opacity, |v| (v as f32).clamp(0.2, 1.0)),
+        // Edit HUD no longer sets it (its Fainter and Bolder took the screen): full, whatever an
+        // earlier build saved.
+        opacity: defaults.opacity,
     })
 }
 
@@ -1106,9 +1106,6 @@ impl Game<'_> {
             };
             let label = match tool {
                 Tool::Layout => format!("Layout {}", editor.active + 1),
-                Tool::Fainter | Tool::Bolder => {
-                    format!("{label} {}%", (layout.opacity * 100.0).round())
-                }
                 _ => label.to_owned(),
             };
             plate(batch, r, fill, &label);

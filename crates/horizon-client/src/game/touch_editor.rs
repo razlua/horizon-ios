@@ -1,6 +1,6 @@
 //! Edit HUD (the iOS build's title, in Quit Game's place): the player moves, adds, removes and
 //! resizes the touch buttons (touch.rs), moves and resizes the move stick's area, moves the Esc
-//! button, sets how opaque the buttons are, and keeps up to three layouts. They are kept in
+//! button, and keeps up to three layouts. They are kept in
 //! `touch-controls.json` in the game folder.
 //!
 //! The logic is plain data in and out, as in touch.rs: `Editor::touch` takes a finger in window
@@ -16,21 +16,17 @@ pub(super) enum Tool {
     Remove,
     Smaller,
     Bigger,
-    Fainter,
-    Bolder,
     /// The next of the saved layouts.
     Layout,
     Reset,
     Done,
 }
 
-pub(super) const TOOLS: [(Tool, &str); 9] = [
+pub(super) const TOOLS: [(Tool, &str); 7] = [
     (Tool::Add, "Add"),
     (Tool::Remove, "Remove"),
     (Tool::Smaller, "Smaller"),
     (Tool::Bigger, "Bigger"),
-    (Tool::Fainter, "Fainter"),
-    (Tool::Bolder, "Bolder"),
     (Tool::Layout, "Layout"),
     (Tool::Reset, "Reset"),
     (Tool::Done, "Done"),
@@ -48,7 +44,6 @@ pub(super) enum Sel {
 const NEW_SIZE: f32 = 0.11;
 const MIN_SIZE: f32 = 0.06;
 const MAX_SIZE: f32 = 0.30;
-const MIN_OPACITY: f32 = 0.2;
 
 fn inside([x, y, w, h]: [f32; 4], [px, py]: [f32; 2]) -> bool {
     px >= x && px < x + w && py >= y && py < y + h
@@ -291,10 +286,6 @@ impl Editor {
                     Some(Sel::Esc) | None => {}
                 }
             }
-            Tool::Fainter | Tool::Bolder => {
-                let step = if tool == Tool::Bolder { 0.15 } else { -0.15 };
-                layout.opacity = (layout.opacity + step).clamp(MIN_OPACITY, 1.0);
-            }
             Tool::Layout => {
                 self.active = (self.active + 1) % self.layouts.len().max(1);
                 self.selected = None;
@@ -417,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn add_remove_resize_opacity_reset_and_done() {
+    fn add_remove_resize_reset_and_done() {
         let defaults = layout(vec![button("jump", 0.9, 0.9)]);
         let mut e = Editor::new(slots(&[], &defaults), 0);
         e.touch(1, TouchPhase::Started, tool(Tool::Add), SIZE, &defaults);
@@ -438,10 +429,6 @@ mod tests {
         e.touch(1, TouchPhase::Started, tool(Tool::Remove), SIZE, &defaults);
         assert_eq!(e.current().buttons.len(), 1);
         assert_eq!(e.selected, None);
-        for _ in 0..10 {
-            e.touch(1, TouchPhase::Started, tool(Tool::Fainter), SIZE, &defaults);
-        }
-        assert!((e.current().opacity - MIN_OPACITY).abs() < 1e-6);
         e.touch(1, TouchPhase::Started, tool(Tool::Reset), SIZE, &defaults);
         assert_eq!(e.current(), &defaults);
         let done = e.touch(1, TouchPhase::Started, tool(Tool::Done), SIZE, &defaults);
@@ -454,7 +441,9 @@ mod tests {
         let mut e = Editor::new(slots(&[], &defaults), 0);
         e.touch(1, TouchPhase::Started, tool(Tool::Layout), SIZE, &defaults);
         assert_eq!(e.active, 1);
-        e.touch(1, TouchPhase::Started, tool(Tool::Fainter), SIZE, &defaults);
+        e.touch(1, TouchPhase::Started, tool(Tool::Add), SIZE, &defaults);
+        let (_, tiles) = picker(SIZE, &e.current().buttons);
+        e.touch(1, TouchPhase::Started, centre(tiles[0].1), SIZE, &defaults);
         e.touch(1, TouchPhase::Started, tool(Tool::Layout), SIZE, &defaults);
         e.touch(1, TouchPhase::Started, tool(Tool::Layout), SIZE, &defaults);
         assert_eq!(e.active, 0);
@@ -464,7 +453,7 @@ mod tests {
             .touch(1, TouchPhase::Started, tool(Tool::Done), SIZE, &defaults)
             .unwrap();
         assert_eq!(active, 1);
-        assert!(layouts[1].opacity < 1.0);
+        assert_eq!(layouts[1].buttons.len(), 2);
         assert_eq!(layouts[0], defaults);
     }
 

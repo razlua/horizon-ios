@@ -28,9 +28,8 @@ rewrite of Minecraft: Java Edition 26.3, to iPhone and iPad. You sideload it you
 - **Esc button.** A small Esc button sits at the top centre. It closes the inventory and other
   screens, and in the world it opens the pause menu.
 - **Edit HUD.** On iOS this button takes Quit Game's place on the main menu. You can drag
-  buttons, add and remove them and resize them, move and resize the move stick's area, move the
-  Esc button, and make the buttons fainter or bolder. Three layouts can be kept, and Reset brings
-  back the defaults. Buttons can press keyboard keys too: hotbar slots 1 to 9, F1, F2, F3,
+  buttons, add and remove them and resize them, move and resize the move stick's area, and move
+  the Esc button. Three layouts can be kept, and Reset brings back the defaults. Buttons can press keyboard keys too: hotbar slots 1 to 9, F1, F2, F3,
   F3+B / G / H / N / T / F4, and `/`.
 - **Keyboard and chat.** The iPhone keyboard opens when you tap a text box, including chat's
   line. Return sends a chat message or confirms, then closes the keyboard, and so does tapping
