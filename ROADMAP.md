@@ -39,6 +39,8 @@ redstone, multiplayer and so on) comes from upstream.
       voicechat engine with Opus linked into the app. The microphone is never used.
 - [x] Improved transparency no longer crashes on iOS GPUs.
 - [x] An About the Project page in Options.
+- [x] Extra Settings (Horizon-iOS) on the main menu: Safe Area as an option (backgrounds still
+      fill the screen), button opacity, touch look speed, and keeping the screen on.
 
 ## Next
 
@@ -57,9 +59,6 @@ Nothing is queued right now; everything from the last Next list is done. Suggest
 
 ## Not planned
 
-- Safe areas. Keeping the HUD and screens clear of the Dynamic Island and the home indicator was
-  tried and taken back out, so the game draws edge to edge. Edit HUD can put the touch buttons
-  wherever suits you.
 - The App Store or TestFlight. The app needs your own Minecraft files, and the game isn't ours to
   publish there.
 - The desktop launcher's pages. Native Rust mods, the mod browser and modpacks need a computer.

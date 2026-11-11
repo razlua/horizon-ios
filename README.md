@@ -38,6 +38,10 @@ below.
   chat, Tab completes commands and names, Paste pastes, and Enter sends.
 - Copy and paste work with other apps. iOS asks before the game reads what you copied.
 - ProMotion screens run at 120 Hz.
+- Extra Settings (Horizon-iOS), under Options and Edit HUD on the main menu, has the port's own
+  settings: Safe Area (the HUD, menus and buttons stay clear of the Dynamic Island and the home
+  bar, while backgrounds still fill the screen), button opacity, touch look speed, and keeping
+  the screen on.
 - On servers with the Simple Voice Chat plugin or mod, you hear the players who use it, coming
   from where they stand. You can't be heard, because the app never opens the microphone. The
   client is unofficial (the engine of Horizon's voicechat native mod) and not affiliated with
@@ -106,6 +110,7 @@ On the phone, under *Files → On My iPhone → Horizon*:
 | `saves/` | Worlds |
 | `options.txt`, `resourcepacks/` | Settings and packs |
 | `touch-controls.json` | Your Edit HUD layouts. Delete it to go back to the defaults |
+| `ios-settings.txt` | Extra Settings (Horizon-iOS) |
 | `home/logs/latest.log` | The log. Attach it to bug reports |
 | `home/crash-reports/` | Crash reports |
 | `ios-*-error.txt` | Written when unpacking or starting failed |
@@ -125,8 +130,8 @@ Discord (razlua on GitHub). Send bugs there, with `home/logs/latest.log` if you 
 - There's no narrator (text-to-speech).
 - You can hear Simple Voice Chat but not talk, and its menu (V on a keyboard) isn't on the touch
   controls.
-- The game draws edge to edge, so part of it can end up under the Dynamic Island, the notch or
-  the home indicator. Edit HUD can move the touch buttons out of the way.
+- The game draws edge to edge by default, so part of it can end up under the Dynamic Island, the
+  notch or the home indicator. Turn on Safe Area in Extra Settings to keep it clear.
 - Native Rust mods, the mod browser, modpacks and server hosting need the desktop launcher and
   aren't in this port.
 

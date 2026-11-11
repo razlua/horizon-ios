@@ -7,6 +7,11 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
 
 ### Added
 
+- **Extra Settings (Horizon-iOS)**, a main menu button under Options and Edit HUD. Safe Area keeps
+  the HUD, menus and buttons clear of the Dynamic Island and the home bar; what covers the whole
+  screen (menu darkening, overlays, list bands) still does. Also Button Opacity, Touch Look Speed
+  and Keep Screen On, kept in `ios-settings.txt`.
+
 - **Offline name.** **Play offline** on the start screen lets you choose your name (3 to 16
   letters, numbers or _) for single player and offline-mode ("cracked") servers.
 - **About the Project** in Options, under Mods and right of Credits & Attribution: who makes the

@@ -690,6 +690,7 @@ impl Loading {
             Action::Quit if cfg!(target_os = "ios") => {}
             Action::Quit => event_loop.exit(),
             Action::Options => self.open_menu_options(Page::Main),
+            Action::IosExtras => self.open_menu_options(Page::IosExtras),
             Action::Accessibility => self.open_menu_options(Page::Accessibility),
             Action::Language => self.open_menu_options(Page::Language),
             Action::Sounds => self.open_menu_options(Page::Sound),

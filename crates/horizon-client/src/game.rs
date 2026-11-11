@@ -8454,6 +8454,8 @@ impl Game<'_> {
         self.native_item_decorations(stack, x, y, batch);
     }
     fn hud(&mut self, size: [u32; 2]) -> HudBatch {
+        // iOS: the GUI in the safe area when Extra Settings' Safe Area is on (hud::SAFE_INSETS).
+        horizon_client::hud::set_safe_insets(self.safe_insets().map(|v| v as u32));
         // The pack prompt replaces the connecting screen (setScreen), but
         // in game it opens over the world.
         let mut batch = if (self.server_packs.prompt.is_some()
@@ -8483,7 +8485,8 @@ impl Game<'_> {
             .draw(self.settings.horizon.overlay, &mut batch, &self.gui.atlas);
         self.draw_pad_cursor(&mut batch);
         self.resolve_inline_profiles(&batch.inline_profiles);
-        // The touch buttons, over everything.
+        batch.into_safe_area(size);
+        // The touch buttons, in the screen's own pixels, over everything.
         self.draw_touch_controls(&mut batch);
         batch
     }
@@ -12147,6 +12150,9 @@ impl Game<'_> {
             Action::Quit if cfg!(target_os = "ios") => self.open_touch_editor(),
             Action::Quit => event_loop.exit(),
             Action::Options => self.open_options(true),
+            Action::IosExtras => {
+                self.open_options_at(true, horizon_client::options_ui::Page::IosExtras)
+            }
             Action::Accessibility => {
                 self.open_options_at(true, horizon_client::options_ui::Page::Accessibility)
             }

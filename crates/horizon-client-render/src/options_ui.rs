@@ -1259,6 +1259,8 @@ pub enum Page {
     Credits,
     /// This unofficial iOS port's own page: who makes it and where to report bugs.
     About,
+    /// Extra Settings (Horizon-iOS): the iOS port's own settings (`ios_extras`).
+    IosExtras,
     /// Horizon Settings: every page Horizon adds, as a mod's settings
     /// screen hangs off vanilla's Options.
     Horizon,
@@ -1283,6 +1285,8 @@ enum Act {
     Done,
     Cycle(Opt),
     Extra(crate::extras::Item),
+    /// An Extra Settings (Horizon-iOS) setting: its next value.
+    IosExtra(crate::ios_extras::Item),
     Key(&'static str),
     ResetKey(&'static str),
     ResetKeys,
@@ -2272,6 +2276,7 @@ impl OptionsUi {
             Page::Extras => "horizon.pages.extras",
             Page::Credits => "credits_and_attribution.screen.title",
             Page::About => "About the Project",
+            Page::IosExtras => "Extra Settings (Horizon-iOS)",
             Page::Horizon => "horizon.pages.settings",
             Page::Agent => "horizon.pages.agent",
             Page::SplitProfiles => "horizon.pages.split_profiles",
@@ -2967,6 +2972,51 @@ impl OptionsUi {
                 {
                     let y = y + 28.0 * (i + 1) as f32;
                     out.push(inactive(button(x, y, 210.0, tr(key), Act::None)));
+                }
+                out.push(done(h - 27.0 - ui::FOOT_LIFT));
+                top = 0.0;
+                bottom = 0.0;
+            }
+            Page::IosExtras => {
+                out.push(Widget {
+                    x: 0.0,
+                    y: 12.0,
+                    w,
+                    h: 9.0,
+                    kind: WKind::Text {
+                        text: tr(Self::title(page)),
+                        color: u32::MAX,
+                        centered: true,
+                    },
+                    list: false,
+                    row: 0,
+                });
+                // Each setting with a line on what it does under it.
+                let items = crate::ios_extras::ITEMS;
+                let first =
+                    (33.0 + 8.0f32).min(h - 33.0 - ui::FOOT_LIFT - items.len() as f32 * 36.0);
+                for (i, item) in items.into_iter().enumerate() {
+                    let y = first + i as f32 * 36.0;
+                    out.push(button(
+                        cx - 155.0,
+                        y,
+                        310.0,
+                        Text::literal(crate::ios_extras::label(item)),
+                        Act::IosExtra(item),
+                    ));
+                    out.push(Widget {
+                        x: 0.0,
+                        y: y + 22.0,
+                        w,
+                        h: 9.0,
+                        kind: WKind::Text {
+                            text: Text::literal(crate::ios_extras::help(item)),
+                            color: 0xFFA0A0A0,
+                            centered: true,
+                        },
+                        list: false,
+                        row: 0,
+                    });
                 }
                 out.push(done(h - 27.0 - ui::FOOT_LIFT));
                 top = 0.0;
@@ -4182,6 +4232,7 @@ impl OptionsUi {
                                 events.push(Event::Changed);
                             }
                         }
+                        Act::IosExtra(item) => crate::ios_extras::cycle(item, self.shift),
                         Act::PlayMusicTrack(event, track) => {
                             events.push(Event::PlayMusicTrack(event, track));
                         }
@@ -5089,6 +5140,7 @@ impl OptionsUi {
                                 events.push(Event::Changed);
                             }
                         }
+                        Act::IosExtra(item) => crate::ios_extras::cycle(item, shift),
                         Act::PlayMusicTrack(event, track) => {
                             events.push(Event::PlayMusicTrack(event, track));
                         }

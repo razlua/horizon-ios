@@ -1522,10 +1522,85 @@ pub struct EndPortalFill {
 pub fn rgba(r: u8, g: u8, b: u8, a: u8) -> u32 {
     u32::from(a) << 24 | u32::from(b) << 16 | u32::from(g) << 8 | u32::from(r)
 }
+/// iOS, with Extra Settings' Safe Area on: the screen's safe area as insets in pixels (left,
+/// top, right, bottom), clear of the Dynamic Island, the notch and the home indicator. The GUI
+/// is laid out inside it (`HudBatch::new`) and moved into it before it is drawn
+/// (`HudBatch::into_safe_area`). Zero otherwise.
+static SAFE_INSETS: [std::sync::atomic::AtomicU32; 4] =
+    [const { std::sync::atomic::AtomicU32::new(0) }; 4];
+
+/// Sets the safe area's insets (`SAFE_INSETS`).
+pub fn set_safe_insets(insets: [u32; 4]) {
+    for (slot, v) in SAFE_INSETS.iter().zip(insets) {
+        slot.store(v, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// The safe area's insets (`SAFE_INSETS`).
+pub fn safe_insets() -> [u32; 4] {
+    SAFE_INSETS
+        .each_ref()
+        .map(|v| v.load(std::sync::atomic::Ordering::Relaxed))
+}
+
 impl HudBatch {
+    /// Moves what was drawn into the safe area of a `window` of that many pixels: the GUI was
+    /// laid out at the safe area's size from the top-left corner (`new`). What spans the whole
+    /// width or height of that area (a menu's darkening, a vignette, a list's bands) spans the
+    /// whole screen on that side instead, so backgrounds don't stop at the safe area's edge.
+    /// A no-op without insets.
+    pub fn into_safe_area(&mut self, window: [u32; 2]) {
+        let [left, top, right, bottom] = safe_insets();
+        if left + top + right + bottom == 0 {
+            return;
+        }
+        let s = self.scale;
+        let (dx, dy) = (left as f32 / s, top as f32 / s);
+        let (full_w, full_h) = (window[0] as f32 / s, window[1] as f32 / s);
+        let (w, h) = (self.width, self.height);
+        const EDGE: f32 = 0.51;
+        // Every shape is a quad of six vertices (`quad` and its callers).
+        for quad in self.vertices.chunks_mut(6) {
+            let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+            for v in quad.iter() {
+                x0 = x0.min(v.pos[0]);
+                x1 = x1.max(v.pos[0]);
+                y0 = y0.min(v.pos[1]);
+                y1 = y1.max(v.pos[1]);
+            }
+            let wide = x0 <= EDGE && x1 >= w - EDGE;
+            let tall = y0 <= EDGE && y1 >= h - EDGE;
+            let stretch = |p: f32, size: f32, full: f32, shift: f32, spans: bool| {
+                if !spans {
+                    p + shift
+                } else if p <= EDGE {
+                    0.0
+                } else if p >= size - EDGE {
+                    full
+                } else {
+                    p + shift
+                }
+            };
+            for v in quad.iter_mut() {
+                v.pos[0] = stretch(v.pos[0], w, full_w, dx, wide);
+                v.pos[1] = stretch(v.pos[1], h, full_h, dy, tall);
+            }
+        }
+        for (_, blend) in &mut self.blends {
+            if let Blend::Depth(clip) = blend {
+                clip[0] += left;
+                clip[1] += top;
+            }
+        }
+    }
     /// Window.calculateScale: the largest scale keeping >= 320x240 GUI pixels,
-    /// capped by the GUI Scale option (0 = auto).
+    /// capped by the GUI Scale option (0 = auto). Of the safe area, when one is set.
     pub fn new(window: [u32; 2]) -> Self {
+        let [left, top, right, bottom] = safe_insets();
+        let window = [
+            window[0].saturating_sub(left + right).max(1),
+            window[1].saturating_sub(top + bottom).max(1),
+        ];
         let limit = GUI_SCALE.load(std::sync::atomic::Ordering::Relaxed);
         let mut scale = 1;
         while (limit == 0 || scale < limit)
@@ -2790,6 +2865,37 @@ impl HudRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_safe_area_moves_the_gui_and_stretches_its_backgrounds() {
+        let window = [2400, 1200];
+        set_safe_insets([200, 0, 200, 60]);
+        let mut batch = HudBatch::new(window);
+        let (w, h, s) = (batch.width, batch.height, batch.scale);
+        // The GUI is laid out at the safe area's size.
+        assert_eq!(w, ((2400 - 400) as f32 / s).ceil());
+        let white = Rect { u0: 0.0, v0: 0.0, u1: 1.0, v1: 1.0, w: 1, h: 1 };
+        // A menu's darkening over the whole area, a band across it, a button.
+        batch.rect_uv(0.0, 0.0, w, h, white, 0x8000_0000);
+        batch.rect_uv(0.0, 20.0, w, 10.0, white, 0x8000_0000);
+        batch.rect_uv(10.0, 10.0, 20.0, 20.0, white, u32::MAX);
+        batch.into_safe_area(window);
+        set_safe_insets([0; 4]);
+        let bounds = |q: &[HudVertex]| {
+            let xs = q.iter().map(|v| v.pos[0]);
+            let ys = q.iter().map(|v| v.pos[1]);
+            [
+                xs.clone().fold(f32::MAX, f32::min),
+                ys.clone().fold(f32::MAX, f32::min),
+                xs.fold(f32::MIN, f32::max),
+                ys.fold(f32::MIN, f32::max),
+            ]
+        };
+        let (full_w, full_h, dx) = (2400.0 / s, 1200.0 / s, 200.0 / s);
+        assert_eq!(bounds(&batch.vertices[0..6]), [0.0, 0.0, full_w, full_h]);
+        assert_eq!(bounds(&batch.vertices[6..12]), [0.0, 20.0, full_w, 30.0]);
+        assert_eq!(bounds(&batch.vertices[12..18]), [10.0 + dx, 10.0, 30.0 + dx, 30.0]);
+    }
 
     /// The mod image slot is paid only by a game with a native mod loaded.
     #[test]

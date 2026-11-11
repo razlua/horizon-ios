@@ -366,6 +366,8 @@ pub enum Mode {
 pub enum Action {
     None,
     Quit,
+    /// Extra Settings (Horizon-iOS), the iOS port's own Options page.
+    IosExtras,
     Options,
     Accessibility,
     Language,
@@ -1762,6 +1764,17 @@ impl Title {
                         2,
                     ),
                 ];
+                // iOS: the port's own settings, right under Options and Edit HUD.
+                if cfg!(target_os = "ios") {
+                    buttons.push(b(
+                        cx - 100.0,
+                        y + 120.0,
+                        200.0,
+                        "Extra Settings (Horizon-iOS)",
+                        true,
+                        9,
+                    ));
+                }
                 // CommonButtons' icon buttons; Horizon's Join a Friend (an
                 // invite code) sits behind vanilla's Friends button.
                 for (i, (key, plain, id, icon)) in [
@@ -3426,6 +3439,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 Action::None
             }
             (Mode::Main, Some(2)) => Action::Quit,
+            (Mode::Main, Some(9)) => Action::IosExtras,
             (Mode::BanNotice(_), Some(id @ 120..=122)) => {
                 // BanNoticeScreens' callback: Open in Browser opens the link, Copy copies it
                 // and answers no; all of them run `next`.
