@@ -28,8 +28,6 @@ redstone, multiplayer and so on) comes from upstream.
       else. Return sends chat. The controller's on-screen keyboard is off.
 - [x] Chat's own Tab, Paste and Enter buttons, and tapping chat's line to type again.
 - [x] **Clipboard.** Copy and paste with other apps through `UIPasteboard`.
-- [x] **Safe areas.** The HUD, the buttons and screens keep clear of the Dynamic Island, the
-      notch and the home indicator.
 - [x] Pausing and saving when the app leaves the screen.
 - [x] Your files in the Files app.
 - [x] Servers behind an SRV redirect can be joined.
@@ -51,6 +49,10 @@ Nothing is queued right now: the items above were the last Next list. Suggestion
 - [ ] **Narrator.** Text-to-speech through `AVSpeechSynthesizer`.
 
 ## Not planned
+
+- **Safe areas.** Keeping the HUD and screens clear of the Dynamic Island and the home
+  indicator was tried and taken back out: the game draws edge to edge. Edit HUD moves the touch
+  buttons where they suit you.
 
 - **The App Store or TestFlight.** The app needs your own Minecraft files, and the game is not
   ours to publish there.

@@ -8453,8 +8453,6 @@ impl Game<'_> {
         self.native_item_decorations(stack, x, y, batch);
     }
     fn hud(&mut self, size: [u32; 2]) -> HudBatch {
-        // iOS: the GUI goes in the safe area (hud::SAFE_INSETS), clear of the Dynamic Island.
-        horizon_client::hud::set_safe_insets(self.safe_insets().map(|v| v as u32));
         // The pack prompt replaces the connecting screen (setScreen), but
         // in game it opens over the world.
         let mut batch = if (self.server_packs.prompt.is_some()
@@ -8484,8 +8482,7 @@ impl Game<'_> {
             .draw(self.settings.horizon.overlay, &mut batch, &self.gui.atlas);
         self.draw_pad_cursor(&mut batch);
         self.resolve_inline_profiles(&batch.inline_profiles);
-        batch.into_safe_area();
-        // The touch buttons are in the screen's own pixels, over everything.
+        // The touch buttons, over everything.
         self.draw_touch_controls(&mut batch);
         batch
     }

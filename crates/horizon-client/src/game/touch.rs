@@ -294,24 +294,16 @@ pub(super) struct Layout {
 }
 
 impl Layout {
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(super) fn new(size: [f32; 2], gui_scale: f32) -> Self {
-        Self::new_in(size, gui_scale, [0.0; 4])
-    }
-
-    /// The default layout clear of the safe area's `insets` (left, top, right, bottom pixels):
-    /// the Dynamic Island or the notch, and the home indicator.
-    pub(super) fn new_in(size: [f32; 2], gui_scale: f32, insets: [f32; 4]) -> Self {
         let [w, h] = size;
-        let [inset_left, inset_top, inset_right, inset_bottom] = insets;
         let short = w.min(h);
         // A thumb-sized button: about 9 mm on a phone held sideways.
         let u = short * 0.15;
         let gap = u * 0.2;
         // Clear of the rounded corners, the camera housing and the home indicator.
-        let side = (w * 0.055).max(u * 0.5).max(inset_right + u * 0.12);
-        let bottom = u * 0.35 + inset_bottom;
-        let top = (u * 0.18).max(inset_top + u * 0.08);
+        let side = (w * 0.055).max(u * 0.5);
+        let bottom = u * 0.35;
+        let top = u * 0.18;
         let col = |i: f32| w - side - u * (i + 1.0) - gap * i;
         let row = |i: f32| h - bottom - u * (i + 1.0) - gap * i;
         let small = u * 0.72;
@@ -319,9 +311,8 @@ impl Layout {
         // Over the ends of the hotbar (182 GUI pixels wide, centred), clear of the bars above it
         // (39 GUI pixels from the bottom): beside it they met the buttons on a small phone.
         let hotbar_half = 91.0 * gui_scale;
-        // The GUI is centred in the safe area (hud::SAFE_INSETS).
-        let gui_centre = inset_left + (w - inset_left - inset_right) / 2.0;
-        let hot_y = h - inset_bottom - 39.0 * gui_scale - gap - small;
+        let gui_centre = w / 2.0;
+        let hot_y = h - 39.0 * gui_scale - gap - small;
         let key = |x: f32, y: f32, s: f32, key: Key, label: &'static str| Pad {
             rect: [x, y, s, s],
             key,
@@ -355,7 +346,7 @@ impl Layout {
                 ">",
             ),
         ];
-        let esc_y = u * 0.12 + inset_top;
+        let esc_y = u * 0.12;
         let (cw, ch) = (u * 0.95, u * 0.5);
         let chat_keys = [(ChatKey::Tab, "Tab"), (ChatKey::Paste, "Paste"), (ChatKey::Enter, "Enter")]
             .iter()
@@ -367,7 +358,7 @@ impl Layout {
             .collect();
         Self {
             keys,
-            stick_zone: [inset_left, h * 0.28, w * 0.40 - inset_left, h * 0.72 - inset_bottom],
+            stick_zone: [0.0, h * 0.28, w * 0.40, h * 0.72],
             stick_radius: u * 0.8,
             slop: u * 0.14,
             line: u * 0.35,
@@ -377,13 +368,8 @@ impl Layout {
         }
     }
     /// The layout with the player's own (Edit HUD) in place of the defaults.
-    pub(super) fn with(
-        size: [f32; 2],
-        gui_scale: f32,
-        insets: [f32; 4],
-        custom: Option<&HudLayout>,
-    ) -> Self {
-        let mut layout = Self::new_in(size, gui_scale, insets);
+    pub(super) fn with(size: [f32; 2], gui_scale: f32, custom: Option<&HudLayout>) -> Self {
+        let mut layout = Self::new(size, gui_scale);
         if let Some(custom) = custom {
             layout.stick_zone = custom.stick_rect(size);
             layout.escape = custom.esc_rect(size);
@@ -516,12 +502,12 @@ pub(super) fn touch_pixels(window: &Window, surface: [u32; 2], touch: &Touch) ->
 
 /// The default layout for a window of `size` pixels, at the GUI scale the HUD draws it with.
 pub(super) fn layout_for(size: [u32; 2]) -> Layout {
-    custom_layout_for(size, [0.0; 4], None)
+    custom_layout_for(size, None)
 }
 
-fn custom_layout_for(size: [u32; 2], insets: [f32; 4], custom: Option<&HudLayout>) -> Layout {
+fn custom_layout_for(size: [u32; 2], custom: Option<&HudLayout>) -> Layout {
     let scale = HudBatch::new(size).scale;
-    Layout::with([size[0] as f32, size[1] as f32], scale, insets, custom)
+    Layout::with([size[0] as f32, size[1] as f32], scale, custom)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -815,46 +801,13 @@ impl Game<'_> {
         ))
     }
 
-    /// iOS: the safe area's insets in the frame's pixels (left, top, right, bottom): what winit
-    /// says of the window's safe area, in the view's scale, turned into the frame's.
-    pub(super) fn safe_insets(&self) -> [f32; 4] {
-        if !cfg!(target_os = "ios") {
-            return [0.0; 4];
-        }
-        let (Some(window), Some(size)) = (self.window.as_ref(), self.touch_size()) else {
-            return [0.0; 4];
-        };
-        let (outer, inner) = (window.outer_size(), window.inner_size());
-        let Ok(origin) = window.inner_position() else {
-            return [0.0; 4];
-        };
-        if outer.width == 0 || outer.height == 0 {
-            return [0.0; 4];
-        }
-        let fx = size[0] as f32 / outer.width as f32;
-        let fy = size[1] as f32 / outer.height as f32;
-        let left = (origin.x.max(0) as f32 * fx).round();
-        let top = (origin.y.max(0) as f32 * fy).round();
-        let right = ((outer.width as f32 - origin.x.max(0) as f32 - inner.width as f32) * fx)
-            .max(0.0)
-            .round();
-        let bottom = ((outer.height as f32 - origin.y.max(0) as f32 - inner.height as f32) * fy)
-            .max(0.0)
-            .round();
-        [left, top, right, bottom]
-    }
-
     fn touch_layout(&self) -> Option<Layout> {
-        Some(custom_layout_for(
-            self.touch_size()?,
-            self.safe_insets(),
-            self.touch.hud.current(),
-        ))
+        Some(custom_layout_for(self.touch_size()?, self.touch.hud.current()))
     }
 
-    /// The default layout of this screen, clear of its safe area.
+    /// The default layout of this screen.
     fn default_hud(&self, size: [u32; 2]) -> HudLayout {
-        custom_layout_for(size, self.safe_insets(), None).hud([size[0] as f32, size[1] as f32])
+        layout_for(size).hud([size[0] as f32, size[1] as f32])
     }
 
     /// Edit HUD (the title's button in Quit Game's place on iOS).
@@ -936,8 +889,6 @@ impl Game<'_> {
             return self.touch_editor_event(&touch, at, size);
         }
         let world = self.touch_world();
-        // The GUI is drawn in the safe area (hud::SAFE_INSETS): the pointer is in its pixels.
-        let [inset_left, inset_top, _, _] = self.safe_insets();
         // The chat screen's own buttons.
         if self.chat_open() && touch.phase == TouchPhase::Started {
             let p = [at[0] as f32, at[1] as f32];
@@ -951,10 +902,7 @@ impl Game<'_> {
         // screen's bottom 16 GUI pixels.
         if !world && touch.phase == TouchPhase::Started {
             let batch = HudBatch::new(size);
-            let gui = (
-                (at[0] as f32 - inset_left) / batch.scale,
-                (at[1] as f32 - inset_top) / batch.scale,
-            );
+            let gui = (at[0] as f32 / batch.scale, at[1] as f32 / batch.scale);
             let chat_line = self.chat_open() && gui.1 >= batch.height - 16.0;
             self.touch.keyboard_hidden =
                 !(chat_line || super::pad_menu::field_at(&self.pad_visible_targets(), gui));
@@ -964,12 +912,6 @@ impl Game<'_> {
             .touch(touch.id, touch.phase, at, Instant::now(), world, &layout);
         self.last_input = Instant::now();
         for out in outs {
-            let out = match out {
-                Out::Cursor([x, y]) => {
-                    Out::Cursor([x - f64::from(inset_left), y - f64::from(inset_top)])
-                }
-                out => out,
-            };
             match (out, out.window_event()) {
                 (_, Some(event)) => {
                     self.handle_window_event(event_loop, id, event, input_trace::InputOrigin::User);
@@ -1256,35 +1198,6 @@ mod tests {
                 assert!(!inside(l.stick_zone, [x + w / 2.0, y + h / 2.0]) || a.label == "<");
             }
         }
-    }
-
-    #[test]
-    fn the_default_buttons_keep_clear_of_the_safe_area() {
-        // An iPhone held sideways: the Dynamic Island's side, the other side and the home
-        // indicator (59, 59 and 21 points at 3x).
-        let insets = [177.0, 0.0, 177.0, 63.0];
-        let l = Layout::new_in(SIZE, 4.0, insets);
-        let inside_safe = |[x, y, w, h]: [f32; 4]| {
-            x >= insets[0] && y >= insets[1] && x + w <= SIZE[0] - insets[2] && y + h <= SIZE[1] - insets[3]
-        };
-        for k in &l.keys {
-            assert!(inside_safe(k.rect), "{k:?}");
-        }
-        assert!(inside_safe(l.escape));
-        for (_, _, r) in &l.chat_keys {
-            assert!(inside_safe(*r), "{r:?}");
-            assert!(r[0] >= l.escape[0] + l.escape[2], "the chat keys sit right of Esc: {r:?}");
-        }
-        assert!(l.stick_zone[0] >= insets[0]);
-        // The layout as Edit HUD keeps it comes back the same.
-        let hud = l.hud(SIZE);
-        let back = Layout::with(SIZE, 4.0, insets, Some(&hud));
-        for (a, b) in l.keys.iter().zip(&back.keys) {
-            for (p, q) in a.rect.iter().zip(b.rect) {
-                assert!((p - q).abs() < 0.5, "{a:?} {b:?}");
-            }
-        }
-        assert!(back.escape.iter().zip(l.escape).all(|(p, q)| (p - q).abs() < 0.5));
     }
 
     #[test]

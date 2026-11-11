@@ -5,6 +5,11 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
 
 ## 2026-11-11
 
+### Removed
+
+- **Fainter and Bolder** in Edit HUD: they took up the edit screen.
+- **Safe areas:** the game draws edge to edge again.
+
 ### Added
 
 - **Accounts.** Several Microsoft accounts. The start screen lists them before the game: tap one
@@ -17,10 +22,7 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
 - **Unpacking progress.** A progress bar on the start screen while the first launch unpacks.
 - **Edit HUD extras.** The move stick's area can be moved and resized, and the Esc button
   moved. **Layout** switches between three saved layouts. The toolbar moved below the top row of
-  buttons, and buttons over it can be dragged off. (A first try of button opacity, **Fainter** and
-  **Bolder**, took up the screen and was removed.)
-- **Safe areas.** The HUD, menus and touch buttons keep clear of the Dynamic Island, the notch
-  and the home indicator.
+  buttons, and buttons over it can be dragged off.
 
 ## 2026-11-10
 

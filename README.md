@@ -37,8 +37,6 @@ rewrite of Minecraft: Java Edition 26.3, to iPhone and iPad. You sideload it you
   **Enter** sends.
 - **Clipboard.** Copy and paste work with other apps. iOS asks before the game reads what you
   copied.
-- **Safe areas.** The HUD, menus and buttons keep clear of the Dynamic Island, the notch and the
-  home indicator.
 - **120 Hz** on ProMotion screens.
 - **Your files in the Files app.** Saves, options, resource packs and logs are under
   *On My iPhone → Horizon*.
@@ -116,8 +114,8 @@ the app deletes them.
 
 - **Controllers.** A paired game controller is not read yet.
 - **Narrator.** There is no text-to-speech.
-- **The world behind menus.** The world and the title's background still fill the whole screen,
-  behind the safe area.
+- **Screen edges.** The game draws edge to edge, so part of it can sit under the Dynamic Island,
+  the notch or the home indicator. Edit HUD can move the touch buttons away from them.
 - **Missing launcher features.** Native Rust mods, the mod browser, modpacks and server hosting
   need the desktop launcher and don't exist here.
 - **Fresh install.** Preparing the game files needs Java, which iOS doesn't have, so a computer is
