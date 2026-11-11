@@ -405,7 +405,7 @@ impl SplitUi {
             if self.on && self.p1_pad {
                 out.push(give_up);
             }
-            row(&mut out, h - 27.0, vec![done]);
+            row(&mut out, h - 27.0 - ui::FOOT_LIFT, vec![done]);
             return out;
         }
         let (_, windows, tiles) = self.map(w, h);
@@ -492,7 +492,7 @@ impl SplitUi {
             (64.0, tr("apply", &[]), Target::Apply, editing),
             done,
         ]);
-        row(&mut out, h - 27.0, footer);
+        row(&mut out, h - 27.0 - ui::FOOT_LIFT, footer);
         out
     }
 

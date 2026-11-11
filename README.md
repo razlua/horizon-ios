@@ -22,6 +22,8 @@ rewrite of Minecraft: Java Edition 26.3, to iPhone and iPad. You sideload it you
   code already filled in. **Play offline** skips it.
 - **Several accounts.** The start screen lists your saved Microsoft accounts: tap one to play as
   it, or add or remove accounts.
+- **Offline name.** **Play offline** lets you choose the name you play with in single player and
+  on offline-mode ("cracked") servers.
 - **Touch controls.** In the world, the left side of the screen is a floating move stick (push
   past its edge to sprint), the buttons on the right act, and a finger anywhere else turns the
   view. In menus you tap to click, swipe to scroll, and tap with a second finger to right-click.
@@ -29,7 +31,7 @@ rewrite of Minecraft: Java Edition 26.3, to iPhone and iPad. You sideload it you
   screens, and in the world it opens the pause menu.
 - **Edit HUD.** On iOS this button takes Quit Game's place on the main menu. You can drag
   buttons, add and remove them and resize them, move and resize the move stick's area, and move
-  the Esc button. Three layouts can be kept, and Reset brings back the defaults. Buttons can press keyboard keys too: hotbar slots 1 to 9, F1, F2, F3,
+  and resize the Esc button. Three layouts can be kept, and Reset brings back the defaults. Buttons can press keyboard keys too: hotbar slots 1 to 9, F1, F2, F3,
   F3+B / G / H / N / T / F4, and `/`.
 - **Keyboard and chat.** The iPhone keyboard opens when you tap a text box, including chat's
   line. Return sends a chat message or confirms, then closes the keyboard, and so does tapping
@@ -119,6 +121,11 @@ On the phone, under *Files → On My iPhone → Horizon*:
 
 Your Microsoft accounts' sign-ins are kept in the app's private storage, not in Files. Deleting
 the app deletes them.
+
+## About
+
+*Options → About the Project* says who makes this port and where to report bugs: **@4rnz on
+Discord** (razlua on GitHub). Please send bugs there, with `home/logs/latest.log` if you can.
 
 ## Known issues
 

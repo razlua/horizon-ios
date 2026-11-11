@@ -178,7 +178,7 @@ fn layout(
     if view.sharing && view.help.is_some() {
         buttons.push(Button {
             x: cx - 154.0,
-            y: h - 27.0,
+            y: h - 27.0 - ui::FOOT_LIFT,
             w: 150.0,
             label: tr("horizon.friends.troubleshooting", "Troubleshooting..."),
             action: Action::Help,
@@ -186,7 +186,7 @@ fn layout(
         });
         buttons.push(Button {
             x: cx + 4.0,
-            y: h - 27.0,
+            y: h - 27.0 - ui::FOOT_LIFT,
             w: 150.0,
             label: "gui.done".to_owned(),
             action: Action::Done,
@@ -195,7 +195,7 @@ fn layout(
     } else {
         buttons.push(Button {
             x: cx - 100.0,
-            y: h - 27.0,
+            y: h - 27.0 - ui::FOOT_LIFT,
             w: 200.0,
             label: "gui.done".to_owned(),
             action: Action::Done,

@@ -152,7 +152,7 @@ pub fn search_box(w: f32) -> [f32; 4] {
 }
 /// Done's rectangle (`HeaderAndFooterLayout`'s footer).
 fn done(w: f32, h: f32) -> [f32; 4] {
-    [(w / 2.0).floor() - 100.0, h - 27.0, 200.0, 20.0]
+    [(w / 2.0).floor() - 100.0, h - 27.0 - ui::FOOT_LIFT, 200.0, 20.0]
 }
 /// What is under `cursor`, if a click would do something.
 pub fn click(size: (f32, f32), cursor: (f32, f32), view: &SocialView) -> Option<Action> {

@@ -452,7 +452,7 @@ pub(super) fn buttons(w: f32, h: f32, creative: bool, o: &WorldOptions) -> Vec<B
     let x = ((w - 308.0) * 0.5).trunc();
     buttons.push(b(
         x,
-        h - 27.0,
+        h - 27.0 - crate::ui::FOOT_LIFT,
         150.0,
         crate::lang::get_or("selectWorld.create", "Create New World"),
         true,
@@ -460,7 +460,7 @@ pub(super) fn buttons(w: f32, h: f32, creative: bool, o: &WorldOptions) -> Vec<B
     ));
     buttons.push(b(
         x + 158.0,
-        h - 27.0,
+        h - 27.0 - crate::ui::FOOT_LIFT,
         150.0,
         crate::lang::get_or("gui.cancel", "Cancel"),
         true,

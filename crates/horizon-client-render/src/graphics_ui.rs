@@ -1243,7 +1243,7 @@ impl Columns {
         let px = side_x + side_w + gap;
         // A short screen (a 720p window at scale 3) gives the margin to the list.
         let side_y = if h >= style::TITLED { 24.0 } else { 8.0 };
-        let dock = [px, h - 8.0 - style::DOCK_H, pw, style::DOCK_H];
+        let dock = [px, h - 8.0 - ui::FOOT_LIFT - style::DOCK_H, pw, style::DOCK_H];
         let plate = [px, side_y, pw, dock[1] - 4.0 - side_y];
         let list_x = px + 8.0;
         Self {

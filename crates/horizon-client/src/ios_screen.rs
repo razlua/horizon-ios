@@ -24,6 +24,10 @@ pub enum Action {
     Back,
     /// Start the game files' download again (it goes on where it stopped).
     RetrySetup,
+    /// Type a new offline name.
+    ChangeName,
+    /// Play offline with the name shown.
+    PlayOffline,
 }
 
 /// How a button looks.

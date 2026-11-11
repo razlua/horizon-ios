@@ -344,6 +344,10 @@ pub fn text_scaled(
         v.pos = [x + v.pos[0] * scale, y + v.pos[1] * scale];
     }
 }
+/// iOS: screens' bottom rows (Done, Cancel, a list's foot) a few GUI pixels higher than vanilla's
+/// `height - 27`, clear of the phone's rounded corners and the home indicator. None elsewhere.
+pub const FOOT_LIFT: f32 = if cfg!(target_os = "ios") { 6.0 } else { 0.0 };
+
 pub fn hovered(cursor: (f32, f32), x: f32, y: f32, w: f32, h: f32) -> bool {
     cursor.0 >= x && cursor.0 < x + w && cursor.1 >= y && cursor.1 < y + h
 }

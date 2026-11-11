@@ -283,7 +283,10 @@ impl Editor {
                             sh,
                         ];
                     }
-                    Some(Sel::Esc) | None => {}
+                    Some(Sel::Esc) => {
+                        layout.esc_scale = (layout.esc_scale * factor).clamp(0.5, 2.5);
+                    }
+                    None => {}
                 }
             }
             Tool::Layout => {
@@ -338,6 +341,7 @@ mod tests {
             buttons,
             stick: [0.0, 0.3, 0.4, 0.7],
             esc: [0.5, 0.05],
+            esc_scale: 1.0,
             opacity: 1.0,
         }
     }
@@ -405,6 +409,13 @@ mod tests {
         assert_eq!(e.selected, Some(Sel::Esc));
         e.touch(2, TouchPhase::Moved, [esc[0], esc[1] + SIZE[1] * 0.5], SIZE, &d);
         assert!((e.current().esc[1] - 0.55).abs() < 1e-3, "{:?}", e.current().esc);
+        e.touch(2, TouchPhase::Ended, esc, SIZE, &d);
+        // Bigger, like any button: from its centre.
+        let before = e.current().esc_rect(SIZE);
+        e.touch(3, TouchPhase::Started, tool(Tool::Bigger), SIZE, &d);
+        let after = e.current().esc_rect(SIZE);
+        assert!(after[2] > before[2] && after[3] > before[3]);
+        assert!((centre(after)[0] - centre(before)[0]).abs() < 1e-3);
     }
 
     #[test]

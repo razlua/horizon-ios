@@ -1257,6 +1257,8 @@ pub enum Page {
     Extras,
     /// CreditsAndAttributionScreen.
     Credits,
+    /// This unofficial iOS port's own page: who makes it and where to report bugs.
+    About,
     /// Horizon Settings: every page Horizon adds, as a mod's settings
     /// screen hangs off vanilla's Options.
     Horizon,
@@ -2269,6 +2271,7 @@ impl OptionsUi {
             Page::PadBinds => "horizon.pages.controller_binds",
             Page::Extras => "horizon.pages.extras",
             Page::Credits => "credits_and_attribution.screen.title",
+            Page::About => "About the Project",
             Page::Horizon => "horizon.pages.settings",
             Page::Agent => "horizon.pages.agent",
             Page::SplitProfiles => "horizon.pages.split_profiles",
@@ -2868,7 +2871,7 @@ impl OptionsUi {
         }
         let done = |y: f32| button(cx - 100.0, y, 200.0, tr("gui.done"), Act::Done);
         // (list top, list bottom, content height)
-        let (mut top, mut bottom, mut content) = (33.0, h - 33.0, 0.0);
+        let (mut top, mut bottom, mut content) = (33.0, h - 33.0 - ui::FOOT_LIFT, 0.0);
         match page {
             Page::Main => {
                 out.push(Widget {
@@ -2913,16 +2916,18 @@ impl OptionsUi {
                     ("horizon.pages.open.horizon_settings", Some(Page::Horizon)),
                     ("horizon.pages.open.mods", Some(Page::Mods)),
                     ("options.credits_and_attribution", Some(Page::Credits)),
+                    // This port's own page: under Mods, right of Credits & Attribution.
+                    ("About the Project...", Some(Page::About)),
                 ];
                 let rows = entries.len().div_ceil(2) as f32;
-                let gy = (61.0 + 30.0f32).min(h - 33.0 - rows * 24.0);
+                let gy = (61.0 + 30.0f32).min(h - 33.0 - ui::FOOT_LIFT - rows * 24.0);
                 for (i, (key, page)) in entries.iter().enumerate() {
                     let x = cx - 158.0 + 4.0 + (i % 2) as f32 * 158.0;
                     let y = gy + (i / 2) as f32 * 24.0;
                     let b = button(x, y, 150.0, tr(key), page.map_or(Act::None, Act::Push));
                     out.push(if page.is_some() { b } else { inactive(b) });
                 }
-                out.push(done(h - 27.0));
+                out.push(done(h - 27.0 - ui::FOOT_LIFT));
                 top = 0.0;
                 bottom = 0.0;
             }
@@ -2943,7 +2948,7 @@ impl OptionsUi {
                     list: false,
                     row: 0,
                 });
-                let y = (33.0 + 30.0f32).min(h - 33.0 - 76.0);
+                let y = (33.0 + 30.0f32).min(h - 33.0 - ui::FOOT_LIFT - 76.0);
                 let x = cx - 105.0;
                 out.push(button(
                     x,
@@ -2963,7 +2968,57 @@ impl OptionsUi {
                     let y = y + 28.0 * (i + 1) as f32;
                     out.push(inactive(button(x, y, 210.0, tr(key), Act::None)));
                 }
-                out.push(done(h - 27.0));
+                out.push(done(h - 27.0 - ui::FOOT_LIFT));
+                top = 0.0;
+                bottom = 0.0;
+            }
+            Page::About => {
+                out.push(Widget {
+                    x: 0.0,
+                    y: 12.0,
+                    w,
+                    h: 9.0,
+                    kind: WKind::Text {
+                        text: tr(Self::title(page)),
+                        color: u32::MAX,
+                        centered: true,
+                    },
+                    list: false,
+                    row: 0,
+                });
+                const GREY: u32 = 0xFFA0A0A0;
+                let lines: [(&str, u32); 10] = [
+                    ("Horizon for iOS", u32::MAX),
+                    ("An unofficial, experimental port of Horizon,", GREY),
+                    ("the Rust rewrite of Minecraft: Java Edition, to iPhone.", GREY),
+                    ("", GREY),
+                    ("Made by @4rnz on Discord (razlua on GitHub).", u32::MAX),
+                    ("Please help me find bugs: message me on Discord,", u32::MAX),
+                    ("with home/logs/latest.log from the Files app if you can.", GREY),
+                    ("", GREY),
+                    ("github.com/razlua/horizon-ios", 0xFF55FFFF),
+                    ("Not affiliated with Horizon, Mojang or Microsoft.", GREY),
+                ];
+                let first = (33.0 + 16.0f32).min(h - 33.0 - ui::FOOT_LIFT - lines.len() as f32 * 12.0);
+                for (i, (line, color)) in lines.iter().enumerate() {
+                    if line.is_empty() {
+                        continue;
+                    }
+                    out.push(Widget {
+                        x: 0.0,
+                        y: first + i as f32 * 12.0,
+                        w,
+                        h: 9.0,
+                        kind: WKind::Text {
+                            text: Text::literal(*line),
+                            color: *color,
+                            centered: true,
+                        },
+                        list: false,
+                        row: 0,
+                    });
+                }
+                out.push(done(h - 27.0 - ui::FOOT_LIFT));
                 top = 0.0;
                 bottom = 0.0;
             }
@@ -3113,12 +3168,12 @@ impl OptionsUi {
                 out[list_start..].iter_mut().for_each(|w| w.list = true);
                 out.push(button(
                     cx - 154.0,
-                    h - 27.0,
+                    h - 27.0 - ui::FOOT_LIFT,
                     150.0,
                     tr("controls.resetAll"),
                     Act::ResetKeys,
                 ));
-                out.push(button(cx + 4.0, h - 27.0, 150.0, tr("gui.done"), Act::Done));
+                out.push(button(cx + 4.0, h - 27.0 - ui::FOOT_LIFT, 150.0, tr("gui.done"), Act::Done));
             }
             Page::PadBinds => {
                 out.push(Widget {
@@ -3199,12 +3254,12 @@ impl OptionsUi {
                 out[list_start..].iter_mut().for_each(|w| w.list = true);
                 out.push(button(
                     cx - 154.0,
-                    h - 27.0,
+                    h - 27.0 - ui::FOOT_LIFT,
                     150.0,
                     tr("controls.resetAll"),
                     Act::ResetPadKeys,
                 ));
-                out.push(button(cx + 4.0, h - 27.0, 150.0, tr("gui.done"), Act::Done));
+                out.push(button(cx + 4.0, h - 27.0 - ui::FOOT_LIFT, 150.0, tr("gui.done"), Act::Done));
             }
             Page::Language => {
                 top = 36.0;
@@ -3278,12 +3333,12 @@ impl OptionsUi {
                 });
                 out.push(button(
                     cx - 154.0,
-                    h - 28.0,
+                    h - 28.0 - ui::FOOT_LIFT,
                     150.0,
                     tr("options.font"),
                     Act::Push(Page::Font),
                 ));
-                out.push(button(cx + 4.0, h - 28.0, 150.0, tr("gui.done"), Act::Done));
+                out.push(button(cx + 4.0, h - 28.0 - ui::FOOT_LIFT, 150.0, tr("gui.done"), Act::Done));
             }
             // Drawn by `pack_screen`.
             Page::Packs => {}
@@ -3378,10 +3433,10 @@ impl OptionsUi {
                     _ => None,
                 };
                 if let Some((label, act)) = folder {
-                    out.push(button(cx - 154.0, h - 27.0, 150.0, tr(label), act));
-                    out.push(button(cx + 4.0, h - 27.0, 150.0, tr("gui.done"), Act::Done));
+                    out.push(button(cx - 154.0, h - 27.0 - ui::FOOT_LIFT, 150.0, tr(label), act));
+                    out.push(button(cx + 4.0, h - 27.0 - ui::FOOT_LIFT, 150.0, tr("gui.done"), Act::Done));
                 } else {
-                    out.push(done(h - 27.0));
+                    out.push(done(h - 27.0 - ui::FOOT_LIFT));
                 }
             }
         }
@@ -3519,12 +3574,12 @@ impl OptionsUi {
                 batch,
                 atlas,
                 w / 2.0 - 100.0,
-                h - 28.0,
+                h - 28.0 - ui::FOOT_LIFT,
                 200.0,
                 20.0,
                 &tr("gui.done"),
                 true,
-                ui::hovered(cursor, w / 2.0 - 100.0, h - 28.0, 200.0, 20.0),
+                ui::hovered(cursor, w / 2.0 - 100.0, h - 28.0 - ui::FOOT_LIFT, 200.0, 20.0),
             );
             return;
         }
@@ -7315,8 +7370,8 @@ mod tests {
         // Credits & Attribution (WinScreen's credits).
         let main = pushes(&mut ui);
         assert_eq!(
-            &main[main.len() - 3..],
-            [Page::Horizon, Page::Mods, Page::Credits]
+            &main[main.len() - 4..],
+            [Page::Horizon, Page::Mods, Page::Credits, Page::About]
         );
         ui.push(Page::Horizon);
         assert_eq!(

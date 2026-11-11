@@ -55,6 +55,12 @@ enum Account {
     Signed { name: String, session: String },
     /// It failed; the player retries, goes back or plays offline.
     Failed(String),
+    /// Choosing the offline name: the one kept, or the one being typed.
+    OfflineName {
+        name: String,
+        editing: bool,
+        problem: Option<String>,
+    },
     /// Offline, by the player's choice.
     Offline,
 }
@@ -362,6 +368,31 @@ impl Boot {
                 }
                 screen.buttons.push(button("Play offline", Action::Offline, Look::Plain));
             }
+            Account::OfflineName {
+                name,
+                editing,
+                problem,
+            } => {
+                screen.title = "Play offline".into();
+                screen.lines = vec![
+                    "Your name in single player and on offline-mode (cracked) servers: 3 to 16 \
+                     letters, numbers or _."
+                        .into(),
+                ];
+                screen.code = Some(if *editing {
+                    format!("{name}_")
+                } else {
+                    name.clone()
+                });
+                if *editing {
+                    screen.buttons.push(button("Done", Action::ChangeName, Look::Primary));
+                } else {
+                    screen.buttons.push(button("Play", Action::PlayOffline, Look::Primary));
+                    screen.buttons.push(button("Change name", Action::ChangeName, Look::Plain));
+                    screen.buttons.push(button("Back", Action::Back, Look::Plain));
+                }
+                screen.status = problem.clone().or(unpacking);
+            }
             Account::Offline => {
                 screen.lines = vec!["Playing offline.".into()];
                 screen.status = unpacking.or(Some("Starting...".into()));
@@ -410,6 +441,49 @@ impl Boot {
             _ => {}
         }
         screen
+    }
+
+    /// A key while the offline name is being typed: letters, digits and _ go in, Backspace
+    /// takes one out, return finishes.
+    fn type_name(&mut self, key: &winit::keyboard::Key) {
+        use winit::keyboard::{Key, NamedKey};
+        let mut finished = false;
+        update(&self.state, |s| {
+            let Account::OfflineName {
+                name,
+                editing: editing @ true,
+                problem,
+            } = &mut s.account
+            else {
+                return;
+            };
+            *problem = None;
+            match key {
+                Key::Named(NamedKey::Backspace) => {
+                    name.pop();
+                }
+                Key::Named(NamedKey::Enter) => {
+                    *editing = false;
+                    finished = true;
+                }
+                Key::Character(text) if text == "\n" || text == "\r" => {
+                    *editing = false;
+                    finished = true;
+                }
+                Key::Character(text) => {
+                    for c in text.chars() {
+                        if (c.is_ascii_alphanumeric() || c == '_') && name.len() < 16 {
+                            name.push(c);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        });
+        if finished && let Some(window) = &self.window {
+            window.set_ime_allowed(false);
+        }
+        self.drawn = 0;
     }
 
     /// Starts the game files' setup (ios_setup.rs) on a thread of its own.
@@ -547,8 +621,54 @@ impl Boot {
                 }
             }
             Action::RetrySetup => self.start_setup(),
+            // The name to play offline with first (horizon-player.txt, as the game keeps it).
             Action::Offline => {
-                begin_attempt(&state, Account::Offline);
+                let name = horizon_client::offline_name::load_or_create(
+                    &horizon_client::logging::player_dir(),
+                );
+                begin_attempt(
+                    &state,
+                    Account::OfflineName {
+                        name,
+                        editing: false,
+                        problem: None,
+                    },
+                );
+            }
+            Action::ChangeName => {
+                let mut editing_now = false;
+                update(&state, |s| {
+                    if let Account::OfflineName { editing, problem, .. } = &mut s.account {
+                        *editing = !*editing;
+                        *problem = None;
+                        editing_now = *editing;
+                    }
+                });
+                if let Some(window) = &self.window {
+                    window.set_ime_allowed(editing_now);
+                }
+            }
+            Action::PlayOffline => {
+                let chosen = match &state.lock().unwrap_or_else(|e| e.into_inner()).account {
+                    Account::OfflineName { name, .. } => Some(name.clone()),
+                    _ => None,
+                };
+                if let Some(name) = chosen {
+                    if horizon_client::offline_name::is_chosen_valid(&name) {
+                        let dir = horizon_client::logging::player_dir();
+                        if let Err(e) = horizon_client::offline_name::save(&dir, &name) {
+                            log::warn!("Horizon iOS: the offline name could not be kept: {e}");
+                        }
+                        log::info!("Horizon iOS: playing offline as {name}");
+                        begin_attempt(&state, Account::Offline);
+                    } else {
+                        update(&state, |s| {
+                            if let Account::OfflineName { problem, .. } = &mut s.account {
+                                *problem = Some("Use 3 to 16 letters, numbers or _.".into());
+                            }
+                        });
+                    }
+                }
             }
         }
         let _ = event_loop;
@@ -656,6 +776,9 @@ impl ApplicationHandler for Boot {
         }
         match event {
             WindowEvent::Occluded(hidden) => self.hidden = hidden,
+            WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
+                self.type_name(&event.logical_key);
+            }
             WindowEvent::Resized(size) => {
                 if let Some(r) = &mut self.renderer {
                     r.resize(size.width, size.height);

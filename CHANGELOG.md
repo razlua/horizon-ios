@@ -7,6 +7,13 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
 
 ### Added
 
+- **Offline name.** **Play offline** on the start screen lets you choose your name (3 to 16
+  letters, numbers or _) for single player and offline-mode ("cracked") servers.
+- **About the Project** in Options, under Mods and right of Credits & Attribution: who makes the
+  port (@4rnz on Discord, razlua on GitHub) and where to report bugs.
+- **Esc resizes** in Edit HUD: Smaller and Bigger work on it as on the other buttons.
+- **Done higher.** Settings screens' bottom rows (Done, Cancel) sit a little higher on iPhone.
+
 - **No computer needed.** The 30 MB app downloads the game files itself after a Microsoft sign-in:
   your Minecraft 26.3 from Mojang (about 520 MB), checked against Mojang's checksums, and
   Horizon's tables from this repository's `tables-6475f62` release (no Minecraft files in it),

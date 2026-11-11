@@ -131,6 +131,8 @@ pub(super) struct HudLayout {
     pub stick: [f32; 4],
     /// The Esc button's centre.
     pub esc: [f32; 2],
+    /// The Esc button's size, against its default.
+    pub esc_scale: f32,
     /// 0.2 to 1.
     pub opacity: f32,
 }
@@ -141,7 +143,7 @@ impl HudLayout {
         [x * w, y * h, sw * w, sh * h]
     }
     pub(super) fn esc_rect(&self, [w, h]: [f32; 2]) -> [f32; 4] {
-        let u = w.min(h) * 0.15;
+        let u = w.min(h) * 0.15 * self.esc_scale;
         let [cx, cy] = self.esc;
         [cx * w - u * 0.4, cy * h - u * 0.25, u * 0.8, u * 0.5]
     }
@@ -204,6 +206,9 @@ fn parse_layout(value: &serde_json::Value, defaults: &HudLayout) -> Option<HudLa
         buttons: parse_buttons(&value["buttons"]),
         stick: numbers(&value["stick"]).unwrap_or(defaults.stick),
         esc: numbers(&value["esc"]).unwrap_or(defaults.esc),
+        esc_scale: value["esc_scale"]
+            .as_f64()
+            .map_or(defaults.esc_scale, |v| (v as f32).clamp(0.5, 2.5)),
         // Edit HUD no longer sets it (its Fainter and Bolder took the screen): full, whatever an
         // earlier build saved.
         opacity: defaults.opacity,
@@ -240,6 +245,7 @@ fn save_layouts(file: &HudFile) {
             })).collect::<Vec<_>>(),
             "stick": l.stick,
             "esc": l.esc,
+            "esc_scale": l.esc_scale,
             "opacity": l.opacity,
         }),
     };
@@ -400,6 +406,7 @@ impl Layout {
             buttons: self.placed(size),
             stick: [x / w, y / h, sw / w, sh / h],
             esc: [(ex + ew / 2.0) / w, (ey + eh / 2.0) / h],
+            esc_scale: ew / (w.min(h) * 0.15 * 0.8),
             opacity: self.opacity,
         }
     }
@@ -1034,9 +1041,7 @@ impl Game<'_> {
         for (tool, label, r) in super::touch_editor::toolbar(fsize) {
             let usable = match tool {
                 Tool::Remove => matches!(editor.selected, Some(Sel::Button(_))),
-                Tool::Smaller | Tool::Bigger => {
-                    matches!(editor.selected, Some(Sel::Button(_) | Sel::Stick))
-                }
+                Tool::Smaller | Tool::Bigger => editor.selected.is_some(),
                 _ => true,
             };
             let fill = if tool == Tool::Done {
@@ -1058,7 +1063,7 @@ impl Game<'_> {
             match editor.selected {
                 Some(Sel::Button(_)) => "Drag to move it; Remove, Smaller and Bigger change it",
                 Some(Sel::Stick) => "Drag to move the stick area; Smaller and Bigger resize it",
-                Some(Sel::Esc) => "Drag to move the Esc button",
+                Some(Sel::Esc) => "Drag to move the Esc button; Smaller and Bigger resize it",
                 None => "Drag a button, the Esc button or the stick area to move it",
             }
         };

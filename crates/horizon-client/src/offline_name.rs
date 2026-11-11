@@ -40,6 +40,16 @@ pub fn load_or_create(dir: &Path) -> String {
     name
 }
 
+/// Keeps `name` in `dir` as the offline name (the iOS start screen's choice).
+pub fn save(dir: &Path, name: &str) -> std::io::Result<()> {
+    fs::write(dir.join(FILE), format!("{KEY}{name}\n"))
+}
+
+/// A name a player picks: 3 to 16 letters, digits or underscores, as Minecraft's accounts have.
+pub fn is_chosen_valid(name: &str) -> bool {
+    (3..=16).contains(&name.len()) && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
 fn parse(text: &str) -> Option<String> {
     text.lines()
         .find_map(|line| line.trim_end_matches('\r').strip_prefix(KEY))
