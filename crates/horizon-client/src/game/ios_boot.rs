@@ -17,6 +17,10 @@ thread_local! {
     static HANDED: RefCell<Option<Option<App>>> = const { RefCell::new(None) };
 }
 
+/// The first start's unpacking: files done and in all (entry.rs), for the progress bar.
+pub static UNPACKED: [std::sync::atomic::AtomicUsize; 2] =
+    [const { std::sync::atomic::AtomicUsize::new(0) }; 2];
+
 /// The signed-in session for `Options::read`, taken once.
 static SESSION: Mutex<Option<String>> = Mutex::new(None);
 
@@ -39,7 +43,9 @@ pub(super) fn hand_over(app: App) -> Option<App> {
 /// Where the sign-in stands.
 #[derive(Clone, Debug, PartialEq)]
 enum Account {
-    /// Signing the kept account in again.
+    /// The saved accounts, to play as one; `removing` while the buttons remove them.
+    Choose { removing: bool },
+    /// Signing a saved account in again.
     Resuming(String),
     /// Asking Microsoft for a code.
     Asking,
@@ -47,7 +53,7 @@ enum Account {
     Code { code: String, uri: String, link: String },
     /// Signed in: the session.
     Signed { name: String, session: String },
-    /// It failed; the player retries or plays offline.
+    /// It failed; the player retries, goes back or plays offline.
     Failed(String),
     /// Offline, by the player's choice.
     Offline,
@@ -57,8 +63,10 @@ enum Account {
 struct Shared {
     unpacking: bool,
     account: Account,
-    /// The player chose: the sign-in thread stops looking.
-    cancelled: bool,
+    /// The saved accounts, the one played last first.
+    accounts: Vec<ios_account::Saved>,
+    /// Counts the sign-ins started: one that is no longer the latest stops and changes nothing.
+    attempt: u64,
     /// Counts up at each change, for the screen to draw again.
     version: u64,
 }
@@ -71,60 +79,90 @@ fn update(state: &State, f: impl FnOnce(&mut Shared)) {
     shared.version += 1;
 }
 
-fn cancelled(state: &State) -> bool {
-    state.lock().unwrap_or_else(|e| e.into_inner()).cancelled
+/// Whether sign-in `attempt` is still the one the player wants.
+fn current(state: &State, attempt: u64) -> bool {
+    state.lock().unwrap_or_else(|e| e.into_inner()).attempt == attempt
 }
 
-/// The sign-in, on a thread of its own: the kept account, else a device code.
-fn sign_in(state: State, use_saved: bool) {
-    let saved = if use_saved { ios_account::saved() } else { None };
-    if let Some(saved) = saved {
-        update(&state, |s| s.account = Account::Resuming(saved.name.clone()));
-        match ios_account::resume(&saved) {
-            Ok(signed) => {
-                ios_account::save(&signed);
-                log::info!("Horizon iOS: signed in again as {}", signed.name);
-                let session = signed.session_json();
-                update(&state, |s| {
-                    s.account = Account::Signed {
-                        name: signed.name,
-                        session,
-                    }
-                });
-                return;
+/// Sets the account state, if `attempt` is still the latest sign-in.
+fn settle(state: &State, attempt: u64, account: Account) {
+    update(state, |s| {
+        if s.attempt == attempt {
+            s.account = account;
+        }
+    });
+}
+
+/// A new sign-in: the ones before it stop.
+fn begin_attempt(state: &State, account: Account) -> u64 {
+    let mut attempt = 0;
+    update(state, |s| {
+        s.attempt += 1;
+        attempt = s.attempt;
+        s.account = account;
+    });
+    attempt
+}
+
+fn signed_in(state: &State, attempt: u64, signed: ios_account::Signed) {
+    if !current(state, attempt) {
+        return;
+    }
+    ios_account::save(&signed);
+    log::info!("Horizon iOS: signed in as {}", signed.name);
+    let session = signed.session_json();
+    let accounts = ios_account::saved();
+    update(state, |s| {
+        if s.attempt == attempt {
+            s.accounts = accounts;
+            s.account = Account::Signed {
+                name: signed.name,
+                session,
+            };
+        }
+    });
+}
+
+/// Signs a saved account in again, on a thread of its own.
+fn resume(state: State, attempt: u64, saved: ios_account::Saved) {
+    match ios_account::resume(&saved) {
+        Ok(signed) => signed_in(&state, attempt, signed),
+        Err(e) => {
+            log::warn!("Horizon iOS: the saved sign-in of {} did not work: {e}", saved.name);
+            // A refused token is gone for good; no network keeps it for the next start.
+            if !e.starts_with("no connection") {
+                ios_account::forget(&saved);
+                let accounts = ios_account::saved();
+                update(&state, |s| s.accounts = accounts);
             }
-            Err(e) => {
-                log::warn!("Horizon iOS: the saved sign-in did not work: {e}");
-                // A refused token is gone for good; no network keeps it for the next start.
-                if !e.starts_with("no connection") {
-                    ios_account::forget();
-                }
-                update(&state, |s| s.account = Account::Failed(e));
-                return;
-            }
+            settle(&state, attempt, Account::Failed(e));
         }
     }
-    update(&state, |s| s.account = Account::Asking);
+}
+
+/// Signs a new account in with a device code, on a thread of its own.
+fn sign_in_new(state: State, attempt: u64) {
     let code = match ios_account::begin() {
         Ok(code) => code,
         Err(e) => {
             log::warn!("Horizon iOS: {e}");
-            update(&state, |s| s.account = Account::Failed(e));
-            return;
+            return settle(&state, attempt, Account::Failed(e));
         }
     };
-    update(&state, |s| {
-        s.account = Account::Code {
+    settle(
+        &state,
+        attempt,
+        Account::Code {
             code: code.user_code.clone(),
             uri: code.verification_uri.clone(),
             link: code.link(),
-        }
-    });
+        },
+    );
     let deadline = Instant::now() + code.expires_in;
     let mut interval = code.interval;
     let outcome = loop {
         std::thread::sleep(interval);
-        if cancelled(&state) {
+        if !current(&state, attempt) {
             return;
         }
         if Instant::now() > deadline {
@@ -139,25 +177,19 @@ fn sign_in(state: State, use_saved: bool) {
             Err(e) => break Err(e),
         }
     };
-    if cancelled(&state) {
-        return;
-    }
     match outcome {
-        Ok(signed) => {
-            ios_account::save(&signed);
-            log::info!("Horizon iOS: signed in as {}", signed.name);
-            let session = signed.session_json();
-            update(&state, |s| {
-                s.account = Account::Signed {
-                    name: signed.name,
-                    session,
-                }
-            });
-        }
+        Ok(signed) => signed_in(&state, attempt, signed),
         Err(e) => {
             log::warn!("Horizon iOS: sign-in failed: {e}");
-            update(&state, |s| s.account = Account::Failed(e));
+            settle(&state, attempt, Account::Failed(e));
         }
+    }
+}
+
+/// Starts a thread for a sign-in.
+fn spawn(name: &str, job: impl FnOnce() + Send + 'static) {
+    if let Err(e) = std::thread::Builder::new().name(name.into()).spawn(job) {
+        log::warn!("Horizon iOS: no {name} thread: {e}");
     }
 }
 
@@ -177,10 +209,13 @@ struct Boot {
 /// Opens the event loop, unpacks (`job`) and signs in beside it, and starts the game when both
 /// are done.
 pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>) -> super::Result<()> {
+    let accounts = ios_account::saved();
+    let first = accounts.is_empty();
     let state: State = Arc::new(Mutex::new(Shared {
         unpacking: job.is_some(),
-        account: Account::Asking,
-        cancelled: false,
+        account: Account::Choose { removing: false },
+        accounts,
+        attempt: 0,
         version: 1,
     }));
     if let Some(job) = job {
@@ -192,10 +227,12 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>) -> super::Result<()> {
                 update(&unpacked, |s| s.unpacking = false);
             })?;
     }
-    let signing = state.clone();
-    std::thread::Builder::new()
-        .name("Sign-in".into())
-        .spawn(move || sign_in(signing, true))?;
+    // No saved account: straight to the sign-in.
+    if first {
+        let attempt = begin_attempt(&state, Account::Asking);
+        let signing = state.clone();
+        spawn("Sign-in", move || sign_in_new(signing, attempt));
+    }
     let mut boot = Boot {
         state,
         drawn: 0,
@@ -219,22 +256,60 @@ impl Boot {
     }
 
     fn screen(&self) -> Screen {
+        use horizon_client::ios_screen::Look;
         let shared = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        let unpacking = shared.unpacking.then(|| {
-            "Unpacking your game files. This first start takes a minute.".to_owned()
-        });
+        let unpacking = shared
+            .unpacking
+            .then(|| "Unpacking your game files. This first start takes a minute.".to_owned());
+        let [done, total] = UNPACKED
+            .each_ref()
+            .map(|v| v.load(std::sync::atomic::Ordering::Relaxed));
+        let progress = (shared.unpacking && total > 0).then(|| done as f32 / total as f32);
         let mut screen = Screen {
             title: "Horizon".into(),
             status: unpacking.clone(),
+            progress,
             ..Default::default()
         };
+        let back = !shared.accounts.is_empty();
+        let button = |label: &str, action, look| (label.to_owned(), action, look);
         match &shared.account {
+            Account::Choose { removing } => {
+                screen.title = "Choose an account".into();
+                if *removing {
+                    screen.lines = vec!["Tap an account to remove it from this iPhone.".into()];
+                    for (i, a) in shared.accounts.iter().enumerate() {
+                        screen.buttons.push((
+                            format!("Remove {}", a.name),
+                            Action::Remove(i),
+                            Look::Danger,
+                        ));
+                    }
+                    screen.buttons.push(button("Done", Action::RemoveMode, Look::Plain));
+                } else {
+                    screen.lines =
+                        vec!["Play as one of your Microsoft accounts, or add another.".into()];
+                    for (i, a) in shared.accounts.iter().enumerate() {
+                        let look = if i == 0 { Look::Primary } else { Look::Plain };
+                        screen.buttons.push((a.name.clone(), Action::Play(i), look));
+                    }
+                    screen.buttons.push(button("Add account", Action::AddAccount, Look::Plain));
+                    screen
+                        .buttons
+                        .push(button("Remove an account", Action::RemoveMode, Look::Plain));
+                    screen.buttons.push(button("Play offline", Action::Offline, Look::Plain));
+                }
+            }
             Account::Resuming(name) => {
                 screen.lines = vec![format!("Signing in as {name}...")];
+                screen.buttons.push(button("Back", Action::Back, Look::Plain));
             }
             Account::Asking => {
                 screen.lines = vec!["Connecting to Microsoft...".into()];
-                screen.buttons = vec![("Play offline", Action::Offline)];
+                if back {
+                    screen.buttons.push(button("Back", Action::Back, Look::Plain));
+                }
+                screen.buttons.push(button("Play offline", Action::Offline, Look::Plain));
             }
             Account::Code { code, uri, .. } => {
                 screen.title = "Sign in with Microsoft".into();
@@ -245,10 +320,13 @@ impl Boot {
                     format!("Or open {uri} on any device and enter this code:"),
                 ];
                 screen.code = Some(code.clone());
-                screen.buttons = vec![
-                    ("Open sign-in page", Action::OpenLink),
-                    ("Play offline", Action::Offline),
-                ];
+                screen
+                    .buttons
+                    .push(button("Open sign-in page", Action::OpenLink, Look::Primary));
+                if back {
+                    screen.buttons.push(button("Back", Action::Back, Look::Plain));
+                }
+                screen.buttons.push(button("Play offline", Action::Offline, Look::Plain));
                 screen.status = unpacking.or(Some("Waiting for you to sign in...".into()));
             }
             Account::Signed { name, .. } => {
@@ -258,10 +336,11 @@ impl Boot {
             Account::Failed(why) => {
                 screen.title = "Sign-in did not work".into();
                 screen.lines = vec![why.clone()];
-                screen.buttons = vec![
-                    ("Try again", Action::Retry),
-                    ("Play offline", Action::Offline),
-                ];
+                screen.buttons.push(button("Try again", Action::Retry, Look::Primary));
+                if back {
+                    screen.buttons.push(button("Back", Action::Back, Look::Plain));
+                }
+                screen.buttons.push(button("Play offline", Action::Offline, Look::Plain));
             }
             Account::Offline => {
                 screen.lines = vec!["Playing offline.".into()];
@@ -271,7 +350,11 @@ impl Boot {
         screen
     }
 
-    fn with_ui<R>(&self, batch: &mut HudBatch, f: impl FnOnce(&mut horizon_client::ui_theme::Ui) -> R) -> Option<R> {
+    fn with_ui<R>(
+        &self,
+        batch: &mut HudBatch,
+        f: impl FnOnce(&mut horizon_client::ui_theme::Ui) -> R,
+    ) -> Option<R> {
         let gui = self.gui.as_ref()?;
         let cursor = (
             self.pointer.0 as f32 / batch.scale,
@@ -313,9 +396,18 @@ impl Boot {
         let Some(Some(action)) = self.with_ui(&mut batch, |ui| screen.click(ui)) else {
             return;
         };
+        let state = self.state.clone();
+        let account = |i: usize| {
+            state
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .accounts
+                .get(i)
+                .cloned()
+        };
         match action {
             Action::OpenLink => {
-                let link = match &self.state.lock().unwrap_or_else(|e| e.into_inner()).account {
+                let link = match &state.lock().unwrap_or_else(|e| e.into_inner()).account {
                     Account::Code { link, .. } => Some(link.clone()),
                     _ => None,
                 };
@@ -325,20 +417,41 @@ impl Boot {
                     log::warn!("Horizon iOS: could not open the sign-in page");
                 }
             }
-            Action::Retry => {
-                update(&self.state, |s| {
-                    s.cancelled = false;
-                    s.account = Account::Asking;
-                });
-                let state = self.state.clone();
-                let _ = std::thread::Builder::new()
-                    .name("Sign-in".into())
-                    .spawn(move || sign_in(state, false));
+            Action::Retry | Action::AddAccount => {
+                let attempt = begin_attempt(&state, Account::Asking);
+                spawn("Sign-in", move || sign_in_new(state, attempt));
             }
-            Action::Offline => update(&self.state, |s| {
-                s.cancelled = true;
-                s.account = Account::Offline;
+            Action::Play(i) => {
+                if let Some(saved) = account(i) {
+                    let attempt = begin_attempt(&state, Account::Resuming(saved.name.clone()));
+                    spawn("Sign-in", move || resume(state, attempt, saved));
+                }
+            }
+            Action::RemoveMode => update(&state, |s| {
+                if let Account::Choose { removing } = &mut s.account {
+                    *removing = !*removing;
+                }
             }),
+            Action::Remove(i) => {
+                if let Some(saved) = account(i) {
+                    ios_account::forget(&saved);
+                    let accounts = ios_account::saved();
+                    let none_left = accounts.is_empty();
+                    update(&state, |s| s.accounts = accounts);
+                    if none_left {
+                        let attempt = begin_attempt(&state, Account::Asking);
+                        spawn("Sign-in", move || sign_in_new(state, attempt));
+                    }
+                }
+            }
+            Action::Back => {
+                let accounts = ios_account::saved();
+                begin_attempt(&state, Account::Choose { removing: false });
+                update(&state, |s| s.accounts = accounts);
+            }
+            Action::Offline => {
+                begin_attempt(&state, Account::Offline);
+            }
         }
         let _ = event_loop;
         if let Some(window) = &self.window {
@@ -491,7 +604,9 @@ impl ApplicationHandler for Boot {
         if let Some(session) = self.ready() {
             return self.start(event_loop, session);
         }
-        let version = self.state.lock().unwrap_or_else(|e| e.into_inner()).version;
+        // The unpacking's progress draws again too.
+        let version = self.state.lock().unwrap_or_else(|e| e.into_inner()).version
+            + UNPACKED[0].load(std::sync::atomic::Ordering::Relaxed) as u64;
         if version != self.drawn && !self.hidden {
             self.drawn = version;
             if let Some(window) = &self.window {

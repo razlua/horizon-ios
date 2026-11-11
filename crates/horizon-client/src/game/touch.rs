@@ -122,40 +122,146 @@ impl Placed {
     }
 }
 
-/// The file the layout is kept in, in the game folder.
-const LAYOUT_FILE: &str = "touch-controls.json";
-
-fn load_layout() -> Option<Vec<Placed>> {
-    let text = std::fs::read_to_string(LAYOUT_FILE).ok()?;
-    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let buttons = value.get("buttons")?.as_array()?;
-    Some(
-        buttons
-            .iter()
-            .filter_map(|b| {
-                let id = b.get("id")?.as_str()?;
-                find_action(id)?;
-                let n = |k: &str| b.get(k).and_then(serde_json::Value::as_f64).map(|v| v as f32);
-                Some(Placed {
-                    id: id.to_owned(),
-                    x: n("x")?.clamp(0.0, 1.0),
-                    y: n("y")?.clamp(0.0, 1.0),
-                    size: n("size")?.clamp(0.04, 0.4),
-                })
-            })
-            .collect(),
-    )
+/// One Edit HUD layout: the buttons, the move stick's area, the Esc button and how opaque they
+/// are. Positions are shares of the screen, so a layout fits any screen of the same shape.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct HudLayout {
+    pub buttons: Vec<Placed>,
+    /// The move stick's area: x, y, width and height.
+    pub stick: [f32; 4],
+    /// The Esc button's centre.
+    pub esc: [f32; 2],
+    /// 0.2 to 1.
+    pub opacity: f32,
 }
 
-fn save_layout(buttons: &[Placed]) {
-    let list: Vec<serde_json::Value> = buttons
-        .iter()
-        .map(|b| serde_json::json!({ "id": b.id, "x": b.x, "y": b.y, "size": b.size }))
-        .collect();
-    let text = serde_json::json!({ "buttons": list }).to_string();
+impl HudLayout {
+    pub(super) fn stick_rect(&self, [w, h]: [f32; 2]) -> [f32; 4] {
+        let [x, y, sw, sh] = self.stick;
+        [x * w, y * h, sw * w, sh * h]
+    }
+    pub(super) fn esc_rect(&self, [w, h]: [f32; 2]) -> [f32; 4] {
+        let u = w.min(h) * 0.15;
+        let [cx, cy] = self.esc;
+        [cx * w - u * 0.4, cy * h - u * 0.25, u * 0.8, u * 0.5]
+    }
+}
+
+/// How many layouts Edit HUD keeps.
+pub(super) const LAYOUTS: usize = 3;
+
+/// `touch-controls.json`: the layouts the player saved (none: the defaults) and the one in use.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(super) struct HudFile {
+    pub active: usize,
+    pub layouts: Vec<Option<HudLayout>>,
+}
+
+impl HudFile {
+    fn current(&self) -> Option<&HudLayout> {
+        self.layouts.get(self.active)?.as_ref()
+    }
+}
+
+/// The file the layouts are kept in, in the game folder.
+const LAYOUT_FILE: &str = "touch-controls.json";
+
+fn parse_buttons(value: &serde_json::Value) -> Vec<Placed> {
+    value
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter_map(|b| {
+                    let id = b.get("id")?.as_str()?;
+                    find_action(id)?;
+                    let n = |k: &str| b.get(k).and_then(serde_json::Value::as_f64).map(|v| v as f32);
+                    Some(Placed {
+                        id: id.to_owned(),
+                        x: n("x")?.clamp(0.0, 1.0),
+                        y: n("y")?.clamp(0.0, 1.0),
+                        size: n("size")?.clamp(0.04, 0.4),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn numbers<const N: usize>(value: &serde_json::Value) -> Option<[f32; N]> {
+    let list = value.as_array()?;
+    let mut out = [0.0; N];
+    for (slot, v) in out.iter_mut().zip(list) {
+        *slot = (v.as_f64()? as f32).clamp(0.0, 1.0);
+    }
+    (list.len() == N).then_some(out)
+}
+
+fn parse_layout(value: &serde_json::Value, defaults: &HudLayout) -> Option<HudLayout> {
+    if value.is_null() {
+        return None;
+    }
+    Some(HudLayout {
+        buttons: parse_buttons(&value["buttons"]),
+        stick: numbers(&value["stick"]).unwrap_or(defaults.stick),
+        esc: numbers(&value["esc"]).unwrap_or(defaults.esc),
+        opacity: value["opacity"]
+            .as_f64()
+            .map_or(defaults.opacity, |v| (v as f32).clamp(0.2, 1.0)),
+    })
+}
+
+/// The file, read against the default layout (for what it leaves out). The first Edit HUD kept
+/// one layout of buttons only: it is the first layout.
+fn load_layouts(defaults: &HudLayout) -> HudFile {
+    let Some(value) = std::fs::read_to_string(LAYOUT_FILE)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+    else {
+        return HudFile::default();
+    };
+    if let Some(list) = value["layouts"].as_array() {
+        return HudFile {
+            active: value["active"].as_u64().unwrap_or(0) as usize,
+            layouts: list.iter().take(LAYOUTS).map(|l| parse_layout(l, defaults)).collect(),
+        };
+    }
+    HudFile {
+        active: 0,
+        layouts: vec![parse_layout(&value, defaults)],
+    }
+}
+
+fn save_layouts(file: &HudFile) {
+    let layout = |l: &Option<HudLayout>| match l {
+        None => serde_json::Value::Null,
+        Some(l) => serde_json::json!({
+            "buttons": l.buttons.iter().map(|b| serde_json::json!({
+                "id": b.id, "x": b.x, "y": b.y, "size": b.size,
+            })).collect::<Vec<_>>(),
+            "stick": l.stick,
+            "esc": l.esc,
+            "opacity": l.opacity,
+        }),
+    };
+    let text = serde_json::json!({
+        "active": file.active,
+        "layouts": file.layouts.iter().map(layout).collect::<Vec<_>>(),
+    })
+    .to_string();
     if let Err(e) = std::fs::write(LAYOUT_FILE, text) {
         log::warn!("Horizon: the touch layout could not be saved: {e}");
     }
+}
+
+/// A button over the chat screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ChatKey {
+    /// Completes the command or name being typed.
+    Tab,
+    /// The clipboard's text into the line.
+    Paste,
+    /// Sends the line.
+    Enter,
 }
 
 /// A button: its rectangle in window pixels, what it does and what it shows.
@@ -181,19 +287,31 @@ pub(super) struct Layout {
     pub line: f32,
     /// The Esc button, top centre: shown in the world and in every screen.
     pub escape: [f32; 4],
+    /// How opaque the buttons are.
+    pub opacity: f32,
+    /// Over the chat screen, top right.
+    pub chat_keys: Vec<(ChatKey, &'static str, [f32; 4])>,
 }
 
 impl Layout {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(super) fn new(size: [f32; 2], gui_scale: f32) -> Self {
+        Self::new_in(size, gui_scale, [0.0; 4])
+    }
+
+    /// The default layout clear of the safe area's `insets` (left, top, right, bottom pixels):
+    /// the Dynamic Island or the notch, and the home indicator.
+    pub(super) fn new_in(size: [f32; 2], gui_scale: f32, insets: [f32; 4]) -> Self {
         let [w, h] = size;
+        let [inset_left, inset_top, inset_right, inset_bottom] = insets;
         let short = w.min(h);
         // A thumb-sized button: about 9 mm on a phone held sideways.
         let u = short * 0.15;
         let gap = u * 0.2;
         // Clear of the rounded corners, the camera housing and the home indicator.
-        let side = (w * 0.055).max(u * 0.5);
-        let bottom = u * 0.35;
-        let top = u * 0.18;
+        let side = (w * 0.055).max(u * 0.5).max(inset_right + u * 0.12);
+        let bottom = u * 0.35 + inset_bottom;
+        let top = (u * 0.18).max(inset_top + u * 0.08);
         let col = |i: f32| w - side - u * (i + 1.0) - gap * i;
         let row = |i: f32| h - bottom - u * (i + 1.0) - gap * i;
         let small = u * 0.72;
@@ -201,7 +319,9 @@ impl Layout {
         // Over the ends of the hotbar (182 GUI pixels wide, centred), clear of the bars above it
         // (39 GUI pixels from the bottom): beside it they met the buttons on a small phone.
         let hotbar_half = 91.0 * gui_scale;
-        let hot_y = h - 39.0 * gui_scale - gap - small;
+        // The GUI is centred in the safe area (hud::SAFE_INSETS).
+        let gui_centre = inset_left + (w - inset_left - inset_right) / 2.0;
+        let hot_y = h - inset_bottom - 39.0 * gui_scale - gap - small;
         let key = |x: f32, y: f32, s: f32, key: Key, label: &'static str| Pad {
             rect: [x, y, s, s],
             key,
@@ -221,34 +341,55 @@ impl Layout {
             key(top_col(2.0), top, small, Key::Pad(Button::East), "Drop"),
             key(top_col(3.0), top, small, Key::Pad(Button::DPadUp), "Cam"),
             key(
-                w / 2.0 - hotbar_half,
+                gui_centre - hotbar_half,
                 hot_y,
                 small,
                 Key::Pad(Button::LeftBumper),
                 "<",
             ),
             key(
-                w / 2.0 + hotbar_half - small,
+                gui_centre + hotbar_half - small,
                 hot_y,
                 small,
                 Key::Pad(Button::RightBumper),
                 ">",
             ),
         ];
+        let esc_y = u * 0.12 + inset_top;
+        let (cw, ch) = (u * 0.95, u * 0.5);
+        let chat_keys = [(ChatKey::Tab, "Tab"), (ChatKey::Paste, "Paste"), (ChatKey::Enter, "Enter")]
+            .iter()
+            .enumerate()
+            .map(|(i, &(k, label))| {
+                let x = w - side - (3 - i) as f32 * (cw + gap) + gap;
+                (k, label, [x, esc_y, cw, ch])
+            })
+            .collect();
         Self {
             keys,
-            stick_zone: [0.0, h * 0.28, w * 0.40, h * 0.72],
+            stick_zone: [inset_left, h * 0.28, w * 0.40 - inset_left, h * 0.72 - inset_bottom],
             stick_radius: u * 0.8,
             slop: u * 0.14,
             line: u * 0.35,
-            escape: [w / 2.0 - u * 0.4, u * 0.12, u * 0.8, u * 0.5],
+            escape: [w / 2.0 - u * 0.4, esc_y, u * 0.8, u * 0.5],
+            opacity: 1.0,
+            chat_keys,
         }
     }
-    /// The layout with the player's own buttons (Edit HUD) in place of the defaults.
-    pub(super) fn with(size: [f32; 2], gui_scale: f32, custom: Option<&[Placed]>) -> Self {
-        let mut layout = Self::new(size, gui_scale);
+    /// The layout with the player's own (Edit HUD) in place of the defaults.
+    pub(super) fn with(
+        size: [f32; 2],
+        gui_scale: f32,
+        insets: [f32; 4],
+        custom: Option<&HudLayout>,
+    ) -> Self {
+        let mut layout = Self::new_in(size, gui_scale, insets);
         if let Some(custom) = custom {
+            layout.stick_zone = custom.stick_rect(size);
+            layout.escape = custom.esc_rect(size);
+            layout.opacity = custom.opacity;
             layout.keys = custom
+                .buttons
                 .iter()
                 .filter_map(|p| {
                     let a = find_action(&p.id)?;
@@ -262,6 +403,19 @@ impl Layout {
                 .collect();
         }
         layout
+    }
+
+    /// The whole layout as Edit HUD keeps it.
+    pub(super) fn hud(&self, size: [f32; 2]) -> HudLayout {
+        let [w, h] = size;
+        let [x, y, sw, sh] = self.stick_zone;
+        let [ex, ey, ew, eh] = self.escape;
+        HudLayout {
+            buttons: self.placed(size),
+            stick: [x / w, y / h, sw / w, sh / h],
+            esc: [(ex + ew / 2.0) / w, (ey + eh / 2.0) / h],
+            opacity: self.opacity,
+        }
     }
 
     /// The buttons as Edit HUD keeps them.
@@ -360,14 +514,14 @@ pub(super) fn touch_pixels(window: &Window, surface: [u32; 2], touch: &Touch) ->
     [at[0] * fx, at[1] * fy]
 }
 
-/// The layout for a window of `size` pixels, at the GUI scale the HUD draws it with.
+/// The default layout for a window of `size` pixels, at the GUI scale the HUD draws it with.
 pub(super) fn layout_for(size: [u32; 2]) -> Layout {
-    custom_layout_for(size, None)
+    custom_layout_for(size, [0.0; 4], None)
 }
 
-fn custom_layout_for(size: [u32; 2], custom: Option<&[Placed]>) -> Layout {
+fn custom_layout_for(size: [u32; 2], insets: [f32; 4], custom: Option<&HudLayout>) -> Layout {
     let scale = HudBatch::new(size).scale;
-    Layout::with([size[0] as f32, size[1] as f32], scale, custom)
+    Layout::with([size[0] as f32, size[1] as f32], scale, insets, custom)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -411,8 +565,8 @@ pub(super) struct Controls {
     pub(super) keyboard_hidden: bool,
     /// A text field had the focus at the last `sync_ime`.
     pub(super) field_focused: bool,
-    /// The player's own layout (Edit HUD), once `touch-controls.json` was read.
-    custom: Option<Vec<Placed>>,
+    /// The player's own layouts (Edit HUD), once `touch-controls.json` was read.
+    hud: HudFile,
     loaded: bool,
     /// Edit HUD, while it is open.
     editor: Option<super::touch_editor::Editor>,
@@ -425,11 +579,12 @@ impl Controls {
         cfg!(target_os = "ios") || std::env::var_os("HORIZON_TOUCH").is_some_and(|v| v == "1")
     }
 
-    /// Reads `touch-controls.json` once.
-    fn load(&mut self) {
+    /// Reads `touch-controls.json` once, against the default layout for `size`.
+    fn load(&mut self, size: [u32; 2]) {
         if !self.loaded {
             self.loaded = true;
-            self.custom = load_layout();
+            let defaults = layout_for(size).hud([size[0] as f32, size[1] as f32]);
+            self.hud = load_layouts(&defaults);
         }
     }
 
@@ -660,40 +815,99 @@ impl Game<'_> {
         ))
     }
 
+    /// iOS: the safe area's insets in the frame's pixels (left, top, right, bottom): what winit
+    /// says of the window's safe area, in the view's scale, turned into the frame's.
+    pub(super) fn safe_insets(&self) -> [f32; 4] {
+        if !cfg!(target_os = "ios") {
+            return [0.0; 4];
+        }
+        let (Some(window), Some(size)) = (self.window.as_ref(), self.touch_size()) else {
+            return [0.0; 4];
+        };
+        let (outer, inner) = (window.outer_size(), window.inner_size());
+        let Ok(origin) = window.inner_position() else {
+            return [0.0; 4];
+        };
+        if outer.width == 0 || outer.height == 0 {
+            return [0.0; 4];
+        }
+        let fx = size[0] as f32 / outer.width as f32;
+        let fy = size[1] as f32 / outer.height as f32;
+        let left = (origin.x.max(0) as f32 * fx).round();
+        let top = (origin.y.max(0) as f32 * fy).round();
+        let right = ((outer.width as f32 - origin.x.max(0) as f32 - inner.width as f32) * fx)
+            .max(0.0)
+            .round();
+        let bottom = ((outer.height as f32 - origin.y.max(0) as f32 - inner.height as f32) * fy)
+            .max(0.0)
+            .round();
+        [left, top, right, bottom]
+    }
+
     fn touch_layout(&self) -> Option<Layout> {
-        Some(custom_layout_for(self.touch_size()?, self.touch.custom.as_deref()))
+        Some(custom_layout_for(
+            self.touch_size()?,
+            self.safe_insets(),
+            self.touch.hud.current(),
+        ))
+    }
+
+    /// The default layout of this screen, clear of its safe area.
+    fn default_hud(&self, size: [u32; 2]) -> HudLayout {
+        custom_layout_for(size, self.safe_insets(), None).hud([size[0] as f32, size[1] as f32])
     }
 
     /// Edit HUD (the title's button in Quit Game's place on iOS).
     pub(super) fn open_touch_editor(&mut self) {
-        self.touch.load();
         let Some(size) = self.touch_size() else {
             return;
         };
-        let fsize = [size[0] as f32, size[1] as f32];
-        let buttons = match &self.touch.custom {
-            Some(custom) => custom.clone(),
-            None => layout_for(size).placed(fsize),
-        };
-        self.touch.editor = Some(super::touch_editor::Editor::new(buttons));
+        self.touch.load(size);
+        let defaults = self.default_hud(size);
+        let layouts = super::touch_editor::slots(&self.touch.hud.layouts, &defaults);
+        self.touch.editor = Some(super::touch_editor::Editor::new(layouts, self.touch.hud.active));
     }
 
     /// A finger in Edit HUD.
     fn touch_editor_event(&mut self, touch: &Touch, at: [f64; 2], size: [u32; 2]) {
         let fsize = [size[0] as f32, size[1] as f32];
-        let defaults = layout_for(size).placed(fsize);
+        let defaults = self.default_hud(size);
         let Some(editor) = &mut self.touch.editor else {
             return;
         };
         let at = [at[0] as f32, at[1] as f32];
-        if let Some(done) = editor.touch(touch.id, touch.phase, at, fsize, &defaults) {
-            save_layout(&done);
-            // The default layout stays the default: it follows the game's later changes.
-            self.touch.custom = (done != defaults).then_some(done);
-            if self.touch.custom.is_none() {
+        if let Some((layouts, active)) = editor.touch(touch.id, touch.phase, at, fsize, &defaults) {
+            // A layout like the default is no layout: it follows the game's later changes.
+            let layouts: Vec<Option<HudLayout>> = layouts
+                .into_iter()
+                .map(|l| (l != defaults).then_some(l))
+                .collect();
+            self.touch.hud = HudFile { active, layouts };
+            if self.touch.hud.layouts.iter().all(Option::is_none) && active == 0 {
                 let _ = std::fs::remove_file(LAYOUT_FILE);
+            } else {
+                save_layouts(&self.touch.hud);
             }
             self.touch.editor = None;
+        }
+    }
+
+    /// Whether the chat screen is open (its buttons show).
+    fn chat_open(&self) -> bool {
+        self.title.is_none() && self.screen == Screen::Chat
+    }
+
+    /// A chat button: Tab, Paste or Enter.
+    fn touch_chat_key(&mut self, key: ChatKey, event_loop: &dyn EventLoopCtl) {
+        match key {
+            ChatKey::Tab => self.replay_line("key tab tap", event_loop),
+            ChatKey::Enter => self.keyboard_return(event_loop),
+            ChatKey::Paste => {
+                #[cfg(target_os = "ios")]
+                if let Some(text) = horizon_threads::ios_pasteboard::get() {
+                    self.ime_commit(&text.replace(['\r', '\n'], " "));
+                }
+            }
         }
     }
 
@@ -702,7 +916,10 @@ impl Game<'_> {
         if !Controls::enabled() {
             return;
         }
-        self.touch.load();
+        let Some(size) = self.touch_size() else {
+            return;
+        };
+        self.touch.load(size);
         let Some(layout) = self.touch_layout() else {
             return;
         };
@@ -719,19 +936,40 @@ impl Game<'_> {
             return self.touch_editor_event(&touch, at, size);
         }
         let world = self.touch_world();
+        // The GUI is drawn in the safe area (hud::SAFE_INSETS): the pointer is in its pixels.
+        let [inset_left, inset_top, _, _] = self.safe_insets();
+        // The chat screen's own buttons.
+        if self.chat_open() && touch.phase == TouchPhase::Started {
+            let p = [at[0] as f32, at[1] as f32];
+            if let Some(&(key, _, _)) = layout.chat_keys.iter().find(|(_, _, r)| inside(*r, p)) {
+                self.last_input = Instant::now();
+                return self.touch_chat_key(key, event_loop);
+            }
+        }
         // The system keyboard covers half the screen and the game's fields keep the focus: a tap
-        // on a text field brings it up, a tap anywhere else puts it away.
+        // on a text field brings it up, a tap anywhere else puts it away. Chat's line is the
+        // screen's bottom 16 GUI pixels.
         if !world && touch.phase == TouchPhase::Started {
-            let scale = HudBatch::new(size).scale;
-            let gui = (at[0] as f32 / scale, at[1] as f32 / scale);
+            let batch = HudBatch::new(size);
+            let gui = (
+                (at[0] as f32 - inset_left) / batch.scale,
+                (at[1] as f32 - inset_top) / batch.scale,
+            );
+            let chat_line = self.chat_open() && gui.1 >= batch.height - 16.0;
             self.touch.keyboard_hidden =
-                !super::pad_menu::field_at(&self.pad_visible_targets(), gui);
+                !(chat_line || super::pad_menu::field_at(&self.pad_visible_targets(), gui));
         }
         let outs = self
             .touch
             .touch(touch.id, touch.phase, at, Instant::now(), world, &layout);
         self.last_input = Instant::now();
         for out in outs {
+            let out = match out {
+                Out::Cursor([x, y]) => {
+                    Out::Cursor([x - f64::from(inset_left), y - f64::from(inset_top)])
+                }
+                out => out,
+            };
             match (out, out.window_event()) {
                 (_, Some(event)) => {
                     self.handle_window_event(event_loop, id, event, input_trace::InputOrigin::User);
@@ -801,9 +1039,10 @@ impl Game<'_> {
         }
     }
 
-    /// Edit HUD over the title: the buttons where they would be in the world, the move stick's
-    /// area, the tools and the Add list.
-    fn draw_touch_editor(&self, batch: &mut HudBatch, layout: &Layout) {
+    /// Edit HUD over the title: the layout where it would be in the world, the tools and the Add
+    /// list.
+    fn draw_touch_editor(&self, batch: &mut HudBatch) {
+        use super::touch_editor::{Sel, Tool};
         let Some(editor) = &self.touch.editor else {
             return;
         };
@@ -811,9 +1050,12 @@ impl Game<'_> {
             return;
         };
         let fsize = [size[0] as f32, size[1] as f32];
+        let layout = editor.current();
         let s = batch.scale;
         let atlas = &self.gui.atlas;
         let white = rgba(255, 255, 255, 230);
+        let selected = rgba(90, 160, 255, 170);
+        let fade = |a: u8| (f32::from(a) * layout.opacity).round() as u8;
         let plate = |batch: &mut HudBatch, r: [f32; 4], fill: u32, label: &str| {
             let [x, y, w, h] = r.map(|v| v / s);
             batch.fill(atlas, x - 1.0, y - 1.0, w + 2.0, h + 2.0, rgba(0, 0, 0, 120));
@@ -822,47 +1064,70 @@ impl Game<'_> {
             batch.text(atlas, label, x + (w - tw) / 2.0, y + (h - 8.0) / 2.0, white, true);
         };
         batch.fill(atlas, 0.0, 0.0, fsize[0] / s, fsize[1] / s, rgba(0, 0, 0, 150));
-        let [zx, zy, zw, zh] = layout.stick_zone.map(|v| v / s);
-        batch.fill(atlas, zx, zy, zw, zh, rgba(255, 255, 255, 14));
+        let stick = layout.stick_rect(fsize);
+        let [zx, zy, zw, zh] = stick.map(|v| v / s);
+        let zone = if editor.selected == Some(Sel::Stick) {
+            rgba(90, 160, 255, 60)
+        } else {
+            rgba(255, 255, 255, 18)
+        };
+        batch.fill(atlas, zx, zy, zw, zh, zone);
         let note = "Move stick area";
-        batch.text(atlas, note, zx + 6.0, zy + 6.0, rgba(255, 255, 255, 120), true);
-        for (i, b) in editor.buttons.iter().enumerate() {
+        batch.text(atlas, note, zx + 6.0, zy + 6.0, rgba(255, 255, 255, 140), true);
+        let esc_fill = if editor.selected == Some(Sel::Esc) {
+            selected
+        } else {
+            rgba(0, 0, 0, fade(160))
+        };
+        plate(batch, layout.esc_rect(fsize), esc_fill, "Esc");
+        for (i, b) in layout.buttons.iter().enumerate() {
             let label = find_action(&b.id).map_or("?", |a| a.label);
-            let fill = if editor.selected == Some(i) {
-                rgba(90, 160, 255, 170)
+            let fill = if editor.selected == Some(Sel::Button(i)) {
+                selected
             } else {
-                rgba(255, 255, 255, 50)
+                rgba(255, 255, 255, fade(50))
             };
             plate(batch, b.rect(fsize), fill, label);
         }
         for (tool, label, r) in super::touch_editor::toolbar(fsize) {
-            let needs_selection = matches!(
-                tool,
-                super::touch_editor::Tool::Remove
-                    | super::touch_editor::Tool::Smaller
-                    | super::touch_editor::Tool::Bigger
-            );
-            let fill = if tool == super::touch_editor::Tool::Done {
+            let usable = match tool {
+                Tool::Remove => matches!(editor.selected, Some(Sel::Button(_))),
+                Tool::Smaller | Tool::Bigger => {
+                    matches!(editor.selected, Some(Sel::Button(_) | Sel::Stick))
+                }
+                _ => true,
+            };
+            let fill = if tool == Tool::Done {
                 rgba(60, 150, 70, 200)
-            } else if needs_selection && editor.selected.is_none() {
+            } else if !usable {
                 rgba(40, 40, 40, 160)
             } else {
                 rgba(70, 70, 70, 210)
             };
-            plate(batch, r, fill, label);
+            let label = match tool {
+                Tool::Layout => format!("Layout {}", editor.active + 1),
+                Tool::Fainter | Tool::Bolder => {
+                    format!("{label} {}%", (layout.opacity * 100.0).round())
+                }
+                _ => label.to_owned(),
+            };
+            plate(batch, r, fill, &label);
         }
         let hint = if editor.picking {
             "Tap a button to add it"
-        } else if editor.selected.is_some() {
-            "Drag to move it; Remove, Smaller and Bigger change it"
         } else {
-            "Drag a button to move it, or tap one to select it"
+            match editor.selected {
+                Some(Sel::Button(_)) => "Drag to move it; Remove, Smaller and Bigger change it",
+                Some(Sel::Stick) => "Drag to move the stick area; Smaller and Bigger resize it",
+                Some(Sel::Esc) => "Drag to move the Esc button",
+                None => "Drag a button, the Esc button or the stick area to move it",
+            }
         };
-        let u = fsize[0].min(fsize[1]) * 0.15;
         let tw = HudBatch::text_width(atlas, hint);
-        batch.text(atlas, hint, (fsize[0] / s - tw) / 2.0, (u * 0.75) / s, white, true);
+        let hy = super::touch_editor::toolbar_bottom(fsize) / s + 4.0;
+        batch.text(atlas, hint, (fsize[0] / s - tw) / 2.0, hy, white, true);
         if editor.picking {
-            let (panel, tiles) = super::touch_editor::picker(fsize, &editor.buttons);
+            let (panel, tiles) = super::touch_editor::picker(fsize, &layout.buttons);
             let [px, py, pw, ph] = panel.map(|v| v / s);
             batch.fill(atlas, px - 1.0, py - 1.0, pw + 2.0, ph + 2.0, rgba(255, 255, 255, 90));
             batch.fill(atlas, px, py, pw, ph, rgba(20, 20, 20, 235));
@@ -880,25 +1145,30 @@ impl Game<'_> {
         if !Controls::enabled() {
             return;
         }
-        self.touch.load();
+        let Some(size) = self.touch_size() else {
+            return;
+        };
+        self.touch.load(size);
         let Some(layout) = self.touch_layout() else {
             return;
         };
         if self.touch.editor.is_some() {
-            return self.draw_touch_editor(batch, &layout);
+            return self.draw_touch_editor(batch);
         }
         let s = batch.scale;
         let atlas = &self.gui.atlas;
-        let idle = rgba(255, 255, 255, 34);
-        let down = rgba(255, 255, 255, 96);
-        let edge = rgba(0, 0, 0, 70);
+        let fade = |a: u8| (f32::from(a) * layout.opacity).round() as u8;
+        let idle = rgba(255, 255, 255, fade(34));
+        let down = rgba(255, 255, 255, fade(96).max(40));
+        let edge = rgba(0, 0, 0, fade(70));
+        let ink = rgba(255, 255, 255, fade(200).max(60));
         {
             let [x, y, w, h] = layout.escape.map(|v| v / s);
             batch.fill(atlas, x - 1.0, y - 1.0, w + 2.0, h + 2.0, edge);
             let plate = if self.touch.escape_held() {
                 down
             } else {
-                rgba(0, 0, 0, 90)
+                rgba(0, 0, 0, fade(90))
             };
             batch.fill(atlas, x, y, w, h, plate);
             let tw = HudBatch::text_width(atlas, "Esc");
@@ -907,9 +1177,19 @@ impl Game<'_> {
                 "Esc",
                 x + (w - tw) / 2.0,
                 y + (h - 8.0) / 2.0,
-                rgba(255, 255, 255, 220),
+                rgba(255, 255, 255, fade(220).max(60)),
                 true,
             );
+        }
+        if self.chat_open() {
+            for &(_, label, r) in &layout.chat_keys {
+                let [x, y, w, h] = r.map(|v| v / s);
+                batch.fill(atlas, x - 1.0, y - 1.0, w + 2.0, h + 2.0, rgba(0, 0, 0, 90));
+                batch.fill(atlas, x, y, w, h, rgba(0, 0, 0, 150));
+                let tw = HudBatch::text_width(atlas, label);
+                let white = rgba(255, 255, 255, 230);
+                batch.text(atlas, label, x + (w - tw) / 2.0, y + (h - 8.0) / 2.0, white, true);
+            }
         }
         if !self.touch_world() || self.ui.hide_gui {
             return;
@@ -920,14 +1200,7 @@ impl Game<'_> {
             let colour = if self.touch.key_held(i) { down } else { idle };
             batch.fill(atlas, x, y, w, h, colour);
             let tw = HudBatch::text_width(atlas, key.label);
-            batch.text(
-                atlas,
-                key.label,
-                x + (w - tw) / 2.0,
-                y + (h - 8.0) / 2.0,
-                rgba(255, 255, 255, 200),
-                true,
-            );
+            batch.text(atlas, key.label, x + (w - tw) / 2.0, y + (h - 8.0) / 2.0, ink, true);
         }
         if let Some((base, knob)) = self.touch.stick() {
             let r = layout.stick_radius / s;
@@ -986,6 +1259,35 @@ mod tests {
                 assert!(!inside(l.stick_zone, [x + w / 2.0, y + h / 2.0]) || a.label == "<");
             }
         }
+    }
+
+    #[test]
+    fn the_default_buttons_keep_clear_of_the_safe_area() {
+        // An iPhone held sideways: the Dynamic Island's side, the other side and the home
+        // indicator (59, 59 and 21 points at 3x).
+        let insets = [177.0, 0.0, 177.0, 63.0];
+        let l = Layout::new_in(SIZE, 4.0, insets);
+        let inside_safe = |[x, y, w, h]: [f32; 4]| {
+            x >= insets[0] && y >= insets[1] && x + w <= SIZE[0] - insets[2] && y + h <= SIZE[1] - insets[3]
+        };
+        for k in &l.keys {
+            assert!(inside_safe(k.rect), "{k:?}");
+        }
+        assert!(inside_safe(l.escape));
+        for (_, _, r) in &l.chat_keys {
+            assert!(inside_safe(*r), "{r:?}");
+            assert!(r[0] >= l.escape[0] + l.escape[2], "the chat keys sit right of Esc: {r:?}");
+        }
+        assert!(l.stick_zone[0] >= insets[0]);
+        // The layout as Edit HUD keeps it comes back the same.
+        let hud = l.hud(SIZE);
+        let back = Layout::with(SIZE, 4.0, insets, Some(&hud));
+        for (a, b) in l.keys.iter().zip(&back.keys) {
+            for (p, q) in a.rect.iter().zip(b.rect) {
+                assert!((p - q).abs() < 0.5, "{a:?} {b:?}");
+            }
+        }
+        assert!(back.escape.iter().zip(l.escape).all(|(p, q)| (p - q).abs() < 0.5));
     }
 
     #[test]

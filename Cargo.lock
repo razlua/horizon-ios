@@ -1387,6 +1387,7 @@ dependencies = [
  "horizon-client-core",
  "horizon-dualsense",
  "horizon-theme",
+ "horizon-threads",
  "png",
  "winit",
 ]

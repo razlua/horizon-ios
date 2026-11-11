@@ -8,50 +8,53 @@ redstone, multiplayer and so on) comes from upstream.
 
 - [x] The game client builds for `aarch64-apple-ios` on GitHub's macOS runners and is packaged
       as an unsigned `.ipa`.
-- [x] Drawing with Metal, in a window that fills the screen, sideways only, at up to 120 Hz.
+- [x] Drawing with Metal, in a window that fills the screen, sideways only, at up to 120 Hz on
+      ProMotion screens.
 - [x] Your own game files added to the app on your computer, never uploaded. The app unpacks
       them on its first launch, beside the event loop, so iOS doesn't kill a slow start.
-- [x] A start screen from the first frame.
+- [x] A start screen from the first frame, with a progress bar while the first launch unpacks.
 - [x] Microsoft sign-in without a launcher: a device code, Safari opened with the code filled
-      in, and a saved sign-in for later launches.
+      in, and saved sign-ins for later launches.
+- [x] **Accounts.** More than one Microsoft account. The start screen lists them before the
+      game starts: play as one, add one, remove one, or play offline.
 - [x] Touch controls: a floating move stick with sprint, action buttons, look by dragging, and
       tap, scroll, drag and right-click in menus.
 - [x] An Esc button.
-- [x] Edit HUD: move, add, remove, resize and reset buttons. Buttons can press F1, F2, F3, the
-      F3 combinations and `/`.
+- [x] Edit HUD: move, add, remove, resize and reset buttons. Buttons can press hotbar slots 1 to
+      9, F1, F2, F3, the F3 combinations and `/`.
+- [x] **Edit HUD extras.** Button opacity, moving and resizing the stick area, moving the Esc
+      button, and three saved layouts.
 - [x] The iPhone keyboard opens on a tap on a text box and closes with return or a tap anywhere
-      else.
+      else. Return sends chat. The controller's on-screen keyboard is off.
+- [x] Chat's own Tab, Paste and Enter buttons, and tapping chat's line to type again.
+- [x] **Clipboard.** Copy and paste with other apps through `UIPasteboard`.
+- [x] **Safe areas.** The HUD, the buttons and screens keep clear of the Dynamic Island, the
+      notch and the home indicator.
 - [x] Pausing and saving when the app leaves the screen.
 - [x] Your files in the Files app.
+- [x] Servers behind an SRV redirect can be joined.
 - [x] Improved transparency no longer crashes on iOS GPUs.
 
 ## Next
 
-- [ ] **Safe areas.** Keep the HUD, the buttons and screens clear of the Dynamic Island, the
-      notch and the home indicator.
-- [ ] **Game controllers.** Read paired controllers through Apple's GameController framework.
-      `gilrs` has no iOS backend, and the virtual pad already takes their input.
-- [ ] **Clipboard.** Copy and paste with other apps through `UIPasteboard`.
-- [ ] **Phone-friendly defaults.** A lower render distance and graphics preset on the first
-      launch, and a battery-saving frame cap.
-- [ ] **Unpacking progress.** A progress bar on the start screen while the first launch unpacks.
-- [ ] **Haptics.** A light tap on button presses and when hit, where the game already rumbles a
-      controller.
-- [ ] **Edit HUD extras.** Button opacity, moving the stick area and the Esc button, and
-      several saved layouts.
-- [ ] **Narrator.** Text-to-speech through `AVSpeechSynthesizer`.
+Nothing is queued right now: the items above were the last Next list. Suggestions are welcome.
 
 ## Later
 
 - [ ] **No computer needed.** Prepare the game files on the device. This needs upstream's
       "preparing without Java" work (upstream issue #1750).
-- [ ] **iPad.** Pointer and keyboard support and Split View sizes.
+- [ ] **iPad.** Pointer and keyboard support and Split View sizes. The maintainer doesn't own
+      an iPad and can't test this. If you'd like to volunteer, DM `4rnz` on Discord.
 - [ ] **Updates in the app.** Show when a newer build exists.
-- [ ] **Accounts.** More than one Microsoft account, and switching between them.
+- [ ] **Game controllers.** Read paired controllers through Apple's GameController framework.
+      `gilrs` has no iOS backend, and the virtual pad already takes their input.
+- [ ] **Narrator.** Text-to-speech through `AVSpeechSynthesizer`.
 
 ## Not planned
 
 - **The App Store or TestFlight.** The app needs your own Minecraft files, and the game is not
   ours to publish there.
-- **The desktop launcher's pages.** Native Rust mods, the mod browser, modpacks and server
-  hosting need a computer.
+- **The desktop launcher's pages.** Native Rust mods, the mod browser and modpacks need a
+  computer.
+- **Phone-friendly defaults.** Horizon is already well optimized, so a lower render distance
+  or graphics preset on first launch isn't needed.

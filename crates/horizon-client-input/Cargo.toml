@@ -15,7 +15,11 @@ png = "0.18"
 # The DualSense's trigger effects (the `controllers` feature).
 horizon-dualsense = { path = "../horizon-dualsense", optional = true }
 
-# arboard has no iOS backend: there the clipboard stays inside the game (clipboard.rs).
+# iOS: the system clipboard through UIPasteboard (horizon-threads holds the unsafe calls).
+[target.'cfg(target_os = "ios")'.dependencies]
+horizon-threads = { path = "../horizon-threads" }
+
+# arboard has no iOS backend: there the clipboard is UIPasteboard's (clipboard.rs).
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 

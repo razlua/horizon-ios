@@ -17,19 +17,30 @@ rewrite of Minecraft: Java Edition 26.3, to iPhone and iPad. You sideload it you
 ## What works
 
 - **Start screen.** It shows from the very first frame. The first launch unpacks your game files
-  in about a minute, and you can sign in while it does.
+  in about a minute, with a progress bar, and you can sign in while it does.
 - **Microsoft sign-in, without a launcher.** Tap **Open sign-in page** and Safari opens with your
-  code already filled in. After that the app signs you in by itself. **Play offline** skips it.
+  code already filled in. **Play offline** skips it.
+- **Several accounts.** The start screen lists your saved Microsoft accounts: tap one to play as
+  it, or add or remove accounts.
 - **Touch controls.** In the world, the left side of the screen is a floating move stick (push
   past its edge to sprint), the buttons on the right act, and a finger anywhere else turns the
   view. In menus you tap to click, swipe to scroll, and tap with a second finger to right-click.
 - **Esc button.** A small Esc button sits at the top centre. It closes the inventory and other
   screens, and in the world it opens the pause menu.
 - **Edit HUD.** On iOS this button takes Quit Game's place on the main menu. You can drag
-  buttons, add and remove them, resize them, or reset to the defaults. Buttons can press keyboard
-  keys too: F1, F2, F3, F3+B / G / H / N / T / F4, and `/`.
-- **Keyboard.** The iPhone keyboard opens when you tap a text box. Return confirms and closes it,
-  and so does tapping anywhere else.
+  buttons, add and remove them and resize them, move and resize the move stick's area, move the
+  Esc button, and make the buttons fainter or bolder. Three layouts can be kept, and Reset brings
+  back the defaults. Buttons can press keyboard keys too: hotbar slots 1 to 9, F1, F2, F3,
+  F3+B / G / H / N / T / F4, and `/`.
+- **Keyboard and chat.** The iPhone keyboard opens when you tap a text box, including chat's
+  line. Return sends a chat message or confirms, then closes the keyboard, and so does tapping
+  anywhere else. Over chat, **Tab** completes commands and names, **Paste** pastes, and
+  **Enter** sends.
+- **Clipboard.** Copy and paste work with other apps. iOS asks before the game reads what you
+  copied.
+- **Safe areas.** The HUD, menus and buttons keep clear of the Dynamic Island, the notch and the
+  home indicator.
+- **120 Hz** on ProMotion screens.
 - **Your files in the Files app.** Saves, options, resource packs and logs are under
   *On My iPhone → Horizon*.
 - **Pausing in the background.** The game pauses and saves when you leave the app.
@@ -77,6 +88,8 @@ sideloaded apps at once.
 | World | Jump, Sneak, Use, Hit | Jump, sneak, use or place, attack or mine. Drag a button to aim while holding it |
 | World | Inv, Chat, Drop, Cam, `<` `>` | Inventory, chat, drop item, camera, hotbar left and right |
 | Anywhere | Esc (top centre) | Same as the Escape key |
+| Chat | Tab, Paste, Enter (top right) | Complete, paste, send |
+| Chat | Tap the line at the bottom | Type again |
 | Menus | Tap | Click |
 | Menus | Swipe up or down | Scroll |
 | Menus | Drag sideways, or hold then drag | Drag sliders and items |
@@ -91,22 +104,21 @@ On the phone, under *Files → On My iPhone → Horizon*:
 |---|---|
 | `saves/` | Worlds |
 | `options.txt`, `resourcepacks/` | Settings and packs |
-| `touch-controls.json` | Your Edit HUD layout. Delete it to go back to the defaults |
+| `touch-controls.json` | Your Edit HUD layouts. Delete it to go back to the defaults |
 | `home/logs/latest.log` | The log. Attach it to bug reports |
 | `home/crash-reports/` | Crash reports |
 | `ios-*-error.txt` | Written when unpacking or starting failed |
 | `resources/` | The unpacked game files |
 
-The Microsoft sign-in is kept in the app's private storage, not in Files. Deleting the app
-deletes it.
+Your Microsoft accounts' sign-ins are kept in the app's private storage, not in Files. Deleting
+the app deletes them.
 
 ## Known issues
 
-- **Screen edges.** The game draws edge to edge, so part of it can sit under the Dynamic Island
-  or notch.
 - **Controllers.** A paired game controller is not read yet.
-- **Clipboard.** Copy and paste only work inside the game, not with other apps.
 - **Narrator.** There is no text-to-speech.
+- **The world behind menus.** The world and the title's background still fill the whole screen,
+  behind the safe area.
 - **Missing launcher features.** Native Rust mods, the mod browser, modpacks and server hosting
   need the desktop launcher and don't exist here.
 - **Fresh install.** Preparing the game files needs Java, which iOS doesn't have, so a computer is
@@ -135,11 +147,11 @@ describes how the port fits together.
 | File | What it does |
 |---|---|
 | `crates/horizon-client/src/game/ios_boot.rs` | The start screen; runs the unpacking and the sign-in beside the event loop |
-| `crates/horizon-client/src/game/ios_account.rs` | Microsoft → Xbox Live → XSTS → Minecraft services sign-in |
+| `crates/horizon-client/src/game/ios_account.rs` | Microsoft → Xbox Live → XSTS → Minecraft services sign-in, and the saved accounts |
 | `crates/horizon-client/src/game/touch.rs` | Touch controls, the Esc button, key buttons |
 | `crates/horizon-client/src/game/touch_editor.rs` | Edit HUD |
 | `crates/horizon-client/src/ios_screen.rs` | The start screen's drawing |
-| `crates/horizon-threads/src/ios_url.rs` | Opening Safari |
+| `crates/horizon-threads/src/ios_url.rs`, `ios_pasteboard.rs`, `ios_display.rs` | Opening Safari, the clipboard, the frame rate |
 | `packaging/ios/`, `tools/ios/add-resources.py` | The app bundle and adding your game files |
 
 ## Credits and license

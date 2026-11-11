@@ -3,6 +3,25 @@
 The iOS port's changes, newest first. Upstream Horizon's own release notes are at
 [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/releases).
 
+## 2026-11-11
+
+### Added
+
+- **Accounts.** Several Microsoft accounts. The start screen lists them before the game: tap one
+  to play as it, **Add account**, **Remove an account**, or **Play offline**. An account saved by
+  an earlier build carries over.
+- **Chat buttons.** Over chat, at the top right: **Tab** (completes commands and names),
+  **Paste** and **Enter** (sends). Tapping chat's line brings the keyboard back.
+- **Clipboard.** Copy and paste go through the iPhone's clipboard (`UIPasteboard`), so they work
+  with other apps.
+- **Unpacking progress.** A progress bar on the start screen while the first launch unpacks.
+- **Edit HUD extras.** **Fainter** and **Bolder** set the buttons' opacity. The move stick's area
+  can be moved and resized, and the Esc button moved. **Layout** switches between three saved
+  layouts. The toolbar moved below the top row of buttons, and buttons over it can be dragged
+  off.
+- **Safe areas.** The HUD, menus and touch buttons keep clear of the Dynamic Island, the notch
+  and the home indicator.
+
 ## 2026-11-10
 
 All builds so far are based on upstream Horizon `6475f62`.

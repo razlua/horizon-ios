@@ -107,7 +107,26 @@ fn ios_unpack_resources(
     let staging = documents.join("resources.unpacking");
     let _ = std::fs::remove_dir_all(&staging);
     let mut zip = zip::ZipArchive::new(std::io::BufReader::new(std::fs::File::open(archive)?))?;
-    zip.extract(&staging)?;
+    // File by file, counted for the start screen's progress bar (game::ios_boot::UNPACKED).
+    use std::sync::atomic::Ordering::Relaxed;
+    let [done, total] = &crate::game::ios_boot::UNPACKED;
+    total.store(zip.len(), Relaxed);
+    for i in 0..zip.len() {
+        let mut file = zip.by_index(i)?;
+        let Some(name) = file.enclosed_name() else {
+            continue;
+        };
+        let path = staging.join(name);
+        if file.is_dir() {
+            std::fs::create_dir_all(&path)?;
+        } else {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::io::copy(&mut file, &mut std::fs::File::create(&path)?)?;
+        }
+        done.store(i + 1, Relaxed);
+    }
     std::fs::write(staging.join(".unpacked-from"), stamp)?;
     let _ = std::fs::remove_dir_all(&target);
     std::fs::rename(&staging, &target)?;

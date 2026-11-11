@@ -70,9 +70,12 @@ impl Signed {
     }
 }
 
-/// The account kept from the last sign-in.
+/// An account kept from a sign-in.
+#[derive(Clone, Debug)]
 pub struct Saved {
     pub name: String,
+    /// Without dashes.
+    pub uuid: String,
     refresh_token: String,
 }
 
@@ -273,31 +276,52 @@ pub fn resume(saved: &Saved) -> Result<Signed, String> {
     minecraft(&access, refresh_token)
 }
 
-fn file() -> Option<PathBuf> {
+fn dir() -> Option<PathBuf> {
     let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join("Library/Application Support/horizon/account.json"))
+    Some(PathBuf::from(home).join("Library/Application Support/horizon"))
 }
 
-/// The account kept from the last sign-in.
-pub fn saved() -> Option<Saved> {
-    let body: Value = serde_json::from_str(&std::fs::read_to_string(file()?).ok()?).ok()?;
+/// The accounts, the one played last first.
+fn file() -> Option<PathBuf> {
+    Some(dir()?.join("accounts.json"))
+}
+
+/// The one account the first builds kept.
+fn old_file() -> Option<PathBuf> {
+    Some(dir()?.join("account.json"))
+}
+
+fn parse(entry: &Value) -> Option<Saved> {
     Some(Saved {
-        name: text(&body, "name")?,
-        refresh_token: text(&body, "refresh_token")?,
+        name: text(entry, "name")?,
+        uuid: text(entry, "uuid").unwrap_or_default(),
+        refresh_token: text(entry, "refresh_token")?,
     })
 }
 
-/// Keeps the account for the next start.
-pub fn save(signed: &Signed) {
+/// The saved accounts, the one played last first. An account kept by an earlier build is one.
+pub fn saved() -> Vec<Saved> {
+    let read = |path: Option<PathBuf>| -> Option<Value> {
+        serde_json::from_str(&std::fs::read_to_string(path?).ok()?).ok()
+    };
+    if let Some(body) = read(file()) {
+        return body["accounts"]
+            .as_array()
+            .map(|list| list.iter().filter_map(parse).collect())
+            .unwrap_or_default();
+    }
+    read(old_file()).as_ref().and_then(parse).into_iter().collect()
+}
+
+fn write(accounts: &[Saved]) {
     let Some(path) = file() else {
         return;
     };
-    let body = json!({
-        "name": signed.name,
-        "uuid": signed.uuid,
-        "refresh_token": signed.refresh_token,
-    })
-    .to_string();
+    let list: Vec<Value> = accounts
+        .iter()
+        .map(|a| json!({ "name": a.name, "uuid": a.uuid, "refresh_token": a.refresh_token }))
+        .collect();
+    let body = json!({ "accounts": list }).to_string();
     let written = path
         .parent()
         .map_or(Ok(()), std::fs::create_dir_all)
@@ -311,14 +335,34 @@ pub fn save(signed: &Signed) {
             options.mode(0o600);
             options.open(&path)?.write_all(body.as_bytes())
         });
-    if let Err(e) = written {
-        log::warn!("Horizon: the account could not be kept for the next start: {e}");
+    match written {
+        Ok(()) => {
+            if let Some(old) = old_file() {
+                let _ = std::fs::remove_file(old);
+            }
+        }
+        Err(e) => log::warn!("Horizon: the accounts could not be kept for the next start: {e}"),
     }
 }
 
-/// Forgets the kept account (it no longer signs in).
-pub fn forget() {
-    if let Some(path) = file() {
-        let _ = std::fs::remove_file(path);
-    }
+/// Keeps a signed-in account for the next starts, first in the list.
+pub fn save(signed: &Signed) {
+    let mut accounts = saved();
+    accounts.retain(|a| a.uuid != signed.uuid && a.name != signed.name);
+    accounts.insert(
+        0,
+        Saved {
+            name: signed.name.clone(),
+            uuid: signed.uuid.clone(),
+            refresh_token: signed.refresh_token.clone(),
+        },
+    );
+    write(&accounts);
+}
+
+/// Forgets a saved account (signed out, or its sign-in no longer works).
+pub fn forget(account: &Saved) {
+    let mut accounts = saved();
+    accounts.retain(|a| !(a.uuid == account.uuid && a.name == account.name));
+    write(&accounts);
 }

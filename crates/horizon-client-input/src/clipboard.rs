@@ -174,8 +174,8 @@ impl Clipboard for SystemClipboard {
     }
 }
 
-/// iOS: arboard has no backend there, so text copied in the game can be pasted in the game
-/// only (UIPasteboard is not wired yet).
+/// iOS: the system clipboard is UIPasteboard's (`horizon_threads::ios_pasteboard`); arboard has no
+/// backend there. What the game copied is kept too, for `horizon-ctl status`.
 #[cfg(target_os = "ios")]
 #[derive(Default)]
 pub struct SystemClipboard {
@@ -193,11 +193,14 @@ impl SystemClipboard {
 #[cfg(target_os = "ios")]
 impl Clipboard for SystemClipboard {
     fn get(&mut self) -> String {
-        self.copied.clone().unwrap_or_default()
+        horizon_threads::ios_pasteboard::get()
+            .or_else(|| self.copied.clone())
+            .unwrap_or_default()
     }
     fn set(&mut self, text: &str) {
         if !text.is_empty() {
             self.copied = Some(text.to_owned());
+            horizon_threads::ios_pasteboard::set(text);
         }
     }
 }

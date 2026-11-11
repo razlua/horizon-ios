@@ -1522,10 +1522,54 @@ pub struct EndPortalFill {
 pub fn rgba(r: u8, g: u8, b: u8, a: u8) -> u32 {
     u32::from(a) << 24 | u32::from(b) << 16 | u32::from(g) << 8 | u32::from(r)
 }
+/// iOS: the screen's safe area as insets in pixels (left, top, right, bottom), clear of the
+/// Dynamic Island, the notch and the home indicator. The GUI is laid out inside it
+/// (`HudBatch::new`) and moved into it before it is drawn (`HudBatch::into_safe_area`). Zero
+/// elsewhere.
+static SAFE_INSETS: [std::sync::atomic::AtomicU32; 4] = [const { std::sync::atomic::AtomicU32::new(0) }; 4];
+
+/// Sets the safe area's insets (`SAFE_INSETS`).
+pub fn set_safe_insets(insets: [u32; 4]) {
+    for (slot, v) in SAFE_INSETS.iter().zip(insets) {
+        slot.store(v, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// The safe area's insets (`SAFE_INSETS`).
+pub fn safe_insets() -> [u32; 4] {
+    SAFE_INSETS
+        .each_ref()
+        .map(|v| v.load(std::sync::atomic::Ordering::Relaxed))
+}
+
 impl HudBatch {
+    /// Moves what was drawn into the safe area: the GUI was laid out at its size from the
+    /// top-left corner (`new`), and goes to its place on the screen. A no-op without insets.
+    pub fn into_safe_area(&mut self) {
+        let [left, top, _, _] = safe_insets();
+        if left == 0 && top == 0 {
+            return;
+        }
+        let (dx, dy) = (left as f32 / self.scale, top as f32 / self.scale);
+        for v in &mut self.vertices {
+            v.pos[0] += dx;
+            v.pos[1] += dy;
+        }
+        for (_, blend) in &mut self.blends {
+            if let Blend::Depth(clip) = blend {
+                clip[0] += left;
+                clip[1] += top;
+            }
+        }
+    }
     /// Window.calculateScale: the largest scale keeping >= 320x240 GUI pixels,
-    /// capped by the GUI Scale option (0 = auto).
+    /// capped by the GUI Scale option (0 = auto). On iOS, of the safe area (`SAFE_INSETS`).
     pub fn new(window: [u32; 2]) -> Self {
+        let [left, top, right, bottom] = safe_insets();
+        let window = [
+            window[0].saturating_sub(left + right).max(1),
+            window[1].saturating_sub(top + bottom).max(1),
+        ];
         let limit = GUI_SCALE.load(std::sync::atomic::Ordering::Relaxed);
         let mut scale = 1;
         while (limit == 0 || scale < limit)
