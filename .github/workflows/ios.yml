@@ -6,7 +6,7 @@ on:
   push:
     branches: [ios-port, on-device-setup]
     # Text alone changes no build.
-    paths-ignore: ["**.md", "docs/**", "LICENSE"]
+    paths-ignore: ["**.md", "docs/**", "LICENSE", "altstore-source.json"]
   workflow_dispatch:
 
 concurrency:
@@ -60,7 +60,11 @@ jobs:
           -p horizon-client --bin horizon-client
           --no-default-features --features audio,system-allocator
       - name: Package
-        run: bash packaging/ios/package.sh target/aarch64-apple-ios/fast/horizon-client dist/Horizon-unsigned.ipa
+        env:
+          HORIZON_IOS_BUILD: ${{ github.run_number }}
+        run: |
+          export HORIZON_IOS_VERSION="$(date -u +%Y.%-m.%-d)"
+          bash packaging/ios/package.sh target/aarch64-apple-ios/fast/horizon-client dist/Horizon-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: Horizon-ios-unsigned

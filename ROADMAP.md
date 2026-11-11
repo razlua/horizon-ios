@@ -41,6 +41,7 @@ redstone, multiplayer and so on) comes from upstream.
 - [x] An About the Project page in Options.
 - [x] Extra Settings (Horizon-iOS) on the main menu: Safe Area as an option (backgrounds still
       fill the screen), button opacity, touch look speed, and keeping the screen on.
+- [x] An AltStore and SideStore source, so new builds arrive as updates there.
 
 ## Next
 

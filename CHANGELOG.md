@@ -11,9 +11,12 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
   the HUD, menus and buttons clear of the Dynamic Island and the home bar; what covers the whole
   screen (menu darkening, overlays, list bands) still does. Also Button Opacity, Touch Look Speed
   and Keep Screen On, kept in `ios-settings.txt`.
+- **AltStore and SideStore source.** Add `altstore-source.json`'s address in AltStore Classic or
+  SideStore to install Horizon there and get new builds as updates. Each build now has its own
+  version (the build date) and build number.
 
 - **Offline name.** **Play offline** on the start screen lets you choose your name (3 to 16
-  letters, numbers or _) for single player and offline-mode ("cracked") servers.
+  letters, numbers or _) for single player and offline-mode servers.
 - **About the Project** in Options, under Mods and right of Credits & Attribution: who makes the
   port (@4rnz on Discord, razlua on GitHub) and where to report bugs.
 - **Esc resizes** in Edit HUD: Smaller and Bigger work on it as on the other buttons.

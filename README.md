@@ -1,18 +1,30 @@
+<p align="center">
+  <img src="packaging/icons/hicolor/256x256/apps/horizon.png" width="128" alt="Horizon's icon">
+</p>
+
 # Horizon for iOS (unofficial)
 
-An unofficial, experimental port of [Horizon](https://github.com/horizon-rust/horizon), the Rust
-rewrite of Minecraft: Java Edition 26.3, to iPhone and iPad. You sideload it yourself.
+Minecraft: Java Edition running natively on your iPhone, with no streaming and no PC. This is an
+unofficial, experimental port of [Horizon](https://github.com/horizon-rust/horizon), the Rust
+rewrite of Java Edition 26.3, drawn with Metal at up to 120 Hz. Sign in with your own Microsoft
+account and play single player worlds and servers with touch controls you can rearrange.
+
+**[Install it](#installing)** with Sideloadly, or add the AltStore / SideStore source and get
+updates in the app:
+
+```
+https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json
+```
 
 > This port isn't made, approved or supported by the Horizon project, Mojang or Microsoft. It
 > contains no Minecraft code, assets or data: the app downloads your own copy of Minecraft from
 > Mojang after you sign in with an account that owns Java Edition. Please report problems with
 > this port here, not to upstream Horizon.
 
-It's Horizon's own game client, built for `aarch64-apple-ios` and drawn with Metal, on top of
-upstream Horizon at commit `6475f62`. Upstream's README and roadmap are kept in
-[docs/upstream/](docs/upstream/). It starts, signs in, and plays single player worlds and servers
-on a recent iPhone, but expect rough edges. See [ROADMAP.md](ROADMAP.md) and the known issues
-below.
+It's Horizon's own game client, built for `aarch64-apple-ios`, on top of upstream Horizon at
+commit `6475f62`. Upstream's README and roadmap are kept in [docs/upstream/](docs/upstream/). It
+starts, signs in, and plays on a recent iPhone, but expect rough edges. See
+[ROADMAP.md](ROADMAP.md) and the known issues below.
 
 ## What works
 
@@ -22,8 +34,7 @@ below.
   code already filled in.
 - The start screen lists your saved Microsoft accounts. Tap one to play as it, or add or remove
   accounts.
-- Play offline lets you pick the name you use in single player and on offline-mode ("cracked")
-  servers.
+- Play offline lets you pick the name you use in single player and on offline-mode servers.
 - In the world, the left side of the screen is a floating move stick (push past its edge to
   sprint), the buttons on the right do the actions, and a finger anywhere else turns the view. In
   menus you tap to click, swipe to scroll, and tap with a second finger to right-click.
@@ -52,18 +63,41 @@ below.
 ## Installing
 
 You need an iPhone or iPad on iOS 16 or later with Developer Mode on (*Settings → Privacy &
-Security → Developer Mode*), a Microsoft account that owns Minecraft: Java Edition, and a
-sideloading tool such as [Sideloadly](https://sideloadly.io) or [AltStore](https://altstore.io)
-with your own Apple ID.
+Security → Developer Mode*), a Microsoft account that owns Minecraft: Java Edition, and your own
+Apple ID for signing. Pick one of the two ways below.
+
+### Option 1: AltStore or SideStore (updates in the app)
+
+1. Have [AltStore Classic](https://altstore.io) or [SideStore](https://sidestore.io) installed
+   and working. AltStore PAL, the EU version, only installs notarized apps, so it can't install
+   this one.
+2. Add the source. In AltStore, go to *Browse → Sources → +*. In SideStore, open *Sources → +*.
+   Paste this address:
+   ```
+   https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json
+   ```
+3. Open Horizon in the source and tap *Free* or *Install*.
+
+When a new build comes out, it shows up as an update under *My Apps*. The 7-day refresh happens
+there too: SideStore does it on the phone, and AltStore Classic needs AltServer running on a
+computer on the same Wi-Fi.
+
+### Option 2: Sideloadly (or another tool)
 
 1. Download `Horizon-unsigned.ipa` (about 30 MB) from the latest
    [release](../../releases/latest).
-2. Sideload it with your tool.
+2. Sideload it with [Sideloadly](https://sideloadly.io) or your usual tool.
 3. Trust your profile on the phone: *Settings → General → VPN & Device Management → your Apple ID
    → Trust*. The phone needs internet for this, and a VPN or DNS filter can block it.
-4. Open Horizon and sign in with Microsoft. The first time, the app downloads your Minecraft 26.3
-   from Mojang (about 520 MB) and Horizon's tables, then sets them up. Stay on Wi-Fi with Horizon
-   open. After that it starts straight away, offline too.
+
+For updates, download the new release and sideload it over the old one. Your worlds and settings
+stay.
+
+### First launch
+
+Open Horizon and sign in with Microsoft. The first time, the app downloads your Minecraft 26.3
+from Mojang (about 520 MB) and Horizon's tables, then sets them up. Stay on Wi-Fi with Horizon
+open. After that it starts straight away, offline too.
 
 With a free Apple ID the app has to be signed again every 7 days, and you can have at most 3
 sideloaded apps at once.
@@ -164,7 +198,7 @@ how the port fits together.
 | `crates/horizon-client/src/game/touch_editor.rs` | Edit HUD |
 | `crates/horizon-client/src/ios_screen.rs` | The start screen's drawing |
 | `crates/horizon-threads/src/ios_url.rs`, `ios_pasteboard.rs`, `ios_display.rs` | Opening Safari, the clipboard, the frame rate |
-| `packaging/ios/`, `tools/ios/` | The app bundle, adding game files on a computer, and building the tables |
+| `packaging/ios/`, `tools/ios/` | The app bundle, adding game files on a computer, building the tables, and adding a release to the AltStore source (`altstore-version.py`) |
 
 ## Credits and license
 
