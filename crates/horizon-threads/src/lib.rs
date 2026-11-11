@@ -7,6 +7,8 @@ pub mod boot_paint;
 #[cfg(target_os = "ios")]
 pub mod ios_display;
 #[cfg(target_os = "ios")]
+pub mod ios_keyboard;
+#[cfg(target_os = "ios")]
 pub mod ios_pasteboard;
 #[cfg(target_os = "ios")]
 pub mod ios_url;

@@ -1529,8 +1529,20 @@ pub fn rgba(r: u8, g: u8, b: u8, a: u8) -> u32 {
 static SAFE_INSETS: [std::sync::atomic::AtomicU32; 4] =
     [const { std::sync::atomic::AtomicU32::new(0) }; 4];
 
+// Tests run side by side: each keeps its own insets.
+#[cfg(test)]
+thread_local! {
+    static TEST_INSETS: std::cell::Cell<[u32; 4]> = const { std::cell::Cell::new([0; 4]) };
+}
+
 /// Sets the safe area's insets (`SAFE_INSETS`).
 pub fn set_safe_insets(insets: [u32; 4]) {
+    #[cfg(test)]
+    {
+        TEST_INSETS.with(|c| c.set(insets));
+        return;
+    }
+    #[allow(unreachable_code)]
     for (slot, v) in SAFE_INSETS.iter().zip(insets) {
         slot.store(v, std::sync::atomic::Ordering::Relaxed);
     }
@@ -1538,12 +1550,58 @@ pub fn set_safe_insets(insets: [u32; 4]) {
 
 /// The safe area's insets (`SAFE_INSETS`).
 pub fn safe_insets() -> [u32; 4] {
+    #[cfg(test)]
+    {
+        return TEST_INSETS.with(|c| c.get());
+    }
+    #[allow(unreachable_code)]
     SAFE_INSETS
         .each_ref()
         .map(|v| v.load(std::sync::atomic::Ordering::Relaxed))
 }
 
 impl HudBatch {
+    /// Moves what was drawn since vertex `from` up by `dy` GUI pixels, scissors too (iOS: the
+    /// chat above the keyboard).
+    pub fn raise(&mut self, from: usize, dy: f32) {
+        if dy <= 0.0 {
+            return;
+        }
+        for v in self.vertices.iter_mut().skip(from) {
+            v.pos[1] -= dy;
+        }
+        let pixels = (dy * self.scale).round() as u32;
+        for (range, blend) in &mut self.blends {
+            if range.start as usize >= from
+                && let Blend::Depth(clip) = blend
+            {
+                clip[1] = clip[1].saturating_sub(pixels);
+            }
+        }
+    }
+    /// A rect (x, y, width, height) that spans the whole safe area across or down, made to
+    /// reach past it to the screen's edges on that side, so a tiled background (a menu's
+    /// darkening, a list's band, a separator) fills the screen and not only the safe area.
+    /// Its tiles are drawn one by one, so `into_safe_area` can't tell they span it. As it is
+    /// without a safe area.
+    pub fn bleed(&self, rect: [f32; 4]) -> [f32; 4] {
+        let [left, top, right, bottom] = safe_insets();
+        let [mut x, mut y, mut w, mut h] = rect;
+        if left + top + right + bottom == 0 {
+            return rect;
+        }
+        const EDGE: f32 = 0.51;
+        let s = self.scale;
+        if x <= EDGE && x + w >= self.width - EDGE {
+            x -= left as f32 / s;
+            w += (left + right) as f32 / s;
+        }
+        if y <= EDGE && y + h >= self.height - EDGE {
+            y -= top as f32 / s;
+            h += (top + bottom) as f32 / s;
+        }
+        [x, y, w, h]
+    }
     /// Moves what was drawn into the safe area of a `window` of that many pixels: the GUI was
     /// laid out at the safe area's size from the top-left corner (`new`). What spans the whole
     /// width or height of that area (a menu's darkening, a vignette, a list's bands) spans the
@@ -2895,6 +2953,25 @@ mod tests {
         assert_eq!(bounds(&batch.vertices[0..6]), [0.0, 0.0, full_w, full_h]);
         assert_eq!(bounds(&batch.vertices[6..12]), [0.0, 20.0, full_w, 30.0]);
         assert_eq!(bounds(&batch.vertices[12..18]), [10.0 + dx, 10.0, 30.0 + dx, 30.0]);
+    }
+
+    #[test]
+    fn tiled_backgrounds_reach_the_screen_edges_in_the_safe_area() {
+        let window = [2400, 1200];
+        set_safe_insets([200, 0, 160, 60]);
+        let batch = HudBatch::new(window);
+        let (w, h, s) = (batch.width, batch.height, batch.scale);
+        // A whole-screen background goes past the safe area on every side, a band across it
+        // only sideways, and anything narrower stays as it is.
+        let all = batch.bleed([0.0, 0.0, w, h]);
+        let band = batch.bleed([0.0, 20.0, w, 10.0]);
+        let button = batch.bleed([10.0, 10.0, 20.0, 20.0]);
+        set_safe_insets([0; 4]);
+        assert_eq!(all, [-200.0 / s, 0.0, w + 360.0 / s, h + 60.0 / s]);
+        assert_eq!(band, [-200.0 / s, 20.0, w + 360.0 / s, 10.0]);
+        assert_eq!(button, [10.0, 10.0, 20.0, 20.0]);
+        // Moved into the safe area, the background starts at the screen's left edge.
+        assert_eq!(all[0] + 200.0 / s, 0.0);
     }
 
     /// The mod image slot is paid only by a game with a native mod loaded.

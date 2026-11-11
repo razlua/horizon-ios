@@ -162,7 +162,8 @@ fn sub(r: Rect, size: [f32; 2], [x, y, w, h]: [f32; 4]) -> Rect {
 /// units) repeated over `dst` from its top left, the last row and column cut.
 fn tile(batch: &mut HudBatch, r: Rect, size: [f32; 2], src: [f32; 4], dst: [f32; 4], color: u32) {
     let [sx, sy, sw, sh] = src;
-    let [dx, dy, dw, dh] = dst;
+    // iOS's safe area: a background across the GUI fills the screen (`HudBatch::bleed`).
+    let [dx, dy, dw, dh] = batch.bleed(dst);
     if sw <= 0.0 || sh <= 0.0 || dw <= 0.0 || dh <= 0.0 {
         return;
     }

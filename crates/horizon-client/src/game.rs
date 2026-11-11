@@ -8812,7 +8812,10 @@ impl Game<'_> {
                 g.draw_tab_list(batch);
             });
         } else {
+            let from = batch.vertices.len();
             self.draw_chat(&mut batch);
+            // iOS: above the keyboard while typing.
+            batch.raise(from, self.chat_lift(size));
             self.draw_tab_list(&mut batch);
         }
         // Screen.extractBlurredBackground blurs the world and HUD, while the
@@ -8864,7 +8867,11 @@ impl Game<'_> {
             Screen::Creative => {
                 self.draw_creative(&mut batch);
             }
-            Screen::Chat => self.draw_chat_screen(&mut batch),
+            Screen::Chat => {
+                let from = batch.vertices.len();
+                self.draw_chat_screen(&mut batch);
+                batch.raise(from, self.chat_lift(size));
+            }
             Screen::Playing | Screen::Options | Screen::Win => {}
         }
         // ScreenEvent.Render.Post: the open screen has drawn itself and its

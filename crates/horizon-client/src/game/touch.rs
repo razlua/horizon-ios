@@ -904,6 +904,25 @@ impl Game<'_> {
         self.title.is_none() && self.screen == Screen::Chat
     }
 
+    /// iOS: how far up, in GUI pixels, the chat screen and its lines go so the keyboard doesn't
+    /// cover what you type. 0 without the keyboard or the chat.
+    pub(super) fn chat_lift(&self, size: [u32; 2]) -> f32 {
+        if !self.chat_open() {
+            return 0.0;
+        }
+        #[cfg(target_os = "ios")]
+        let covered = horizon_threads::ios_keyboard::covered();
+        #[cfg(not(target_os = "ios"))]
+        let covered = 0.0f32;
+        if covered <= 0.0 {
+            return 0.0;
+        }
+        // The GUI ends at the safe area's bottom when that is on.
+        let [_, _, _, inset_bottom] = self.safe_insets();
+        let pixels = (covered * size[1] as f32 - inset_bottom).max(0.0);
+        (pixels / HudBatch::new(size).scale).ceil()
+    }
+
     /// A chat button: Tab, Paste or Enter.
     fn touch_chat_key(&mut self, key: ChatKey, event_loop: &dyn EventLoopCtl) {
         match key {
@@ -946,6 +965,8 @@ impl Game<'_> {
         // The GUI is drawn in the safe area (hud::SAFE_INSETS) when that is on: the pointer is
         // in its pixels.
         let [inset_left, inset_top, _, _] = self.safe_insets();
+        // The chat is drawn higher while the keyboard is up (`chat_lift`): so is the pointer.
+        let inset_top = inset_top - self.chat_lift(size) * HudBatch::new(size).scale;
         // The chat screen's own buttons.
         if self.chat_open() && touch.phase == TouchPhase::Started {
             let p = [at[0] as f32, at[1] as f32];

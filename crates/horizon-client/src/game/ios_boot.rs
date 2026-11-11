@@ -724,6 +724,7 @@ impl Boot {
 impl ApplicationHandler for Boot {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.hidden = false;
+        horizon_threads::ios_keyboard::watch();
         if let Some(rate) = horizon_threads::ios_display::high_frame_rate() {
             log::info!("Horizon iOS: asked for {rate} frames per second");
         }
