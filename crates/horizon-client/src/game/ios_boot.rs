@@ -88,8 +88,8 @@ struct Shared {
     attempt: u64,
     /// Counts up at each change, for the screen to draw again.
     version: u64,
-    /// A newer build that is out (its version), from `ios_update`.
-    newer: Option<String>,
+    /// A newer build that is out, from `ios_update`.
+    newer: Option<super::ios_update::Newer>,
 }
 
 type State = Arc<Mutex<Shared>>;
@@ -247,9 +247,9 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::R
     }));
     let checking = state.clone();
     spawn("Update check", move || {
-        if let Some(version) = super::ios_update::newer() {
-            log::info!("Horizon iOS: version {version} is out");
-            update(&checking, |s| s.newer = Some(version));
+        if let Some(newer) = super::ios_update::newer() {
+            log::info!("Horizon iOS: version {} is out", newer.version);
+            update(&checking, |s| s.newer = Some(newer));
         }
     });
     if let Some(job) = job {
@@ -335,15 +335,32 @@ impl Boot {
                         .push(button("Remove an account", Action::RemoveMode, Look::Plain));
                     screen.buttons.push(button("Play offline", Action::Offline, Look::Plain));
                 }
-                if let Some(version) = &shared.newer {
+                if let Some(newer) = &shared.newer {
                     let installed = horizon_threads::ios_bundle::info("CFBundleShortVersionString")
                         .unwrap_or_else(|| "an older one".into());
+                    let version = &newer.version;
                     screen.lines.push(String::new());
-                    screen.lines.push(format!(
-                        "Update available: version {version} is out (you have {installed}). \
-                         Download it and sideload it over this app; your worlds and sign-ins stay."
-                    ));
-                    screen.buttons.push(button("Get the update", Action::GetUpdate, Look::Primary));
+                    // With SideStore or AltStore, one tap installs it; else the download page.
+                    let (line, label) = match super::ios_update::installer() {
+                        Some(name) => (
+                            format!(
+                                "Update available: version {version} is out (you have \
+                                 {installed}). {name} installs it over this app; your worlds \
+                                 and sign-ins stay."
+                            ),
+                            format!("Update with {name}"),
+                        ),
+                        None => (
+                            format!(
+                                "Update available: version {version} is out (you have \
+                                 {installed}). Download it and sideload it over this app; your \
+                                 worlds and sign-ins stay."
+                            ),
+                            "Get the update".to_owned(),
+                        ),
+                    };
+                    screen.lines.push(line);
+                    screen.buttons.push((label, Action::GetUpdate, Look::Primary));
                 }
             }
             Account::Resuming(name) => {
@@ -669,8 +686,13 @@ impl Boot {
                 }
             }
             Action::GetUpdate => {
-                if !horizon_threads::ios_url::open_url(super::ios_update::RELEASES) {
-                    log::warn!("Horizon iOS: could not open the releases page");
+                let newer = state.lock().unwrap_or_else(|e| e.into_inner()).newer.clone();
+                let link = newer.as_ref().map_or_else(
+                    || super::ios_update::RELEASES.to_owned(),
+                    super::ios_update::update_link,
+                );
+                if !horizon_threads::ios_url::open_url(&link) {
+                    log::warn!("Horizon iOS: could not open {link}");
                 }
             }
             Action::PlayOffline => {

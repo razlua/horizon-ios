@@ -62,6 +62,13 @@
 	<!-- 120 Hz on ProMotion phones. -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- The update button asks whether SideStore or AltStore is installed, to install the update
+	     through it (game/ios_update.rs). -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>sidestore</string>
+		<string>altstore</string>
+	</array>
 	<!-- The game folder (saves, options, resource packs, logs) shows in the Files app. -->
 	<key>UIFileSharingEnabled</key>
 	<true/>

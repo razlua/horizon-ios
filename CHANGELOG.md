@@ -6,7 +6,12 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
-Nothing yet.
+### Added
+
+- **One-tap updates with SideStore or AltStore.** When a newer version is out, the start screen's
+  button says **Update with SideStore** (or AltStore) if one of them is installed: it hands them
+  the new version, which they sign and install over the app, worlds and sign-ins kept. Without
+  either, **Get the update** opens the download page as before.
 
 ## 2026.11.12-2
 

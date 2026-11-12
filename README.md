@@ -85,7 +85,9 @@ full 120 Hz.
   the first time you talk (iOS asks for permission then) and closes when you mute it. Its
   settings are also in *Options → Mods*. The client is unofficial (the engine of Horizon's
   voicechat native mod) and not affiliated with Simple Voice Chat.
-- The start screen tells you when a newer version is out, with a button to its download page.
+- The start screen tells you when a newer version is out. With SideStore or AltStore installed,
+  **Update with SideStore** (or AltStore) installs it in one tap; otherwise the button opens the
+  download page.
 - Saves, options, resource packs and logs are in the Files app, under *On My iPhone → Horizon*.
 - The game pauses and saves when you leave the app.
 
