@@ -1,0 +1,18 @@
+{
+  "name": "Horizon for Android (unofficial)",
+  "apps": [
+    {
+      "name": "Horizon",
+      "bundleIdentifier": "dev.playhorizon.unofficial.android",
+      "versions": [
+        {
+          "version": "2026.11.12",
+          "buildVersion": "2",
+          "date": "2026-11-12T13:42:13Z",
+          "downloadURL": "https://github.com/razlua/horizon-ios/releases/download/android-2026.11.12/Horizon.apk",
+          "size": 60150642
+        }
+      ]
+    }
+  ]
+}

@@ -6,7 +6,7 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
-### Android (experimental, `android-port` branch)
+### Android 2026.11.12 (pre-release, `android-port` branch)
 
 - **An Android port.** The game builds as an `.apk` for Android 10 and later, for phones and
   tablets (`arm64-v8a`) and for Android on PCs, Chromebooks and emulators (`x86_64`). It has the

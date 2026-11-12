@@ -14,7 +14,8 @@ Settings. It's experimental: it builds, but it has had very little testing on re
 
 ## Installing
 
-1. Download `Horizon.apk` and open it. Android asks you to allow installs from your browser or
+1. Download `Horizon.apk` from the newest
+   [Android release](https://github.com/razlua/horizon-ios/releases) and open it. Android asks you to allow installs from your browser or
    file manager the first time.
 2. Open Horizon and tap **Open sign-in page**. Sign in with Microsoft in the browser, then come
    back to Horizon.
@@ -48,7 +49,8 @@ Sign-ins are in the app's private storage. Uninstalling the app deletes everythi
   and others) may not arrive yet.
 - Safe Area in Extra Settings does nothing yet: the game draws over the whole screen, cutout
   included.
-- There's no update notice yet.
+- The start screen's update notice reads `android-source.json` on this branch, which lists the
+  released builds, newest first.
 - Voice chat asks for the microphone the first time you use a voice chat button.
 
 ## How it's built

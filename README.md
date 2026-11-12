@@ -16,8 +16,9 @@ updates in the app:
 https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json
 ```
 
-**Android:** an experimental `.apk` with the same touch HUD is being built on the `android-port`
-branch. See [docs/android.md](docs/android.md).
+**Android:** an experimental `.apk` with the same touch HUD is on the
+[releases page](https://github.com/razlua/horizon-ios/releases) (the newest "Horizon for
+Android" one). See [docs/android.md](docs/android.md).
 
 > This port isn't made, approved or supported by the Horizon project, Mojang or Microsoft. It
 > contains no Minecraft code, assets or data: the app downloads your own copy of Minecraft from
