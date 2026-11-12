@@ -4,6 +4,8 @@
 
 # Horizon for iOS (unofficial)
 
+Made by [razlua](https://github.com/razlua) (@4rnz on Discord).
+
 Minecraft: Java Edition running natively on your iPhone, with no streaming and no PC. This is an
 unofficial, experimental port of [Horizon](https://github.com/horizon-rust/horizon), the Rust
 rewrite of Java Edition 26.3, drawn with Metal at up to 120 Hz. Sign in with your own Microsoft
