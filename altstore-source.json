@@ -18,6 +18,15 @@
       "category": "games",
       "versions": [
         {
+          "version": "2026.11.12",
+          "buildVersion": "25",
+          "date": "2026-11-12T07:04:32Z",
+          "localizedDescription": "Talk in Simple Voice Chat (VC, Talk and Mic buttons in Edit HUD), an update notice on the start screen, Extra Settings with Safe Area, and the chat above the keyboard.",
+          "downloadURL": "https://github.com/razlua/horizon-ios/releases/download/ios-2026.11.12/Horizon-unsigned.ipa",
+          "size": 30947839,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "0.1.0",
           "buildVersion": "1",
           "date": "2026-11-11T19:13:37Z",
