@@ -26,6 +26,21 @@ commit `6475f62`. Upstream's README and roadmap are kept in [docs/upstream/](doc
 starts, signs in, and plays on a recent iPhone, but expect rough edges. See
 [ROADMAP.md](ROADMAP.md) and the known issues below.
 
+## Performance
+
+<p align="center">
+  <img src="docs/images/performance-river.jpg" width="49%" alt="Horizon at render distance 29 on an iPhone 17, 120 fps along a river">
+  <img src="docs/images/performance-view.jpg" width="49%" alt="Horizon at render distance 29 on an iPhone 17, 74 fps over a snowy forest">
+</p>
+
+An iPhone 17 at render distance 29 with default settings: 120 fps along the river, and 74 fps
+looking out over the whole view.
+
+Launchers like PojavLauncher run the Java game in a Java virtual machine on the phone, which needs
+JIT turned on to be playable. Horizon is the game rewritten in Rust and compiled for the iPhone,
+drawing straight to Metal, so there's no Java and no JIT to set up, and it runs at the screen's
+full 120 Hz.
+
 ## What works
 
 - The start screen shows from the first frame. On the first launch it downloads and sets up the
