@@ -8796,7 +8796,7 @@ impl Game<'_> {
     /// The window's width and height in physical pixels, independent of GUI
     /// scale; none on a server or when no window exists. API 165.
     pub(super) fn native_physical_window_size(&self) -> Option<[u32; 2]> {
-        let size = self.window.as_ref()?.inner_size();
+        let size = horizon_client::gfx::surface_size(self.window.as_ref()?);
         Some([size.width, size.height])
     }
     /// Where the mouse is, in GUI pixels. API 20.

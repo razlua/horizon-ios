@@ -844,7 +844,7 @@ impl Game<'_> {
     fn touch_size(&self) -> Option<[u32; 2]> {
         let window = self.window.as_ref()?;
         Some(self.renderer.as_ref().map_or_else(
-            || window.inner_size().into(),
+            || horizon_client::gfx::surface_size(window).into(),
             |r| [r.config.width, r.config.height],
         ))
     }
@@ -978,7 +978,7 @@ impl Game<'_> {
             return;
         };
         let size = self.renderer.as_ref().map_or_else(
-            || window.inner_size().into(),
+            || horizon_client::gfx::surface_size(&window).into(),
             |r| [r.config.width, r.config.height],
         );
         let at = touch_pixels(&window, size, &touch);

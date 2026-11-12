@@ -8163,7 +8163,7 @@ impl Game<'_> {
         }
         let Some(window) = &self.window else { return };
         let size = self.renderer.as_ref().map_or_else(
-            || window.inner_size().into(),
+            || horizon_client::gfx::surface_size(window).into(),
             |r| [r.config.width, r.config.height],
         );
         let [vx, vy] = self.view_at.map(f64::from);
@@ -17828,7 +17828,7 @@ impl Game<'_> {
                         let size = self
                             .window
                             .as_ref()
-                            .map(|w| w.inner_size())
+                            .map(|w| horizon_client::gfx::surface_size(w))
                             .unwrap_or_default();
                         let batch = HudBatch::new([size.width, size.height]);
                         title.scroll_worlds(d, self.cursor, (batch.width, batch.height));
@@ -21216,7 +21216,7 @@ impl Loading {
                 return;
             };
             let size = self.renderer.as_ref().map_or_else(
-                || window.inner_size().into(),
+                || horizon_client::gfx::surface_size(&window).into(),
                 |r| [r.config.width, r.config.height],
             );
             let outs = self.touch.touch(

@@ -17,6 +17,13 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 - **Key buttons for mods.** Edit HUD has letter buttons (B, C, E, G, H, I, J, K, M, N, O, P, R,
   U, V, X, Y, Z, Tab) that press those keys, for mods' keys.
 
+### Fixed
+
+- **The picture was stretched sideways** on iPhone, by about 14% on an iPhone 17: the game drew at
+  the safe area's size (the screen without the Dynamic Island's and home bar's margins) and iOS
+  stretched that over the whole screen. It now draws at the screen's own size, so blocks, the
+  hotbar and text have their right shape.
+
 ### Changed
 
 - **Release notes are changelogs:** each release lists what changed since the one before, from

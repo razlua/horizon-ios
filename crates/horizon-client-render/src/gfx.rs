@@ -1646,6 +1646,18 @@ impl wgpu::rwh::HasDisplayHandle for WindowDisplay {
 /// before has no surface, adapter or device. A native crash in the driver can't be
 /// caught in the game; the launcher switches the setting to DirectX 12 after one at
 /// the renderer's start (#746). macOS and iOS have Metal only.
+/// The size the window's surface is drawn at, in physical pixels. iOS: the whole screen. winit's
+/// `inner_size` there is the safe area (the screen without the Dynamic Island's and the home
+/// indicator's margins), while the Metal layer covers the screen: a surface of the safe area's
+/// size was stretched over it, about 14% too wide sideways on an iPhone 17. Elsewhere the inner
+/// size, as before.
+pub fn surface_size(window: &Window) -> winit::dpi::PhysicalSize<u32> {
+    if cfg!(target_os = "ios") {
+        window.outer_size()
+    } else {
+        window.inner_size()
+    }
+}
 fn backend_order(api: GraphicsApi, os: &str, wgpu_backend: bool) -> Vec<wgpu::Backends> {
     use wgpu::Backends;
     if os == "macos" || os == "ios" || wgpu_backend {
@@ -2265,7 +2277,7 @@ impl Renderer {
         }
         let info = adapter.get_info();
         crate::graphics::suggest_reduced_far_detail(crate::graphics::lod_capped(&info));
-        let size = window.inner_size();
+        let size = surface_size(&window);
         let max_side = device.limits().max_texture_dimension_2d;
         let (config, present_modes, hdr_output) = if let Some(surface) = &surface {
             let mut config = surface
