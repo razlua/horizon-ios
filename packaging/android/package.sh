@@ -13,7 +13,8 @@ shift
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?ANDROID_HOME is not set}}"
 tools="$(ls -d "$sdk"/build-tools/* | sort -V | tail -1)"
-platform="$(ls -d "$sdk"/platforms/android-* | sort -V | tail -1)/android.jar"
+# The newest released platform: preview ones (android-37.2-beta3) are left out.
+platform="$(ls -d "$sdk"/platforms/android-* | grep -E '/android-[0-9]+$' | sort -V | tail -1)/android.jar"
 version="${HORIZON_ANDROID_VERSION:-0.1.0}"
 build="${HORIZON_ANDROID_BUILD:-1}"
 work="$(mktemp -d)"
@@ -69,7 +70,8 @@ else
 fi
 mkdir -p "$(dirname "$out")"
 "$tools/apksigner" sign --ks "$keystore" --ks-type PKCS12 --ks-key-alias horizon \
-  --ks-pass env:KEYSTORE_PASS --out "$out" "$work/aligned.apk"
-"$tools/apksigner" verify --verbose "$out" | head -5
+  --ks-pass env:KEYSTORE_PASS --v1-signing-enabled true --v2-signing-enabled true \
+  --v3-signing-enabled true --out "$out" "$work/aligned.apk"
+"$tools/apksigner" verify --verbose "$out" | head -6
 ls -lh "$out"
 unzip -l "$out" | tail -15
