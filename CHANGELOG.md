@@ -3,7 +3,7 @@
 The iOS port's changes, newest first. Upstream Horizon's own release notes are at
 [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/releases).
 
-## Next
+## 2026.11.12
 
 ### Added
 
@@ -15,22 +15,18 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
   in the top left corner, and `/vc`.
 - **Update notice.** The start screen says when a newer version is out, with a button to the
   release page.
-- **Chat above the keyboard.** While you type, the chat moves up so the keyboard doesn't hide it.
-
 - **Extra Settings (Horizon-iOS)**, a main menu button under Options and Edit HUD. Safe Area keeps
   the HUD, menus and buttons clear of the Dynamic Island and the home bar, while the menus'
-  backgrounds (darkening, list bands, separators) still reach the screen's edges. Also Button Opacity, Touch Look Speed
-  and Keep Screen On, kept in `ios-settings.txt`.
+  backgrounds (darkening, list bands, separators) still reach the screen's edges. Also Button
+  Opacity, Touch Look Speed and Keep Screen On, kept in `ios-settings.txt`.
+- **Chat above the keyboard.** While you type, the chat moves up so the keyboard doesn't hide it.
 - **AltStore and SideStore source.** Add `altstore-source.json`'s address in AltStore Classic or
   SideStore to install Horizon there and get new builds as updates. Each build now has its own
   version (the build date) and build number.
 
-- **Offline name.** **Play offline** on the start screen lets you choose your name (3 to 16
-  letters, numbers or _) for single player and offline-mode servers.
-- **About the Project** in Options, under Mods and right of Credits & Attribution: who makes the
-  port (@4rnz on Discord, razlua on GitHub) and where to report bugs.
-- **Esc resizes** in Edit HUD: Smaller and Bigger work on it as on the other buttons.
-- **Done higher.** Settings screens' bottom rows (Done, Cancel) sit a little higher on iPhone.
+## 2026.11.11-2
+
+### Added
 
 - **No computer needed.** The 30 MB app downloads the game files itself after a Microsoft sign-in:
   your Minecraft 26.3 from Mojang (about 520 MB), checked against Mojang's checksums, and
@@ -38,8 +34,14 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
   checked against the SHA-256 in the app. A progress bar shows the download, the screen stays on,
   and an interrupted download goes on where it stopped. The result is the same as a computer's
   preparation, file for file (all 28,166 files compared).
+- **Offline name.** **Play offline** on the start screen lets you choose your name (3 to 16
+  letters, numbers or _) for single player and offline-mode servers.
+- **About the Project** in Options, under Mods and right of Credits & Attribution: who makes the
+  port (@4rnz on Discord, razlua on GitHub) and where to report bugs.
+- **Esc resizes** in Edit HUD: Smaller and Bigger work on it as on the other buttons.
+- **Done higher.** Settings screens' bottom rows (Done, Cancel) sit a little higher on iPhone.
 
-## 2026-11-11
+## 2026.11.11
 
 ### Removed
 
@@ -63,9 +65,9 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
   moved. **Layout** switches between three saved layouts. The toolbar moved below the top row of
   buttons, and buttons over it can be dragged off.
 
-## 2026-11-10
+## Before the first release (2026-11-10)
 
-All builds so far are based on upstream Horizon `6475f62`.
+These are part of the first release, 2026.11.11. Every build is based on upstream Horizon `6475f62`.
 
 ### Added
 
