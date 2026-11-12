@@ -90,17 +90,17 @@ pub(super) const ACTIONS: &[Action] = &[
     action("hotbar_9", "9", "Hotbar slot 9", Key::Keys(&["9"])),
     action("f1", "F1", "F1 Hide HUD", Key::Keys(&["f1"])),
     action("f2", "F2", "F2 Screenshot", Key::Keys(&["f2"])),
-    action("f3", "F3", "F3 Debug screen", Key::Keys(&["f3"])),
+    action("f3", "F3", "F3 Debug", Key::Keys(&["f3"])),
     action("f3_b", "F3+B", "F3+B Hitboxes", Key::Keys(&["f3", "b"])),
-    action("f3_g", "F3+G", "F3+G Chunk borders", Key::Keys(&["f3", "g"])),
-    action("f3_h", "F3+H", "F3+H Item tooltips", Key::Keys(&["f3", "h"])),
+    action("f3_g", "F3+G", "F3+G Chunks", Key::Keys(&["f3", "g"])),
+    action("f3_h", "F3+H", "F3+H Tooltips", Key::Keys(&["f3", "h"])),
     action("f3_n", "F3+N", "F3+N Spectator", Key::Keys(&["f3", "n"])),
-    action("f3_t", "F3+T", "F3+T Reload packs", Key::Keys(&["f3", "t"])),
-    action("f3_f4", "F3+F4", "F3+F4 Game modes", Key::Keys(&["f3", "f4"])),
+    action("f3_t", "F3+T", "F3+T Packs", Key::Keys(&["f3", "t"])),
+    action("f3_f4", "F3+F4", "F3+F4 Modes", Key::Keys(&["f3", "f4"])),
     // Simple Voice Chat (voice_chat.rs): its menu, push to talk while held, and mute.
-    action("voice_menu", "VC", "Voice chat menu", Key::Keys(&[super::voice_chat::TOUCH_MENU])),
-    action("voice_talk", "Talk", "Voice chat: talk (hold)", Key::Keys(&[super::voice_chat::TOUCH_TALK])),
-    action("voice_mute", "Mic", "Voice chat: mute / unmute", Key::Keys(&[super::voice_chat::TOUCH_MUTE])),
+    action("voice_menu", "VC", "VC menu", Key::Keys(&[super::voice_chat::TOUCH_MENU])),
+    action("voice_talk", "Talk", "VC talk (hold)", Key::Keys(&[super::voice_chat::TOUCH_TALK])),
+    action("voice_mute", "Mic", "VC mute", Key::Keys(&[super::voice_chat::TOUCH_MUTE])),
     // Keyboard keys for native mods' keys (Options > Mods > a mod's keys): the ones the mods
     // built into the iOS app use by default. A button holds its key while the finger stays.
     action("key_b", "B", "Key B (mods)", Key::Keys(&["b"])),
@@ -1120,7 +1120,18 @@ impl Game<'_> {
             batch.fill(atlas, x - 1.0, y - 1.0, w + 2.0, h + 2.0, rgba(0, 0, 0, 120));
             batch.fill(atlas, x, y, w, h, fill);
             let tw = HudBatch::text_width(atlas, label);
-            batch.text(atlas, label, x + (w - tw) / 2.0, y + (h - 8.0) / 2.0, white, true);
+            let fit = ((w - 4.0) / tw).min(1.0);
+            if fit >= 1.0 {
+                batch.text(atlas, label, x + (w - tw) / 2.0, y + (h - 8.0) / 2.0, white, true);
+            } else {
+                // Drawn at its size, then shrunk about its corner into the plate.
+                let (lx, ly) = (x + (w - tw * fit) / 2.0, y + (h - 8.0 * fit) / 2.0);
+                let start = batch.vertices.len();
+                batch.text(atlas, label, 0.0, 0.0, white, true);
+                for v in &mut batch.vertices[start..] {
+                    v.pos = [lx + v.pos[0] * fit, ly + v.pos[1] * fit];
+                }
+            }
         };
         batch.fill(atlas, 0.0, 0.0, fsize[0] / s, fsize[1] / s, rgba(0, 0, 0, 150));
         let stick = layout.stick_rect(fsize);
@@ -1148,7 +1159,16 @@ impl Game<'_> {
             };
             plate(batch, b.rect(fsize), fill, label);
         }
-        for (tool, label, r) in super::touch_editor::toolbar(fsize) {
+        let bar = super::touch_editor::toolbar(fsize);
+        if let (Some(top), Some(bottom)) = (
+            bar.iter().map(|t| t.2[1]).reduce(f32::min),
+            bar.iter().map(|t| t.2[1] + t.2[3]).reduce(f32::max),
+        ) {
+            let pad = 4.0;
+            let (top, bottom) = (top / s - pad, bottom / s + pad + 12.0);
+            batch.fill(atlas, 0.0, top, fsize[0] / s, bottom - top, rgba(0, 0, 0, 200));
+        }
+        for (tool, label, r) in bar {
             let usable = match tool {
                 Tool::Remove => matches!(editor.selected, Some(Sel::Button(_))),
                 Tool::Smaller | Tool::Bigger => editor.selected.is_some(),
@@ -1157,9 +1177,9 @@ impl Game<'_> {
             let fill = if tool == Tool::Done {
                 rgba(60, 150, 70, 200)
             } else if !usable {
-                rgba(40, 40, 40, 160)
+                rgba(40, 40, 40, 240)
             } else {
-                rgba(70, 70, 70, 210)
+                rgba(70, 70, 70, 250)
             };
             let label = match tool {
                 Tool::Layout => format!("Layout {}", editor.active + 1),

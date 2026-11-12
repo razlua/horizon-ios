@@ -23,6 +23,11 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
   the safe area's size (the screen without the Dynamic Island's and home bar's margins) and iOS
   stretched that over the whole screen. It now draws at the screen's own size, so blocks, the
   hotbar and text have their right shape.
+- **Edit HUD's tools come first.** Add, Remove, Smaller, Bigger, Layout, Reset and Done sit on a
+  dark strip of their own, over everything, and take a tap even where a button is under them. A
+  button let go over the tools moves to just under them, so it can be picked up again.
+- **The Add list's names fit their tiles.** Long ones are shorter (VC menu, F3+G Chunks) and any
+  that is still too wide is drawn smaller, instead of running into its neighbours.
 
 ### Changed
 

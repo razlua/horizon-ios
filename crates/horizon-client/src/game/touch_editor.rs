@@ -190,10 +190,43 @@ impl Editor {
             TouchPhase::Ended | TouchPhase::Cancelled => {
                 if self.drag.is_some_and(|(finger, _)| finger == id) {
                     self.drag = None;
+                    self.clear_of_tools(size);
                 }
             }
         }
         None
+    }
+
+    /// The selected button or Esc, let go over the tools, moves to just under them: the tools
+    /// take the taps there, so it couldn't be picked up again.
+    fn clear_of_tools(&mut self, size: [f32; 2]) {
+        let tools = toolbar(size);
+        let overlaps = |r: [f32; 4]| {
+            tools.iter().any(|(_, _, t)| {
+                r[0] < t[0] + t[2] && t[0] < r[0] + r[2] && r[1] < t[1] + t[3] && t[1] < r[1] + r[3]
+            })
+        };
+        let below = toolbar_bottom(size) + unit(size) * 0.1;
+        let h = size[1];
+        let selected = self.selected;
+        let layout = self.current_mut();
+        match selected {
+            Some(Sel::Button(i)) => {
+                if let Some(b) = layout.buttons.get(i)
+                    && overlaps(b.rect(size))
+                {
+                    let half = b.rect(size)[3] / 2.0;
+                    layout.buttons[i].y = ((below + half) / h).min(1.0);
+                }
+            }
+            Some(Sel::Esc) => {
+                let r = layout.esc_rect(size);
+                if overlaps(r) {
+                    layout.esc[1] = ((below + r[3] / 2.0) / h).min(1.0);
+                }
+            }
+            _ => {}
+        }
     }
 
     fn press(
@@ -220,8 +253,10 @@ impl Editor {
             }
             return None;
         }
-        // What the player placed comes before the tools: dragged over them, it can always be
-        // dragged off again.
+        // The tools come first: a button can't sit over them (`clear_of_tools`).
+        if let Some(&(tool, _, _)) = toolbar(size).iter().find(|(_, _, r)| inside(*r, at)) {
+            return self.tool(tool, defaults);
+        }
         let [w, h] = size;
         let layout = self.current();
         let hit = if inside(layout.esc_rect(size), at) {
@@ -243,11 +278,6 @@ impl Editor {
             Some(Sel::Stick) => Some([layout.stick[0] * w - at[0], layout.stick[1] * h - at[1]]),
             None => None,
         };
-        if hit.is_none()
-            && let Some(&(tool, _, _)) = toolbar(size).iter().find(|(_, _, r)| inside(*r, at))
-        {
-            return self.tool(tool, defaults);
-        }
         self.selected = hit;
         self.drag = grip.map(|g| (id, g));
         None
@@ -466,6 +496,26 @@ mod tests {
         assert_eq!(active, 1);
         assert_eq!(layouts[1].buttons.len(), 2);
         assert_eq!(layouts[0], defaults);
+    }
+
+    #[test]
+    fn the_tools_come_first_and_a_button_let_go_over_them_moves_under_them() {
+        let d = layout(vec![]);
+        let add = tool(Tool::Add);
+        let mut e = editor(vec![button("jump", add[0] / SIZE[0], add[1] / SIZE[1])]);
+        // A tap on Add over the button is Add's.
+        e.touch(1, TouchPhase::Started, add, SIZE, &d);
+        assert!(e.picking);
+        assert_eq!(e.selected, None);
+        // Dragged from elsewhere and let go over the tools: moved under them.
+        let mut e = editor(vec![button("jump", 0.5, 0.6)]);
+        let start = [SIZE[0] * 0.5, SIZE[1] * 0.6];
+        e.touch(2, TouchPhase::Started, start, SIZE, &d);
+        assert_eq!(e.selected, Some(Sel::Button(0)));
+        e.touch(2, TouchPhase::Moved, add, SIZE, &d);
+        e.touch(2, TouchPhase::Ended, add, SIZE, &d);
+        let r = e.current().buttons[0].rect(SIZE);
+        assert!(r[1] >= toolbar_bottom(SIZE), "{r:?}");
     }
 
     #[test]
