@@ -31,6 +31,9 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
   button let go over the tools moves to just under them, so it can be picked up again.
 - **The keyboard over Options from the main menu.** Its search boxes (settings, languages,
   resource packs) didn't bring up the iPhone keyboard when Options was opened from the main menu.
+- **Loading screens over the whole screen with Safe Area on.** The resource pack reload (the
+  Mojang screen), the world loading and saving screens and the world upgrade screen covered only
+  the safe area's size, from the top left corner.
 - **Open Pack Folder works on iPhone.** It, and the other folder buttons (shader packs, worlds,
   screenshots), open the Files app at that folder instead of doing nothing. Links the game opens
   go to Safari.

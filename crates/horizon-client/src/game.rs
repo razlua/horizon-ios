@@ -15617,7 +15617,11 @@ impl Game<'_> {
                         upgrade,
                         self.cursor,
                     );
-                    return renderer.render(&loading_frame(&hud));
+                    // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                    hud.into_safe_area([renderer.config.width, renderer.config.height]);
+                    // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                hud.into_safe_area([renderer.config.width, renderer.config.height]);
+                return renderer.render(&loading_frame(&hud));
                 }
                 return Ok(false);
             }
@@ -15656,6 +15660,8 @@ impl Game<'_> {
                     Some(&status),
                     progress,
                 );
+                // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                hud.into_safe_area([renderer.config.width, renderer.config.height]);
                 return renderer.render(&loading_frame(&hud));
             }
             return Ok(false);
@@ -15672,6 +15678,8 @@ impl Game<'_> {
                     loader.progress.line(),
                     loader.progress.fraction(),
                 );
+                // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                hud.into_safe_area([renderer.config.width, renderer.config.height]);
                 return renderer.render(&loading_frame(&hud));
             }
             return Ok(false);
@@ -15688,6 +15696,8 @@ impl Game<'_> {
                     reload.progress.fraction(),
                     self.settings.file.bool("darkMojangStudiosBackground"),
                 );
+                // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                hud.into_safe_area([renderer.config.width, renderer.config.height]);
                 return renderer.render(&loading_frame(&hud));
             }
             return Ok(false);

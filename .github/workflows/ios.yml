@@ -11,7 +11,7 @@ on:
     inputs:
       runner:
         description: "The Mac to build on (macos-15, macos-14, macos-26, macos-15-intel): another one when GitHub has none of one kind free"
-        default: macos-15
+        default: macos-15-intel
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -31,7 +31,7 @@ jobs:
     # Runner of type hosted") on 2026-11-12; the Apple Silicon ones had sat queued on 2026-11-10.
     # The iOS SDK cross-compiles to arm64 phones from any of them: a manual run can pick another
     # (`runner`), as D:/Horizon-iOS/tools/ios-build-retry.sh does when one is dropped.
-    runs-on: ${{ inputs.runner || 'macos-15' }}
+    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
