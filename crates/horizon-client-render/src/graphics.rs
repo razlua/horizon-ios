@@ -12,6 +12,12 @@ pub const FILE: &str = "horizon-graphics.txt";
 /// Written beside it before HDR output is switched on and removed once the first HDR frame is
 /// presented. Found at the next start, it means HDR output took the game down, so HDR starts off.
 pub const HDR_MARKER: &str = "horizon-hdr-pending";
+/// Phones: written once the culling and caches of [`Graphics::phone_savings`] were turned on in
+/// a graphics file saved before they were the default, so a player who turns one off later
+/// keeps it off. A dot file: the Files app doesn't show it.
+pub const PHONE_SAVINGS_MARKER: &str = ".horizon-phone-savings";
+/// The game runs on a phone (iOS, Android), where every frame's work is battery.
+const PHONE: bool = cfg!(any(target_os = "ios", target_os = "android"));
 
 /// What the system reports for the display HDR output goes to, in nits in HDR output's
 /// scale: where its SDR white sits (the desktop's white) and the peak.
@@ -707,7 +713,7 @@ pub struct Graphics {
 }
 impl Default for Graphics {
     fn default() -> Self {
-        Self {
+        let mut g = Self {
             preset: Preset::Custom,
             lod_distance: 0,
             far_detail: FarDetail::Full,
@@ -754,7 +760,11 @@ impl Default for Graphics {
             translucent_batching: true,
             hdr_smooth_gradients: true,
             shader_pack: String::new(),
+        };
+        if PHONE {
+            g.phone_savings();
         }
+        g
     }
 }
 fn bool_text(v: bool) -> &'static str {
@@ -773,6 +783,7 @@ impl Graphics {
                 Vec::new()
             }
         };
+        g.phone_savings_once(dir, PHONE);
         if fs::remove_file(dir.join(HDR_MARKER)).is_ok() && g.hdr {
             g.hdr = false;
             g.save(dir);
@@ -965,6 +976,34 @@ impl Graphics {
         }
         true
     }
+    /// The culling and caches that skip work without changing the picture, on: entities and
+    /// particles behind terrain aren't drawn (checked off the render thread), leaf faces inside
+    /// a canopy aren't drawn (a crown looks the same from outside), and block entities that
+    /// aren't moving keep their models. Phones start with them: less work for each frame.
+    pub fn phone_savings(&mut self) {
+        self.entity_culling = EntityCullingMode::Asynchronous;
+        self.particle_culling = ParticleCullingMode::Asynchronous;
+        self.leaf_culling = LeafCullingMode::Hidden;
+        self.cache_shulker_boxes = true;
+        self.cache_signs = true;
+        self.cache_decorated_pots = true;
+        self.cache_bells = true;
+        self.cache_chests = true;
+        self.cache_banners = true;
+        self.cache_copper_golem_statues = true;
+    }
+    /// On a phone, [`phone_savings`](Self::phone_savings) once for a graphics file in `dir` that
+    /// was saved before they were the default, and saved with them; [`PHONE_SAVINGS_MARKER`]
+    /// says it's done.
+    fn phone_savings_once(&mut self, dir: &Path, phone: bool) {
+        let marker = dir.join(PHONE_SAVINGS_MARKER);
+        if !phone || marker.exists() {
+            return;
+        }
+        self.phone_savings();
+        self.save(dir);
+        let _ = fs::write(marker, "");
+    }
     pub fn save(&self, dir: &Path) {
         let _ = fs::write(dir.join(FILE), self.serialize());
     }
@@ -1061,6 +1100,39 @@ pub fn apply_preset(preset: Preset, s: &mut crate::settings::Settings) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_phone_turns_the_savings_on_once_and_a_later_choice_stays() {
+        use super::*;
+        let dir =
+            std::env::temp_dir().join(format!("horizon-phone-savings-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let mut old = Graphics::default();
+        old.entity_culling = EntityCullingMode::Off;
+        old.cache_chests = false;
+        old.save(&dir);
+        // Not a phone: the file stays as it is.
+        let mut g = Graphics::parse(&fs::read_to_string(dir.join(FILE)).unwrap());
+        g.phone_savings_once(&dir, false);
+        assert_eq!(g.entity_culling, EntityCullingMode::Off);
+        assert!(!dir.join(PHONE_SAVINGS_MARKER).exists());
+        // A phone: on, and saved.
+        g.phone_savings_once(&dir, true);
+        let saved = Graphics::parse(&fs::read_to_string(dir.join(FILE)).unwrap());
+        assert_eq!(saved.entity_culling, EntityCullingMode::Asynchronous);
+        assert_eq!(saved.particle_culling, ParticleCullingMode::Asynchronous);
+        assert_eq!(saved.leaf_culling, LeafCullingMode::Hidden);
+        assert!(saved.cache_chests && saved.cache_banners && saved.cache_bells);
+        // Turned off afterwards: it stays off.
+        let mut later = saved;
+        later.entity_culling = EntityCullingMode::Off;
+        later.save(&dir);
+        let mut again = Graphics::parse(&fs::read_to_string(dir.join(FILE)).unwrap());
+        again.phone_savings_once(&dir, true);
+        assert_eq!(again.entity_culling, EntityCullingMode::Off);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     use super::*;
 
     #[test]

@@ -13,6 +13,17 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
   the new version, which they sign and install over the app, worlds and sign-ins kept. Without
   either, **Get the update** opens the download page as before.
 
+### Changed
+
+- **Less work for each frame, for battery.** The app is now built fully optimized (the build
+  before used a quicker, less optimized setting) with the faster memory allocator Horizon uses
+  on desktop. Same frame rate, less CPU time per frame.
+- **Culling and caches on by default.** Entities and particles hidden behind terrain aren't
+  drawn, leaf faces inside a tree's crown aren't drawn (it looks the same from outside), and
+  chests, signs, banners, bells, pots, shulker boxes and copper golem statues keep their models
+  while they aren't moving. Turned on once for existing installs too; you can turn any of them off
+  in Horizon's video settings and it stays off.
+
 ## 2026.11.12-2
 
 ### Added

@@ -83,20 +83,24 @@ jobs:
         with:
           key: ios-mods
       # The staged (modded) source builds into this checkout's target/, which the cache keeps.
+      # The release profile (thin LTO, one codegen unit) and mimalloc, as the desktop release is
+      # built: less CPU time for each frame, so less battery. The chip is the oldest iOS 16 runs on
+      # (A11) instead of Rust's default A7.
       - name: Build
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_TARGET_AARCH64_APPLE_IOS_RUSTFLAGS: -C target-cpu=apple-a11
         run: >
           cd "$RUNNER_TEMP/stage" &&
-          cargo build --profile fast --target aarch64-apple-ios
+          cargo build --release --target aarch64-apple-ios
           -p horizon-client --bin horizon-client
-          --no-default-features --features audio,system-allocator
+          --no-default-features --features audio
       - name: Package
         env:
           HORIZON_IOS_BUILD: ${{ github.run_number }}
         run: |
           export HORIZON_IOS_VERSION="$(date -u +%Y.%-m.%-d)"
-          bash packaging/ios/package.sh target/aarch64-apple-ios/fast/horizon-client dist/Horizon-unsigned.ipa
+          bash packaging/ios/package.sh target/aarch64-apple-ios/release/horizon-client dist/Horizon-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: Horizon-ios-unsigned
