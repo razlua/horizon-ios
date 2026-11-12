@@ -37,7 +37,7 @@ jobs:
           rustc --version
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-path
-      # Simple Voice Chat's codec, linked into the app (native-crates/voicechat/engine/build.rs):
+      # Simple Voice Chat's codec, linked into the app (crates/voicechat-engine/build.rs):
       # Opus 1.5.2 from xiph.org, checked against its published SHA-256.
       - name: Opus for iOS
         run: |

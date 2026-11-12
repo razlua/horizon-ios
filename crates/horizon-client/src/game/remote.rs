@@ -752,7 +752,7 @@ impl Game<'_> {
     }
     /// Position of an entity `ClientboundSoundEntityPacket` names.
     /// Each client tick on a server: where the player and the other players are for Simple
-    /// Voice Chat (an unofficial client: native-crates/voicechat/engine), then the payloads it has
+    /// Voice Chat (an unofficial client: crates/voicechat-engine), then the payloads it has
     /// for the server, its settings and its chat lines. The voices play on its own threads.
     fn tick_voice_chat(&mut self) {
         use voicechat_engine as vc;

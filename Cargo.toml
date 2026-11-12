@@ -42,7 +42,7 @@ members = [
     "xtask",
     # Simple Voice Chat's protocol (unofficial), from Horizon's voicechat native mod: the iOS
     # build listens to the other players (game/remote.rs).
-    "native-crates/voicechat/engine",
+    "crates/voicechat-engine",
 ]
 resolver = "2"
 

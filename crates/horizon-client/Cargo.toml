@@ -69,7 +69,7 @@ horizon-telemetry = { path = "../horizon-telemetry", default-features = false, f
 horizon-bench = { path = "../horizon-bench" }
 zip = { version = "9.1.3", default-features = false, features = ["deflate"] }
 # Simple Voice Chat (unofficial): the other players' voices on servers that have it.
-voicechat-engine = { path = "../../native-crates/voicechat/engine" }
+voicechat-engine = { path = "../voicechat-engine" }
 # Controllers (evdev + libudev on Linux, IOKit on macOS, Windows.Gaming.Input); the `controllers` feature.
 gilrs = { version = "0.11", optional = true }
 # The DualSense's rumble, adaptive triggers and lights over HID (gilrs only reads it).

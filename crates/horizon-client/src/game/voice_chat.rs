@@ -1,4 +1,4 @@
-//! Simple Voice Chat (an unofficial client: native-crates/voicechat/engine) wired into the game's
+//! Simple Voice Chat (an unofficial client: crates/voicechat-engine) wired into the game's
 //! hook points, as Horizon's voicechat native mod wires it on a computer: the menu (V), its keys,
 //! the HUD status, `/vc`, its row and settings page in Options > Mods. On iOS, also the Edit HUD
 //! buttons (Voice chat menu, Talk, Mic) and the menu's fields on the iPhone keyboard. The voices
