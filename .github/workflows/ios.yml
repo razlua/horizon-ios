@@ -8,6 +8,10 @@ on:
     # Text alone changes no build.
     paths-ignore: ["**.md", "docs/**", "LICENSE", "altstore-source.json", "tools/ios/release-notes.py", "tools/ios/altstore-version.py"]
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "The Mac to build on (macos-15, macos-14, macos-26, macos-15-intel): another one when GitHub has none of one kind free"
+        default: macos-15
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -25,8 +29,9 @@ jobs:
   build:
     # Apple Silicon. The Intel machines (macos-15-intel) stopped taking jobs ("not acquired by
     # Runner of type hosted") on 2026-11-12; the Apple Silicon ones had sat queued on 2026-11-10.
-    # The iOS SDK cross-compiles to arm64 phones from either, so switch back if one stalls.
-    runs-on: macos-15
+    # The iOS SDK cross-compiles to arm64 phones from any of them: a manual run can pick another
+    # (`runner`), as D:/Horizon-iOS/tools/ios-build-retry.sh does when one is dropped.
+    runs-on: ${{ inputs.runner || 'macos-15' }}
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
