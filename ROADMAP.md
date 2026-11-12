@@ -50,6 +50,11 @@ redstone, multiplayer and so on) comes from upstream.
 
 Nothing is queued right now; everything from the last Next list is done. Suggestions are welcome.
 
+## In progress
+
+- [ ] Android: an `.apk` with the same touch HUD, on the `android-port` branch
+      ([docs/android.md](docs/android.md)). It builds; it still needs testing on real devices.
+
 ## Later
 
 - [ ] iPad: pointer and keyboard support, and Split View sizes. The maintainer doesn't own an

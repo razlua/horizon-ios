@@ -6,6 +6,14 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
+### Android (experimental, `android-port` branch)
+
+- **An Android port.** The game builds as an `.apk` for Android 10 and later, for phones and
+  tablets (`arm64-v8a`) and for Android on PCs, Chromebooks and emulators (`x86_64`). It has the
+  same touch HUD, Edit HUD, start screen with Microsoft sign-in, on-device download of the game
+  files, Extra Settings and voice chat as the iOS app. The system's Back is Esc. See
+  [docs/android.md](docs/android.md).
+
 ### Added
 
 - **Native mods for everyone (in progress).** The app is being built with the native mods from
