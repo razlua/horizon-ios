@@ -23,9 +23,10 @@ env:
 
 jobs:
   build:
-    # Intel: GitHub's Apple Silicon machines sat queued for want of capacity, and the iOS SDK
-    # cross-compiles to arm64 phones from either.
-    runs-on: macos-15-intel
+    # Apple Silicon. The Intel machines (macos-15-intel) stopped taking jobs ("not acquired by
+    # Runner of type hosted") on 2026-11-12; the Apple Silicon ones had sat queued on 2026-11-10.
+    # The iOS SDK cross-compiles to arm64 phones from either, so switch back if one stalls.
+    runs-on: macos-15
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
