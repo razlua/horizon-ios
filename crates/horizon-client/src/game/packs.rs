@@ -30,8 +30,19 @@ pub fn packs_dir() -> PathBuf {
         .unwrap_or_default()
         .join("resourcepacks")
 }
-/// `Util.getPlatform().openPath`: the system file manager on the folder.
+/// `Util.getPlatform().openPath`: the system file manager on the folder. iOS: the Files app
+/// (a link handed here, as the friends screen does, goes to Safari).
 pub fn open_folder(dir: &Path) {
+    #[cfg(target_os = "ios")]
+    {
+        if dir.to_string_lossy().contains("://") {
+            open_uri(&dir.to_string_lossy());
+        } else {
+            horizon_client::title::world_management::open_in_files(dir);
+        }
+        return;
+    }
+    #[allow(unreachable_code)]
     let program = if cfg!(target_os = "windows") {
         "explorer"
     } else if cfg!(target_os = "macos") {
@@ -52,7 +63,12 @@ pub fn open_uri(uri: &str) {
     if let Err(error) = open::that_detached(uri) {
         log::warn!("Horizon: could not open URI {uri}: {error}");
     }
-    #[cfg(not(windows))]
+    // iOS: Safari, or the app the link is for.
+    #[cfg(target_os = "ios")]
+    if !horizon_threads::ios_url::open_url(uri) {
+        log::warn!("Horizon: could not open URI {uri}");
+    }
+    #[cfg(not(any(windows, target_os = "ios")))]
     open_folder(Path::new(uri));
 }
 /// The resource root to load from, given the vanilla root, the selection and

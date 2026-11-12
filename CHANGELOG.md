@@ -26,6 +26,9 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 - **Edit HUD's tools come first.** Add, Remove, Smaller, Bigger, Layout, Reset and Done sit on a
   dark strip of their own, over everything, and take a tap even where a button is under them. A
   button let go over the tools moves to just under them, so it can be picked up again.
+- **Open Pack Folder works on iPhone.** It, and the other folder buttons (shader packs, worlds,
+  screenshots), open the Files app at that folder instead of doing nothing. Links the game opens
+  go to Safari.
 - **The Add list's names fit their tiles.** Long ones are shorter (VC menu, F3+G Chunks) and any
   that is still too wide is drawn smaller, instead of running into its neighbours.
 

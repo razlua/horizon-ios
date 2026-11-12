@@ -115,7 +115,34 @@ pub fn backups_path(saves: &Path) -> PathBuf {
     saves.parent().unwrap_or(saves).join("backups")
 }
 
+/// iOS: the Files app at `path`, a folder of the app's Documents (which the Files app shows
+/// as On My iPhone > Horizon), through its `shareddocuments://` address. The folder is made
+/// first: the Files app can't open one that isn't there.
+#[cfg(target_os = "ios")]
+pub fn open_in_files(path: &Path) {
+    let _ = std::fs::create_dir_all(path);
+    let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let mut url = String::from("shareddocuments://");
+    for b in path.to_string_lossy().bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b'-' | b'_' | b'.' | b'~' => {
+                url.push(b as char)
+            }
+            _ => url.push_str(&format!("%{b:02X}")),
+        }
+    }
+    if !horizon_threads::ios_url::open_url(&url) {
+        log::warn!("Horizon: the Files app did not open {}", path.display());
+    }
+}
 pub(super) fn open_folder(path: &Path) -> crate::Result<()> {
+    // iOS: the Files app at the folder.
+    #[cfg(target_os = "ios")]
+    {
+        open_in_files(path);
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
     fs::create_dir_all(path)?;
     let path = fs::canonicalize(path)?;
     let program = if cfg!(target_os = "windows") {
