@@ -183,6 +183,18 @@ On the phone, under *Files → On My iPhone → Horizon*:
 Your Microsoft sign-ins are kept in the app's private storage, not in Files, and deleting the app
 deletes them.
 
+## Updating
+
+The "Get Update" page likely sent you here.
+
+Updating step-by-step (Not with SideStore, altstore, etc. Made for stuff like Sideloadly): 
+
+- Download the latest release from this github repo
+- Sideload it
+- Done!
+
+NOTE: Do __NOT__ uninstall the app before updating. Doing so WILL result in a permanent loss of data.
+
 ## About
 
 *Options → About the Project* says who makes this port and where to report bugs. That's @4rnz on
