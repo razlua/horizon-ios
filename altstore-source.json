@@ -19,6 +19,15 @@
       "versions": [
         {
           "version": "2026.11.12",
+          "buildVersion": "38",
+          "date": "2026-11-12T18:37:43Z",
+          "localizedDescription": "59 native mods built in (off until turned on), Modrinth resource packs, the stretched picture fixed, and Edit HUD, loading screen and keyboard fixes.",
+          "downloadURL": "https://github.com/razlua/horizon-ios/releases/download/ios-2026.11.12-2/Horizon-unsigned.ipa",
+          "size": 36306277,
+          "minOSVersion": "16.0"
+        },
+        {
+          "version": "2026.11.12",
           "buildVersion": "25",
           "date": "2026-11-12T07:04:32Z",
           "localizedDescription": "Talk in Simple Voice Chat (VC, Talk and Mic buttons in Edit HUD), an update notice on the start screen, Extra Settings with Safe Area, and the chat above the keyboard.",

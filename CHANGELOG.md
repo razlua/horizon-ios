@@ -6,6 +6,10 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
+Nothing yet.
+
+## 2026.11.12-2
+
 ### Added
 
 - **Native mods for everyone.** 59 native mods from Horizon's registry are built into the app:
