@@ -8,10 +8,14 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ### Added
 
-- **Native mods for everyone (in progress).** The app is being built with the native mods from
-  Horizon's registry that work on iOS, so players can use them without a computer. They all
-  start off: turn on the ones you want in *Options → Mods*, and the rest do nothing. Simple Voice
-  Chat stays on as before.
+- **Native mods for everyone.** 59 native mods from Horizon's registry are built into the app:
+  minimaps, Zoom, AppleSkin, Freelook, JEI, waypoints, keystrokes, HUD mods and more
+  ([NATIVE_MODS.md](NATIVE_MODS.md)). They all start off: turn on the ones you want in
+  *Options → Mods*, and the rest do nothing. Simple Voice Chat stays on as before. The mods in
+  the app are the registry's that apply to this port's Horizon, switch themselves off, have an
+  open license and compile for iOS.
+- **Key buttons for mods.** Edit HUD has letter buttons (B, C, E, G, H, I, J, K, M, N, O, P, R,
+  U, V, X, Y, Z, Tab) that press those keys, for mods' keys.
 
 ### Changed
 

@@ -35,3 +35,6 @@
 
 # Release-only compiled original exporter bundle.
 /exporters/
+
+# horizon-mixins reads the workspace revision from here (tools/ios/native-mods.py apply).
+/.horizon-revision

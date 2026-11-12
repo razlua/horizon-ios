@@ -68,6 +68,11 @@ full 120 Hz.
   settings: Safe Area (the HUD, menus and buttons stay clear of the Dynamic Island and the home
   bar, while backgrounds still fill the screen), button opacity, touch look speed, and keeping
   the screen on.
+- 59 native mods from [Horizon's registry](https://github.com/horizon-rust/horizon-mods) come
+  built in: minimaps, Zoom, AppleSkin, Freelook, JEI, waypoints, keystrokes, HUD mods and more
+  ([NATIVE_MODS.md](NATIVE_MODS.md) lists them with their licenses). They all start off: turn on
+  the ones you want in *Options → Mods*. For a mod's key, add its letter in Edit HUD (B, C, G, R,
+  V, X, Z and others, marked "mods").
 - Simple Voice Chat works on servers with the plugin or mod: you hear the players who use it,
   coming from where they stand, and you can talk. Add the voice chat buttons in Edit HUD: **VC**
   opens the voice chat menu (mute, voice activation or push to talk, volumes, groups), **Talk**
@@ -186,8 +191,9 @@ Discord (razlua on GitHub). Send bugs there, with `home/logs/latest.log` if you 
   talk, avoid the echo.
 - The game draws edge to edge by default, so part of it can end up under the Dynamic Island, the
   notch or the home indicator. Turn on Safe Area in Extra Settings to keep it clear.
-- Native Rust mods, the mod browser, modpacks and server hosting need the desktop launcher and
-  aren't in this port.
+- Only the native mods built into the app are available: an iPhone can't compile or load new
+  mod code. Mods made for newer Horizon versions, the mod browser, modpacks and server hosting
+  need the desktop launcher.
 
 More in [ROADMAP.md](ROADMAP.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
@@ -220,6 +226,7 @@ how the port fits together.
 | `crates/horizon-client/src/game/ios_update.rs` | Whether a newer build is out |
 | `crates/horizon-client/src/ios_screen.rs` | The start screen's drawing |
 | `crates/horizon-threads/src/ios_url.rs`, `ios_pasteboard.rs`, `ios_display.rs` | Opening Safari, the clipboard, the frame rate |
+| `tools/ios/native-mods.py`, `native-mods.txt` | The native mods built in: fetched from the registry, checked and applied with horizon-mixins before the build |
 | `packaging/ios/`, `tools/ios/` | The app bundle, adding game files on a computer, building the tables, and adding a release to the AltStore source (`altstore-version.py`) |
 
 ## Credits and license

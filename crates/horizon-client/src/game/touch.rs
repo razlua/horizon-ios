@@ -101,6 +101,27 @@ pub(super) const ACTIONS: &[Action] = &[
     action("voice_menu", "VC", "Voice chat menu", Key::Keys(&[super::voice_chat::TOUCH_MENU])),
     action("voice_talk", "Talk", "Voice chat: talk (hold)", Key::Keys(&[super::voice_chat::TOUCH_TALK])),
     action("voice_mute", "Mic", "Voice chat: mute / unmute", Key::Keys(&[super::voice_chat::TOUCH_MUTE])),
+    // Keyboard keys for native mods' keys (Options > Mods > a mod's keys): the ones the mods
+    // built into the iOS app use by default. A button holds its key while the finger stays.
+    action("key_b", "B", "Key B (mods)", Key::Keys(&["b"])),
+    action("key_c", "C", "Key C (mods)", Key::Keys(&["c"])),
+    action("key_e", "E", "Key E (mods)", Key::Keys(&["e"])),
+    action("key_g", "G", "Key G (mods)", Key::Keys(&["g"])),
+    action("key_h", "H", "Key H (mods)", Key::Keys(&["h"])),
+    action("key_i", "I", "Key I (mods)", Key::Keys(&["i"])),
+    action("key_j", "J", "Key J (mods)", Key::Keys(&["j"])),
+    action("key_k", "K", "Key K (mods)", Key::Keys(&["k"])),
+    action("key_m", "M", "Key M (mods)", Key::Keys(&["m"])),
+    action("key_n", "N", "Key N (mods)", Key::Keys(&["n"])),
+    action("key_o", "O", "Key O (mods)", Key::Keys(&["o"])),
+    action("key_p", "P", "Key P (mods)", Key::Keys(&["p"])),
+    action("key_r", "R", "Key R (mods)", Key::Keys(&["r"])),
+    action("key_u", "U", "Key U (mods)", Key::Keys(&["u"])),
+    action("key_v", "V", "Key V (mods)", Key::Keys(&["v"])),
+    action("key_x", "X", "Key X (mods)", Key::Keys(&["x"])),
+    action("key_y", "Y", "Key Y (mods)", Key::Keys(&["y"])),
+    action("key_z", "Z", "Key Z (mods)", Key::Keys(&["z"])),
+    action("key_tab", "Tab", "Key Tab (mods)", Key::Keys(&["tab"])),
 ];
 
 /// The action named `id`.

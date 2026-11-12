@@ -51,11 +51,37 @@ jobs:
           lib="$(find "$RUNNER_TEMP/opus" -name libopus.a | head -1)"
           lipo -info "$lib"
           echo "HORIZON_OPUS_DIR=$(dirname "$lib")" >> "$GITHUB_ENV"
+      # The native mods built into the app (tools/ios/native-mods.txt; they start off): applied
+      # to this source with horizon-mixins at the launcher's own commit (MIXINS_REV), as the
+      # launcher's native build does. This job has a read-only token and no secrets: the mods'
+      # build scripts run here.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mixins
+          key: horizon-mixins-e8cd0aa38cffef49cb2e088ef716baa107148c02-${{ runner.os }}
+      - name: horizon-mixins
+        run: |
+          set -euo pipefail
+          if [ ! -x "$RUNNER_TEMP/mixins/bin/horizon-mixins" ]; then
+            cargo install --locked --git https://github.com/horizon-rust/horizon-mixins \
+              --rev e8cd0aa38cffef49cb2e088ef716baa107148c02 --root "$RUNNER_TEMP/mixins" horizon-mixins-cli
+          fi
+          "$RUNNER_TEMP/mixins/bin/horizon-mixins" --version
+      - name: Native mods
+        run: |
+          set -euo pipefail
+          python3 tools/ios/native-mods.py fetch "$RUNNER_TEMP/mods"
+          python3 tools/ios/native-mods.py apply "$RUNNER_TEMP/mods" "$RUNNER_TEMP/mixins/bin/horizon-mixins" "$RUNNER_TEMP/stage"
+          python3 tools/ios/native-mods.py notices "$RUNNER_TEMP/mods"
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ios
+          key: ios-mods
+      # The staged (modded) source builds into this checkout's target/, which the cache keeps.
       - name: Build
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: >
+          cd "$RUNNER_TEMP/stage" &&
           cargo build --profile fast --target aarch64-apple-ios
           -p horizon-client --bin horizon-client
           --no-default-features --features audio,system-allocator

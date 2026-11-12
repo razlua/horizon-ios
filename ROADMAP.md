@@ -45,6 +45,8 @@ redstone, multiplayer and so on) comes from upstream.
 - [x] The start screen says when a newer build is out.
 - [x] Talking in Simple Voice Chat: the microphone, push to talk, mute, and the voice chat menu
       on Edit HUD buttons.
+- [x] Native mods: the registry's mods that work on this port's Horizon are built into the app,
+      off until each player turns them on, with Edit HUD buttons for their keys.
 
 ## Next
 
@@ -62,6 +64,7 @@ Nothing is queued right now; everything from the last Next list is done. Suggest
 
 - The App Store or TestFlight. The app needs your own Minecraft files, and the game isn't ours to
   publish there.
-- The desktop launcher's pages. Native Rust mods, the mod browser and modpacks need a computer.
+- The desktop launcher's pages. Choosing other native mods, the mod browser and modpacks need a
+  computer: an iPhone can't compile or load new code.
 - Phone-friendly defaults. Horizon is already well optimized, so a lower render distance or
   graphics preset on first launch isn't needed.
