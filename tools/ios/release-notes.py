@@ -2,6 +2,10 @@
 
 Usage: python tools/ios/release-notes.py <section heading> [more headings...]
 e.g.   python tools/ios/release-notes.py 2026.11.12 > notes.md
+       python tools/ios/release-notes.py Unreleased > notes.md   (what changed since the latest release)
+
+When a release goes out, its notes are the Unreleased section; then that heading becomes the
+release's version (`## 2026.11.13`) and a new, empty Unreleased goes above it.
 """
 
 import os

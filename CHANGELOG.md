@@ -1,7 +1,25 @@
 # Changelog: Horizon for iOS
 
-The iOS port's changes, newest first. Upstream Horizon's own release notes are at
+The iOS port's changes, newest first. **Unreleased** is what changed since the latest release; it
+becomes the next release's notes. Upstream Horizon's own release notes are at
 [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/releases).
+
+## Unreleased
+
+### Added
+
+- **Native mods for everyone (in progress).** The app is being built with the native mods from
+  Horizon's registry that work on iOS, so players can use them without a computer. They all
+  start off: turn on the ones you want in *Options → Mods*, and the rest do nothing. Simple Voice
+  Chat stays on as before.
+
+### Changed
+
+- **Release notes are changelogs:** each release lists what changed since the one before, from
+  this file.
+- **README:** a Performance section with screenshots from an iPhone 17 at render distance 29.
+- **Build:** the voice chat engine moved to `crates/voicechat-engine`, out of the folder
+  horizon-mixins keeps for mods' own crates.
 
 ## 2026.11.12
 

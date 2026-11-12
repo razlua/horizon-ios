@@ -6,7 +6,7 @@ on:
   push:
     branches: [ios-port, on-device-setup]
     # Text alone changes no build.
-    paths-ignore: ["**.md", "docs/**", "LICENSE", "altstore-source.json"]
+    paths-ignore: ["**.md", "docs/**", "LICENSE", "altstore-source.json", "tools/ios/release-notes.py", "tools/ios/altstore-version.py"]
   workflow_dispatch:
 
 concurrency:
