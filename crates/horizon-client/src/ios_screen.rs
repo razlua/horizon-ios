@@ -28,6 +28,8 @@ pub enum Action {
     ChangeName,
     /// Play offline with the name shown.
     PlayOffline,
+    /// Open the newer build's download page.
+    GetUpdate,
 }
 
 /// How a button looks.

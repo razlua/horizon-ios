@@ -12,7 +12,7 @@
       "bundleIdentifier": "dev.playhorizon.unofficial.ios",
       "developerName": "razlua",
       "subtitle": "Minecraft: Java Edition, unofficial port",
-      "localizedDescription": "Horizon's own game client, built for iOS and drawn with Metal. Sign in with a Microsoft account that owns Minecraft: Java Edition and the app downloads the game files from Mojang (about 520 MB, once). Single player, servers, touch controls you can rearrange, and listening to Simple Voice Chat.\n\nUnofficial and experimental. Report bugs to @4rnz on Discord or on GitHub.",
+      "localizedDescription": "Horizon's own game client, built for iOS and drawn with Metal. Sign in with a Microsoft account that owns Minecraft: Java Edition and the app downloads the game files from Mojang (about 520 MB, once). Single player, servers, touch controls you can rearrange, and Simple Voice Chat.\n\nUnofficial and experimental. Report bugs to @4rnz on Discord or on GitHub.",
       "iconURL": "https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/packaging/icons/hicolor/512x512/apps/horizon.png",
       "tintColor": "#3B82F6",
       "category": "games",

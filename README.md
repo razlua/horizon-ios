@@ -53,10 +53,14 @@ starts, signs in, and plays on a recent iPhone, but expect rough edges. See
   settings: Safe Area (the HUD, menus and buttons stay clear of the Dynamic Island and the home
   bar, while backgrounds still fill the screen), button opacity, touch look speed, and keeping
   the screen on.
-- On servers with the Simple Voice Chat plugin or mod, you hear the players who use it, coming
-  from where they stand. You can't be heard, because the app never opens the microphone. The
-  client is unofficial (the engine of Horizon's voicechat native mod) and not affiliated with
-  Simple Voice Chat.
+- Simple Voice Chat works on servers with the plugin or mod: you hear the players who use it,
+  coming from where they stand, and you can talk. Add the voice chat buttons in Edit HUD: **VC**
+  opens the voice chat menu (mute, voice activation or push to talk, volumes, groups), **Talk**
+  sends your voice while you hold it, and **Mic** mutes and unmutes. The microphone only opens
+  the first time you talk (iOS asks for permission then) and closes when you mute it. Its
+  settings are also in *Options → Mods*. The client is unofficial (the engine of Horizon's
+  voicechat native mod) and not affiliated with Simple Voice Chat.
+- The start screen tells you when a newer version is out, with a button to its download page.
 - Saves, options, resource packs and logs are in the Files app, under *On My iPhone → Horizon*.
 - The game pauses and saves when you leave the app.
 
@@ -134,6 +138,7 @@ That app has your game files inside, so don't share it.
 | Menus | Drag sideways, or hold then drag | Drag sliders and items |
 | Menus | Second finger tap | Right-click |
 | Main menu | Edit HUD | Change the touch buttons |
+| World | VC, Talk, Mic (add them in Edit HUD) | Voice chat menu, talk while held, mute |
 
 ## Where things are
 
@@ -162,8 +167,8 @@ Discord (razlua on GitHub). Send bugs there, with `home/logs/latest.log` if you 
 
 - Paired game controllers aren't read yet.
 - There's no narrator (text-to-speech).
-- You can hear Simple Voice Chat but not talk, and its menu (V on a keyboard) isn't on the touch
-  controls.
+- In voice chat, the phone's speaker can be heard through the microphone. Headphones, or push to
+  talk, avoid the echo.
 - The game draws edge to edge by default, so part of it can end up under the Dynamic Island, the
   notch or the home indicator. Turn on Safe Area in Extra Settings to keep it clear.
 - Native Rust mods, the mod browser, modpacks and server hosting need the desktop launcher and
@@ -196,6 +201,8 @@ how the port fits together.
 | `crates/horizon-client/src/game/ios_account.rs` | Microsoft → Xbox Live → XSTS → Minecraft services sign-in, and the saved accounts |
 | `crates/horizon-client/src/game/touch.rs` | Touch controls, the Esc button, key buttons |
 | `crates/horizon-client/src/game/touch_editor.rs` | Edit HUD |
+| `crates/horizon-client/src/game/voice_chat.rs` | Simple Voice Chat's menu, keys, HUD and touch buttons |
+| `crates/horizon-client/src/game/ios_update.rs` | Whether a newer build is out |
 | `crates/horizon-client/src/ios_screen.rs` | The start screen's drawing |
 | `crates/horizon-threads/src/ios_url.rs`, `ios_pasteboard.rs`, `ios_display.rs` | Opening Safari, the clipboard, the frame rate |
 | `packaging/ios/`, `tools/ios/` | The app bundle, adding game files on a computer, building the tables, and adding a release to the AltStore source (`altstore-version.py`) |

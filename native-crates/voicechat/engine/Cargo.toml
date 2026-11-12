@@ -14,3 +14,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(opus_linked)"] }
 cpal = "0.16"
 libloading = "0.8"
 ring = "0.17"
+
+# iOS: the audio session that lets the microphone record (audio.rs).
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"

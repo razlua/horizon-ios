@@ -336,11 +336,14 @@ mod tnt;
 mod totem;
 mod touch;
 mod touch_editor;
+mod voice_chat;
 #[cfg(target_os = "ios")]
 mod ios_account;
 #[cfg(target_os = "ios")]
 pub mod ios_boot;
 mod ios_setup;
+#[cfg(target_os = "ios")]
+mod ios_update;
 mod trading;
 mod transient_blocks;
 mod trial_spawner;

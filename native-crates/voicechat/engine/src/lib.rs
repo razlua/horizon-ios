@@ -284,6 +284,8 @@ struct Voice {
     devices: Arc<Mutex<Devices>>,
     redirect: Option<Redirect>,
     menu: ui::Menu,
+    /// Push to talk was pressed (the microphone stays open from then on, until muted).
+    talked: bool,
 }
 
 fn voice() -> MutexGuard<'static, Voice> {
@@ -301,6 +303,7 @@ fn voice() -> MutexGuard<'static, Voice> {
             devices: Arc::new(Mutex::new(Devices::default())),
             redirect: None,
             menu: ui::Menu::default(),
+            talked: false,
         })
     });
     VOICE.lock().unwrap_or_else(|e| e.into_inner())
@@ -342,6 +345,8 @@ impl Voice {
         c.volume = s.volume as f32 / 100.0;
         c.mic_gain = s.mic_gain as f32 / 100.0;
         c.threshold_db = s.threshold as f32;
+        drop(c);
+        audio::want_mic(!s.muted && !s.disabled && (s.mode == Mode::Voice || self.talked));
     }
 
     fn save(&mut self) {
@@ -551,7 +556,13 @@ pub fn payload(channel: &str, data: &[u8]) -> bool {
 pub fn key(which: Key, down: bool) -> Option<String> {
     let mut v = voice();
     match which {
-        Key::PushToTalk => v.shared.controls.lock().unwrap().ptt = down,
+        Key::PushToTalk => {
+            v.shared.controls.lock().unwrap().ptt = down;
+            if down && !v.talked {
+                v.talked = true;
+                v.apply_controls();
+            }
+        }
         Key::Whisper => v.shared.controls.lock().unwrap().whisper = down,
         Key::Mute if down => {
             v.settings.muted = !v.settings.muted;
@@ -721,6 +732,11 @@ impl Voice {
 /// Opens the menu, opened by a key typing `opened_by`.
 pub fn menu_open(opened_by: Option<char>) {
     voice().menu.open(opened_by);
+}
+
+/// Whether a field of the menu takes typing now.
+pub fn menu_typing() -> bool {
+    voice().menu.typing()
 }
 
 pub fn menu_is_open() -> bool {

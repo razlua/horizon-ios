@@ -97,6 +97,10 @@ pub(super) const ACTIONS: &[Action] = &[
     action("f3_n", "F3+N", "F3+N Spectator", Key::Keys(&["f3", "n"])),
     action("f3_t", "F3+T", "F3+T Reload packs", Key::Keys(&["f3", "t"])),
     action("f3_f4", "F3+F4", "F3+F4 Game modes", Key::Keys(&["f3", "f4"])),
+    // Simple Voice Chat (voice_chat.rs): its menu, push to talk while held, and mute.
+    action("voice_menu", "VC", "Voice chat menu", Key::Keys(&[super::voice_chat::TOUCH_MENU])),
+    action("voice_talk", "Talk", "Voice chat: talk (hold)", Key::Keys(&[super::voice_chat::TOUCH_TALK])),
+    action("voice_mute", "Mic", "Voice chat: mute / unmute", Key::Keys(&[super::voice_chat::TOUCH_MUTE])),
 ];
 
 /// The action named `id`.
@@ -1024,6 +1028,9 @@ impl Game<'_> {
                         keys.iter().rev().copied().collect()
                     };
                     for name in names {
+                        if self.vc_touch(name, down) {
+                            continue;
+                        }
                         let action = if down { "down" } else { "up" };
                         self.replay_line(&format!("key {name} {action}"), event_loop);
                     }

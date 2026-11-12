@@ -25,6 +25,8 @@ impl Game<'_> {
         }
         match self.screen {
             Screen::Chat | Screen::CommandBlock | Screen::Social => true,
+            // The voice chat menu's group name and password fields.
+            Screen::Mod if self.vc_typing() => true,
             Screen::DebugOptions => self
                 .debug_options
                 .as_ref()

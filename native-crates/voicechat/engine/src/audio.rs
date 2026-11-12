@@ -11,6 +11,16 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+/// Whether the microphone should be open now. On iOS it opens only once the player talks (or
+/// turns voice activation on) and closes when they mute it, so iOS asks for the microphone only
+/// when it's wanted and shows its recording dot only then. Elsewhere it opens with the session.
+static MIC_WANTED: AtomicBool = AtomicBool::new(false);
+
+/// Sets whether the microphone should be open (`MIC_WANTED`).
+pub fn want_mic(on: bool) {
+    MIC_WANTED.store(on, Ordering::Relaxed);
+}
+
 /// Microphone samples waiting for the mic thread; a second at most.
 #[derive(Default)]
 pub struct MicQueue {
@@ -59,18 +69,38 @@ impl AudioIo {
                     Ok((s, name)) => (Some(s), Ok(name)),
                     Err(e) => (None, Err(e)),
                 };
-                // iOS listens only: no microphone, so no permission prompt and no recording.
-                let (input, in_info) = if cfg!(target_os = "ios") {
-                    drop(mic);
-                    (None, Err("listening only on iOS".to_owned()))
+                let lazy = cfg!(target_os = "ios");
+                let (mut input, in_info) = if lazy {
+                    (None, Err("off until you talk".to_owned()))
                 } else {
-                    match open_input(&host, mic) {
+                    match open_input(&host, mic.clone()) {
                         Ok((s, name)) => (Some(s), Ok(name)),
                         Err(e) => (None, Err(e)),
                     }
                 };
                 *devices.lock().unwrap() = Devices { input: in_info, output: out_info };
+                // iOS: the microphone follows `MIC_WANTED`; a failed open is tried again only
+                // when it is wanted anew.
+                let mut wanted = false;
                 while !flag.load(Ordering::Relaxed) {
+                    let want = MIC_WANTED.load(Ordering::Relaxed);
+                    if lazy && want != wanted {
+                        wanted = want;
+                        let info = if want {
+                            record_session();
+                            match open_input(&host, mic.clone()) {
+                                Ok((s, name)) => {
+                                    input = Some(s);
+                                    Ok(name)
+                                }
+                                Err(e) => Err(e),
+                            }
+                        } else {
+                            input = None;
+                            Err("muted".to_owned())
+                        };
+                        devices.lock().unwrap().input = info;
+                    }
                     std::thread::sleep(Duration::from_millis(50));
                 }
                 drop(input);
@@ -89,6 +119,44 @@ impl Drop for AudioIo {
         }
     }
 }
+
+/// iOS: the audio session records as well as plays (`AVAudioSessionCategoryPlayAndRecord`),
+/// through the loudspeaker rather than the earpiece, with Bluetooth headsets, alongside other
+/// apps' sound. Without it the microphone gives nothing.
+#[cfg(target_os = "ios")]
+fn record_session() {
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2::{class, msg_send};
+    #[link(name = "AVFoundation", kind = "framework")]
+    unsafe extern "C" {
+        static AVAudioSessionCategoryPlayAndRecord: *mut AnyObject;
+    }
+    // AVAudioSessionCategoryOptions: MixWithOthers | AllowBluetooth | DefaultToSpeaker |
+    // AllowBluetoothA2DP.
+    const OPTIONS: usize = 0x1 | 0x4 | 0x8 | 0x20;
+    // SAFETY: AVFoundation's documented methods on the shared session, with the argument types
+    // they take; a nil error pointer is allowed.
+    unsafe {
+        let session: *mut AnyObject = msg_send![class!(AVAudioSession), sharedInstance];
+        if session.is_null() {
+            return;
+        }
+        let none: *mut *mut AnyObject = std::ptr::null_mut();
+        let set: Bool = msg_send![
+            session,
+            setCategory: AVAudioSessionCategoryPlayAndRecord,
+            withOptions: OPTIONS,
+            error: none
+        ];
+        let active: Bool = msg_send![session, setActive: Bool::YES, error: none];
+        if !set.as_bool() || !active.as_bool() {
+            eprintln!("voicechat: the audio session would not record");
+        }
+    }
+}
+
+#[cfg(not(target_os = "ios"))]
+fn record_session() {}
 
 /// The device's config at 48 kHz when it has one, else its own rate.
 fn choose(

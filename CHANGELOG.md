@@ -7,9 +7,19 @@ The iOS port's changes, newest first. Upstream Horizon's own release notes are a
 
 ### Added
 
+- **Talking in voice chat.** Simple Voice Chat now sends your voice too. Edit HUD has three new
+  buttons: **VC** opens the voice chat menu (mute, push to talk or voice activation, volumes,
+  microphone gain, groups), **Talk** sends your voice while held, and **Mic** mutes. The
+  microphone opens only once you first talk, closes when muted, and iOS asks for permission the
+  first time. The voice chat also has its row and settings page in *Options → Mods*, its status
+  in the top left corner, and `/vc`.
+- **Update notice.** The start screen says when a newer version is out, with a button to the
+  release page.
+- **Chat above the keyboard.** While you type, the chat moves up so the keyboard doesn't hide it.
+
 - **Extra Settings (Horizon-iOS)**, a main menu button under Options and Edit HUD. Safe Area keeps
-  the HUD, menus and buttons clear of the Dynamic Island and the home bar; what covers the whole
-  screen (menu darkening, overlays, list bands) still does. Also Button Opacity, Touch Look Speed
+  the HUD, menus and buttons clear of the Dynamic Island and the home bar, while the menus'
+  backgrounds (darkening, list bands, separators) still reach the screen's edges. Also Button Opacity, Touch Look Speed
   and Keep Screen On, kept in `ios-settings.txt`.
 - **AltStore and SideStore source.** Add `altstore-source.json`'s address in AltStore Classic or
   SideStore to install Horizon there and get new builds as updates. Each build now has its own

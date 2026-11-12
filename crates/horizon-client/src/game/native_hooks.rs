@@ -2055,6 +2055,7 @@ impl Game<'_> {
         if !on_server || !self.native_on(voicechat_engine::ID) {
             voicechat_engine::tick(None, &|_| None);
         }
+        self.vc_frame();
         mod_api::dispatch_frame(self, mod_api::mods(), elapsed);
     }
     /// Client-side evaluation of a mod's namespaced conditional item model property.
@@ -2311,6 +2312,7 @@ impl Game<'_> {
     /// `native_fill` and `native_text`. Skip a corner `native_corner_shown`
     /// says is taken.
     pub(super) fn native_hud(&mut self, batch: &mut HudBatch, corners: &mut Corners) {
+        self.vc_hud(batch, corners);
         mod_api::dispatch_hud(self, mod_api::mods(), batch, corners);
     }
     /// Before one of vanilla's HUD layers is drawn (`RenderGuiLayerEvent.Pre`):
@@ -2405,6 +2407,7 @@ impl Game<'_> {
     /// (`key.keyboard.z`, `key.mouse.left`): keys on any screen (check
     /// `native_playing`), mouse buttons while playing. Repeats are left out.
     pub(super) fn native_key(&mut self, key: &str, pressed: bool) {
+        self.vc_key(key, pressed);
         mod_api::dispatch_key(self, mod_api::mods(), key, pressed);
     }
     /// A real window key event after handling, including repeats and consumed shortcuts.
@@ -2494,6 +2497,7 @@ impl Game<'_> {
     /// A command typed or clicked in chat, without its slash, before the
     /// server and Horizon's commands see it: set `ran` when the mod ran it.
     pub(super) fn native_command(&mut self, command: &str, ran: &mut bool) {
+        self.vc_command(command, ran);
         mod_api::dispatch_command(self, mod_api::mods(), command, ran);
     }
     /// The commands `native_command` runs, by name and without their slash:
@@ -2502,6 +2506,7 @@ impl Game<'_> {
     /// completes and lists them as the game's own; a name the game already
     /// has keeps that command's behaviour. API 35.
     pub(super) fn native_commands(&mut self, commands: &mut Vec<&'static str>) {
+        Self::vc_commands(commands);
         mod_api::dispatch_commands(self, mod_api::mods(), commands);
     }
     /// Player FOV scale, after vanilla effects and before zoom and easing.
@@ -2780,16 +2785,19 @@ impl Game<'_> {
     }
     /// Options > Mods lists the native mods: push yours.
     pub(super) fn native_mods(&mut self, mods: &mut Vec<NativeMod>) {
+        Self::vc_mods(mods);
         mod_api::dispatch_mods(self, mod_api::mods(), mods);
     }
     /// The buttons of mod `mod_id`'s settings page, under its keys: push
     /// their labels when it is yours. Asked again each time the page opens
     /// and after each click.
     pub(super) fn native_settings(&mut self, mod_id: &str, buttons: &mut Vec<String>) {
+        self.vc_settings(mod_id, buttons);
         mod_api::dispatch_settings(self, mod_api::mods(), mod_id, buttons);
     }
     /// Button `button` of mod `mod_id`'s settings page was clicked.
     pub(super) fn native_settings_click(&mut self, mod_id: &str, button: usize) {
+        self.vc_settings_click(mod_id, button);
         mod_api::dispatch_settings_click(self, mod_api::mods(), mod_id, button);
     }
     /// The player did `event` on mod `mod_id`'s panel (`native_panel_items`):
@@ -3167,6 +3175,7 @@ impl Game<'_> {
         batch: &mut HudBatch,
         screen: &NativeScreenView<'_>,
     ) {
+        self.vc_screen(batch, screen);
         mod_api::dispatch_screen_render_post(self, mod_api::mods(), batch, screen);
     }
     /// A mouse button went down over the open screen
@@ -3197,6 +3206,7 @@ impl Game<'_> {
         modifiers: u32,
         canceled: &mut bool,
     ) {
+        self.vc_mouse(screen, button, canceled);
         mod_api::dispatch_screen_mouse_button_pressed_pre(
             self,
             mod_api::mods(),
@@ -3288,6 +3298,7 @@ impl Game<'_> {
         modifiers: u32,
         canceled: &mut bool,
     ) {
+        self.vc_scroll(scroll, canceled);
         mod_api::dispatch_screen_mouse_scrolled_pre(
             self,
             mod_api::mods(),
@@ -3329,6 +3340,7 @@ impl Game<'_> {
         modifiers: u32,
         canceled: &mut bool,
     ) {
+        self.vc_keys(key, modifiers, canceled);
         mod_api::dispatch_screen_key_pressed_pre(
             self,
             mod_api::mods(),
@@ -3387,6 +3399,7 @@ impl Game<'_> {
         modifiers: u32,
         canceled: &mut bool,
     ) {
+        self.vc_chars(c, canceled);
         mod_api::dispatch_screen_char_typed_pre(
             self,
             mod_api::mods(),

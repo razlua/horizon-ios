@@ -42,6 +42,9 @@ redstone, multiplayer and so on) comes from upstream.
 - [x] Extra Settings (Horizon-iOS) on the main menu: Safe Area as an option (backgrounds still
       fill the screen), button opacity, touch look speed, and keeping the screen on.
 - [x] An AltStore and SideStore source, so new builds arrive as updates there.
+- [x] The start screen says when a newer build is out.
+- [x] Talking in Simple Voice Chat: the microphone, push to talk, mute, and the voice chat menu
+      on Edit HUD buttons.
 
 ## Next
 
@@ -51,12 +54,9 @@ Nothing is queued right now; everything from the last Next list is done. Suggest
 
 - [ ] iPad: pointer and keyboard support, and Split View sizes. The maintainer doesn't own an
       iPad and can't test this. If you'd like to volunteer, DM `4rnz` on Discord.
-- [ ] Updates in the app: show when a newer build exists.
 - [ ] Game controllers, read through Apple's GameController framework. `gilrs` has no iOS
       backend, and the virtual pad already takes their input.
 - [ ] A narrator, with text-to-speech through `AVSpeechSynthesizer`.
-- [ ] Talking in voice chat: the microphone, push to talk, and the voice chat's menu on the touch
-      controls.
 
 ## Not planned
 

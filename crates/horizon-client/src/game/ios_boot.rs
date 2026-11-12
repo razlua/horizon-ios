@@ -88,6 +88,8 @@ struct Shared {
     attempt: u64,
     /// Counts up at each change, for the screen to draw again.
     version: u64,
+    /// A newer build that is out (its version), from `ios_update`.
+    newer: Option<String>,
 }
 
 type State = Arc<Mutex<Shared>>;
@@ -241,7 +243,15 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::R
         accounts,
         attempt: 0,
         version: 1,
+        newer: None,
     }));
+    let checking = state.clone();
+    spawn("Update check", move || {
+        if let Some(version) = super::ios_update::newer() {
+            log::info!("Horizon iOS: version {version} is out");
+            update(&checking, |s| s.newer = Some(version));
+        }
+    });
     if let Some(job) = job {
         let unpacked = state.clone();
         std::thread::Builder::new()
@@ -324,6 +334,16 @@ impl Boot {
                         .buttons
                         .push(button("Remove an account", Action::RemoveMode, Look::Plain));
                     screen.buttons.push(button("Play offline", Action::Offline, Look::Plain));
+                }
+                if let Some(version) = &shared.newer {
+                    let installed = horizon_threads::ios_bundle::info("CFBundleShortVersionString")
+                        .unwrap_or_else(|| "an older one".into());
+                    screen.lines.push(String::new());
+                    screen.lines.push(format!(
+                        "Update available: version {version} is out (you have {installed}). \
+                         Download it and sideload it over this app; your worlds and sign-ins stay."
+                    ));
+                    screen.buttons.push(button("Get the update", Action::GetUpdate, Look::Primary));
                 }
             }
             Account::Resuming(name) => {
@@ -646,6 +666,11 @@ impl Boot {
                 });
                 if let Some(window) = &self.window {
                     window.set_ime_allowed(editing_now);
+                }
+            }
+            Action::GetUpdate => {
+                if !horizon_threads::ios_url::open_url(super::ios_update::RELEASES) {
+                    log::warn!("Horizon iOS: could not open the releases page");
                 }
             }
             Action::PlayOffline => {
