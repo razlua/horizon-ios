@@ -3,16 +3,35 @@
 //! `CFBundleVersion`, so a higher number there is a newer build than this one.
 use std::time::Duration;
 
-/// The source's address.
-const SOURCE: &str =
-    "https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json";
-/// Where the player gets it: the latest release's page.
-pub(super) const RELEASES: &str = "https://github.com/razlua/horizon-ios/releases/latest";
+/// The source's address. Android's builds are listed the same way in a file of their own.
+const SOURCE: &str = if cfg!(target_os = "android") {
+    "https://raw.githubusercontent.com/razlua/horizon-ios/android-port/android-source.json"
+} else {
+    "https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json"
+};
+/// Where the player gets it: the releases' page.
+pub(super) const RELEASES: &str = if cfg!(target_os = "android") {
+    "https://github.com/razlua/horizon-ios/releases"
+} else {
+    "https://github.com/razlua/horizon-ios/releases/latest"
+};
+
+/// This build's number: the workflow's run number.
+fn installed() -> Option<u64> {
+    #[cfg(target_os = "ios")]
+    {
+        horizon_threads::ios_bundle::info("CFBundleVersion")?.parse().ok()
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        option_env!("HORIZON_ANDROID_BUILD")?.parse().ok()
+    }
+}
 
 /// The newest released version (`2026.11.12`), when it is newer than the one running. None when
 /// this one is the newest, or the check can't be made (offline, say).
 pub(super) fn newer() -> Option<String> {
-    let installed: u64 = horizon_threads::ios_bundle::info("CFBundleVersion")?.parse().ok()?;
+    let installed = installed()?;
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(10))
         .timeout_read(Duration::from_secs(10))

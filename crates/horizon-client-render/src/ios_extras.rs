@@ -6,6 +6,13 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed};
 
 const FILE: &str = "ios-settings.txt";
 
+/// The page's and its title button's name: the port's own settings, on iOS and on Android.
+pub const TITLE: &str = if cfg!(target_os = "android") {
+    "Extra Settings (Horizon-Android)"
+} else {
+    "Extra Settings (Horizon-iOS)"
+};
+
 static LOADED: Once = Once::new();
 static SAFE_AREA: AtomicBool = AtomicBool::new(false);
 static OPACITY: AtomicU32 = AtomicU32::new(100);
@@ -115,6 +122,9 @@ pub fn label(item: Item) -> String {
 /// What the setting does, under the buttons while one is hovered or last tapped.
 pub fn help(item: Item) -> &'static str {
     match item {
+        Item::SafeArea if cfg!(target_os = "android") => {
+            "Keeps the HUD and menus clear of the camera cutout and system bars."
+        }
         Item::SafeArea => "Keeps the HUD and menus clear of the Dynamic Island and home bar.",
         Item::Opacity => "How see-through the touch buttons are.",
         Item::LookSpeed => "How far a finger turns the view.",

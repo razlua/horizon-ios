@@ -2276,7 +2276,7 @@ impl OptionsUi {
             Page::Extras => "horizon.pages.extras",
             Page::Credits => "credits_and_attribution.screen.title",
             Page::About => "About the Project",
-            Page::IosExtras => "Extra Settings (Horizon-iOS)",
+            Page::IosExtras => crate::ios_extras::TITLE,
             Page::Horizon => "horizon.pages.settings",
             Page::Agent => "horizon.pages.agent",
             Page::SplitProfiles => "horizon.pages.split_profiles",
@@ -3038,13 +3038,27 @@ impl OptionsUi {
                 });
                 const GREY: u32 = 0xFFA0A0A0;
                 let lines: [(&str, u32); 10] = [
-                    ("Horizon for iOS", u32::MAX),
+                    (if cfg!(target_os = "android") { "Horizon for Android" } else { "Horizon for iOS" }, u32::MAX),
                     ("An unofficial, experimental port of Horizon,", GREY),
-                    ("the Rust rewrite of Minecraft: Java Edition, to iPhone.", GREY),
+                    (
+                        if cfg!(target_os = "android") {
+                            "the Rust rewrite of Minecraft: Java Edition, to Android."
+                        } else {
+                            "the Rust rewrite of Minecraft: Java Edition, to iPhone."
+                        },
+                        GREY,
+                    ),
                     ("", GREY),
                     ("Made by @4rnz on Discord (razlua on GitHub).", u32::MAX),
                     ("Please help me find bugs: message me on Discord,", u32::MAX),
-                    ("with home/logs/latest.log from the Files app if you can.", GREY),
+                    (
+                        if cfg!(target_os = "android") {
+                            "with home/logs/latest.log from the game folder if you can."
+                        } else {
+                            "with home/logs/latest.log from the Files app if you can."
+                        },
+                        GREY,
+                    ),
                     ("", GREY),
                     ("github.com/razlua/horizon-ios", 0xFF55FFFF),
                     ("Not affiliated with Horizon, Mojang or Microsoft.", GREY),

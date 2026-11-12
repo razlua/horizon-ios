@@ -1755,7 +1755,7 @@ impl Title {
                         y + 96.0,
                         98.0,
                         // iOS apps don't quit themselves: the place is Edit HUD's (touch_editor.rs).
-                        &if cfg!(target_os = "ios") {
+                        &if cfg!(any(target_os = "ios", target_os = "android")) {
                             "Edit HUD".to_string()
                         } else {
                             lang::get_or("menu.quit", "Quit Game").to_string()
@@ -1765,12 +1765,12 @@ impl Title {
                     ),
                 ];
                 // iOS: the port's own settings, right under Options and Edit HUD.
-                if cfg!(target_os = "ios") {
+                if cfg!(any(target_os = "ios", target_os = "android")) {
                     buttons.push(b(
                         cx - 100.0,
                         y + 120.0,
                         200.0,
-                        "Extra Settings (Horizon-iOS)",
+                        crate::ios_extras::TITLE,
                         true,
                         9,
                     ));

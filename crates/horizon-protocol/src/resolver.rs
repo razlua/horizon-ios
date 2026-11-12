@@ -64,7 +64,7 @@ pub fn server_redirect(host: &str, port: u16) -> (String, u16) {
 fn srv_redirect(name: &str) -> Option<(String, u16)> {
     // iOS: an app can't read /etc/resolv.conf, so the list of name servers was empty and no SRV
     // redirect was ever followed: a server behind one got a refused connection on 25565.
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "android"))]
     {
         let found = dns::query_srv_system(name);
         log::info!("Horizon: SRV {name}: {found:?}");

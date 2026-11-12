@@ -4,6 +4,8 @@
 /// The game window's boot screen, before wgpu's first frame paints over it.
 #[cfg(target_os = "windows")]
 pub mod boot_paint;
+#[cfg(target_os = "android")]
+pub mod android_sys;
 #[cfg(target_os = "ios")]
 pub mod ios_bundle;
 #[cfg(target_os = "ios")]

@@ -1,0 +1,143 @@
+# Unofficial Android build of the game: an .apk to install (docs/android.md).
+# It holds no Minecraft file: the app downloads the player's own after a Microsoft sign-in.
+name: Android
+
+on:
+  push:
+    branches: [android-port]
+    # Text alone changes no build.
+    paths-ignore: ["**.md", "docs/**", "LICENSE", "altstore-source.json", "android-source.json", "tools/ios/**", "packaging/ios/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  # Android 10: the oldest the app runs on (packaging/android/AndroidManifest.xml).
+  ANDROID_API: "29"
+
+jobs:
+  # The game as libhorizon.so, once per kind of processor: phones (arm64-v8a) and Android on
+  # PCs, Chromebooks and emulators (x86_64). No secret reaches this job.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            target: aarch64-linux-android
+          - abi: x86_64
+            target: x86_64-linux-android
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust with the Android target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+          rustc --version
+      # The NDK's own clang compiles the C in the tree (ring, zstd) and links the library.
+      - name: NDK toolchain
+        run: |
+          set -euo pipefail
+          ndk="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          target="${{ matrix.target }}"
+          lower="${target//-/_}"
+          upper="$(echo "$lower" | tr '[:lower:]' '[:upper:]')"
+          clang="$bin/${target}${ANDROID_API}-clang"
+          ls "$clang" "$bin/llvm-ar" "$bin/llvm-strip"
+          {
+            echo "ANDROID_NDK=$ndk"
+            echo "NDK_BIN=$bin"
+            echo "CC_${lower}=$clang"
+            echo "CXX_${lower}=${clang}++"
+            echo "AR_${lower}=$bin/llvm-ar"
+            echo "CARGO_TARGET_${upper}_LINKER=$clang"
+            # Devices with 16 KB memory pages (Android 15 and later) load only libraries
+            # aligned for them.
+            echo "CARGO_TARGET_${upper}_RUSTFLAGS=-C link-arg=-Wl,-z,max-page-size=16384"
+          } >> "$GITHUB_ENV"
+      # Simple Voice Chat's codec, linked into the library (crates/voicechat-engine/build.rs):
+      # Opus 1.5.2 from xiph.org, checked against its published SHA-256.
+      - name: Opus for Android
+        run: |
+          set -euo pipefail
+          # Retried, then the same release from xiph's GitHub: the checksum decides either way.
+          curl -sSL --retry 5 --retry-all-errors -o opus.tar.gz https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz \
+            || curl -sSL --retry 5 --retry-all-errors -o opus.tar.gz https://github.com/xiph/opus/releases/download/v1.5.2/opus-1.5.2.tar.gz
+          echo "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1  opus.tar.gz" | sha256sum -c -
+          tar xzf opus.tar.gz
+          cmake -S opus-1.5.2 -B "$RUNNER_TEMP/opus" \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM="android-$ANDROID_API" \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DBUILD_SHARED_LIBS=OFF -DOPUS_BUILD_PROGRAMS=OFF -DOPUS_BUILD_TESTING=OFF
+          cmake --build "$RUNNER_TEMP/opus" -j 4
+          lib="$(find "$RUNNER_TEMP/opus" -name libopus.a | head -1)"
+          ls -l "$lib"
+          echo "HORIZON_OPUS_DIR=$(dirname "$lib")" >> "$GITHUB_ENV"
+          rm -rf opus-1.5.2 opus.tar.gz
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-${{ matrix.abi }}
+      - name: Build
+        env:
+          HORIZON_ANDROID_BUILD: ${{ github.run_number }}
+        run: |
+          export HORIZON_ANDROID_VERSION="$(date -u +%Y.%-m.%-d)"
+          cargo build --profile fast --target ${{ matrix.target }} -p horizon-android
+          lib="target/${{ matrix.target }}/fast/libhorizon.so"
+          ls -lh "$lib"
+          "$NDK_BIN/llvm-strip" --strip-unneeded "$lib"
+          ls -lh "$lib"
+          "$NDK_BIN/llvm-readelf" -d "$lib" | grep -E "NEEDED|SONAME" || true
+          # The activity's entry point must be among the library's exported symbols.
+          "$NDK_BIN/llvm-readelf" --dyn-syms "$lib" | grep ANativeActivity_onCreate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libhorizon-${{ matrix.abi }}
+          path: target/${{ matrix.target }}/fast/libhorizon.so
+          if-no-files-found: error
+          retention-days: 7
+
+  # One .apk for both, signed with the release key when the repository has one.
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: libs
+      - name: Package
+        env:
+          HORIZON_ANDROID_BUILD: ${{ github.run_number }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          HORIZON_ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          set -euo pipefail
+          export HORIZON_ANDROID_VERSION="$(date -u +%Y.%-m.%-d)"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            export HORIZON_ANDROID_KEYSTORE="$RUNNER_TEMP/release.p12"
+          fi
+          ls -lR libs
+          bash packaging/android/package.sh dist/Horizon.apk \
+            arm64-v8a=libs/libhorizon-arm64-v8a/libhorizon.so \
+            x86_64=libs/libhorizon-x86_64/libhorizon.so
+          rm -f "$RUNNER_TEMP/release.p12"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Horizon-android
+          path: dist/Horizon.apk
+          if-no-files-found: error

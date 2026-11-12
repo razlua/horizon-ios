@@ -6,7 +6,7 @@
 //!
 //! The result is the folder a computer's preparation makes, file for file. Downloads resume: a
 //! file already in place with Mojang's hash is kept.
-#![cfg_attr(not(target_os = "ios"), allow(dead_code))]
+#![cfg_attr(not(any(target_os = "ios", target_os = "android")), allow(dead_code))]
 
 use sha1::Digest as _;
 use std::io::Read;

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Horizon for Android (unofficial). One NativeActivity subclass that loads libhorizon.so
+     (crates/horizon-android). Android 10 or later: the game asks the system's resolver for SRV
+     records with an API that came with it (horizon-protocol's resolver/dns.rs). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="dev.playhorizon.unofficial.android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Voice chat, asked for when a voice chat button is first used. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+
+    <application
+        android:label="Horizon"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/Horizon"
+        android:hasCode="true"
+        android:extractNativeLibs="true"
+        android:isGame="true"
+        android:appCategory="game"
+        android:allowBackup="false"
+        android:largeHeap="true">
+        <activity
+            android:name=".HorizonActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|navigation|uiMode|fontScale|locale|layoutDirection"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustResize">
+            <meta-data android:name="android.app.lib_name" android:value="horizon" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

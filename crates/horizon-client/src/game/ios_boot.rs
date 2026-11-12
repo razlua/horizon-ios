@@ -280,7 +280,7 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::R
         progress: Arc::default(),
         awake: false,
     };
-    EventLoop::new()?.run_app(&mut boot)?;
+    super::new_event_loop()?.run_app(&mut boot)?;
     Ok(())
 }
 
@@ -313,7 +313,10 @@ impl Boot {
             Account::Choose { removing } => {
                 screen.title = "Choose an account".into();
                 if *removing {
-                    screen.lines = vec!["Tap an account to remove it from this iPhone.".into()];
+                    screen.lines = vec![format!(
+                        "Tap an account to remove it from this {}.",
+                        super::phone::DEVICE
+                    )];
                     for (i, a) in shared.accounts.iter().enumerate() {
                         screen.buttons.push((
                             format!("Remove {}", a.name),
@@ -336,7 +339,7 @@ impl Boot {
                     screen.buttons.push(button("Play offline", Action::Offline, Look::Plain));
                 }
                 if let Some(version) = &shared.newer {
-                    let installed = horizon_threads::ios_bundle::info("CFBundleShortVersionString")
+                    let installed = super::phone::version()
                         .unwrap_or_else(|| "an older one".into());
                     screen.lines.push(String::new());
                     screen.lines.push(format!(
@@ -502,6 +505,8 @@ impl Boot {
         });
         if finished && let Some(window) = &self.window {
             window.set_ime_allowed(false);
+            #[cfg(target_os = "android")]
+            horizon_threads::android_sys::show_keyboard(false);
         }
         self.drawn = 0;
     }
@@ -597,7 +602,7 @@ impl Boot {
                     _ => None,
                 };
                 if let Some(link) = link
-                    && !horizon_threads::ios_url::open_url(&link)
+                    && !super::phone::open_url(&link)
                 {
                     log::warn!("Horizon iOS: could not open the sign-in page");
                 }
@@ -666,10 +671,12 @@ impl Boot {
                 });
                 if let Some(window) = &self.window {
                     window.set_ime_allowed(editing_now);
+                    #[cfg(target_os = "android")]
+                    horizon_threads::android_sys::show_keyboard(editing_now);
                 }
             }
             Action::GetUpdate => {
-                if !horizon_threads::ios_url::open_url(super::ios_update::RELEASES) {
+                if !super::phone::open_url(super::ios_update::RELEASES) {
                     log::warn!("Horizon iOS: could not open the releases page");
                 }
             }
@@ -749,12 +756,19 @@ impl Boot {
 impl ApplicationHandler for Boot {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.hidden = false;
-        horizon_threads::ios_keyboard::watch();
-        if let Some(rate) = horizon_threads::ios_display::high_frame_rate() {
-            log::info!("Horizon iOS: asked for {rate} frames per second");
-        }
+        super::phone::on_screen();
         if let Some(app) = &mut self.app {
             return app.resumed(event_loop);
+        }
+        // Android: the window's surface went away with the app (`suspended`) and is new now.
+        if cfg!(target_os = "android")
+            && let (Some(window), Some(renderer)) = (&self.window, &mut self.renderer)
+        {
+            if let Err(e) = renderer.recreate_surface() {
+                log::warn!("Horizon: the start screen's surface did not come back: {e}");
+            }
+            self.drawn = 0;
+            window.request_redraw();
         }
         if self.window.is_some() || self.failed {
             return;
@@ -791,6 +805,12 @@ impl ApplicationHandler for Boot {
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(app) = &mut self.app {
             app.suspended(event_loop);
+        } else if cfg!(target_os = "android") {
+            // Android takes the window's surface away with the app.
+            self.hidden = true;
+            if let Some(renderer) = &mut self.renderer {
+                renderer.drop_surface();
+            }
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
@@ -861,7 +881,7 @@ impl ApplicationHandler for Boot {
         }
         if running != self.awake {
             self.awake = running;
-            horizon_threads::ios_display::keep_awake(running);
+            super::phone::keep_awake(running);
         }
         if let Some(session) = self.ready() {
             return self.start(event_loop, session);

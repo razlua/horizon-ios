@@ -3,7 +3,10 @@
 //! (.github/workflows/ios.yml). Elsewhere the system's is loaded at run time (opus.rs).
 fn main() {
     println!("cargo:rerun-if-env-changed=HORIZON_OPUS_DIR");
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("ios") {
+    // Android has no system libopus an app may load either: linked in there too
+    // (.github/workflows/android.yml).
+    let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if os != "ios" && os != "android" {
         return;
     }
     match std::env::var("HORIZON_OPUS_DIR") {
@@ -14,6 +17,6 @@ fn main() {
         }
         // A check without the library (`cargo check` off a Mac): the voice chat says it has no
         // Opus instead of linking one.
-        Err(_) => println!("cargo:warning=HORIZON_OPUS_DIR is not set: the iOS voice chat has no Opus"),
+        Err(_) => println!("cargo:warning=HORIZON_OPUS_DIR is not set: the voice chat has no Opus"),
     }
 }

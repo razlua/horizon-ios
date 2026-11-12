@@ -1267,6 +1267,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-android"
+version = "0.1.0"
+dependencies = [
+ "horizon-client",
+ "winit",
+]
+
+[[package]]
 name = "horizon-anticheat"
 version = "0.1.0"
 dependencies = [
@@ -1790,9 +1798,11 @@ name = "horizon-threads"
 version = "0.1.0"
 dependencies = [
  "block2 0.6.2",
+ "jni 0.21.1",
  "libc",
  "libmimalloc-sys",
  "mimalloc",
+ "ndk-context",
  "objc2 0.6.5",
  "windows-sys 0.61.2",
 ]

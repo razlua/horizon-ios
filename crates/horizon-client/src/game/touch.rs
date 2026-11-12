@@ -589,7 +589,7 @@ impl Controls {
     /// Whether touches are read at all: always on iOS; `HORIZON_TOUCH=1` elsewhere (a
     /// touchscreen laptop's fingers already arrive as a mouse).
     pub(super) fn enabled() -> bool {
-        cfg!(target_os = "ios") || std::env::var_os("HORIZON_TOUCH").is_some_and(|v| v == "1")
+        cfg!(any(target_os = "ios", target_os = "android")) || std::env::var_os("HORIZON_TOUCH").is_some_and(|v| v == "1")
     }
 
     /// Reads `touch-controls.json` once, against the default layout for `size`.
@@ -832,7 +832,7 @@ impl Game<'_> {
     /// (left, top, right, bottom), from winit's safe area, in the view's scale, turned into the
     /// frame's. Zero otherwise.
     pub(super) fn safe_insets(&self) -> [f32; 4] {
-        if !cfg!(target_os = "ios") || !horizon_client::ios_extras::safe_area() {
+        if !cfg!(any(target_os = "ios", target_os = "android")) || !horizon_client::ios_extras::safe_area() {
             return [0.0; 4];
         }
         let (Some(window), Some(size)) = (self.window.as_ref(), self.touch_size()) else {
@@ -914,9 +914,9 @@ impl Game<'_> {
         if !self.chat_open() {
             return 0.0;
         }
-        #[cfg(target_os = "ios")]
-        let covered = horizon_threads::ios_keyboard::covered();
-        #[cfg(not(target_os = "ios"))]
+        #[cfg(any(target_os = "ios", target_os = "android"))]
+        let covered = super::phone::keyboard_covered();
+        #[cfg(not(any(target_os = "ios", target_os = "android")))]
         let covered = 0.0f32;
         if covered <= 0.0 {
             return 0.0;
@@ -933,8 +933,8 @@ impl Game<'_> {
             ChatKey::Tab => self.replay_line("key tab tap", event_loop),
             ChatKey::Enter => self.keyboard_return(event_loop),
             ChatKey::Paste => {
-                #[cfg(target_os = "ios")]
-                if let Some(text) = horizon_threads::ios_pasteboard::get() {
+                #[cfg(any(target_os = "ios", target_os = "android"))]
+                if let Some(text) = super::phone::clipboard() {
                     self.ime_commit(&text.replace(['\r', '\n'], " "));
                 }
             }
@@ -1182,8 +1182,8 @@ impl Game<'_> {
         let awake = horizon_client::ios_extras::keep_awake();
         if awake != self.touch.awake {
             self.touch.awake = awake;
-            #[cfg(target_os = "ios")]
-            horizon_threads::ios_display::keep_awake(awake);
+            #[cfg(any(target_os = "ios", target_os = "android"))]
+            super::phone::keep_awake(awake);
         }
         let Some(size) = self.touch_size() else {
             return;

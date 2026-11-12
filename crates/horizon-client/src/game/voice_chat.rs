@@ -28,7 +28,7 @@ impl Game<'_> {
 
     /// A key bound to the voice chat, or what the touch buttons press instead.
     fn vc_key_label(&self, name: &str, default: &str) -> String {
-        if cfg!(target_os = "ios") {
+        if cfg!(any(target_os = "ios", target_os = "android")) {
             match name {
                 vc::KEY_MENU => return "VC button".into(),
                 vc::KEY_PTT => return "Talk button".into(),
@@ -96,6 +96,11 @@ impl Game<'_> {
 
     /// iOS: an Edit HUD button of the voice chat's (`TOUCH_*`). True when `name` was one.
     pub(super) fn vc_touch(&mut self, name: &str, down: bool) -> bool {
+        // Android asks for the microphone at run time: when a voice chat button is first used.
+        #[cfg(target_os = "android")]
+        if down && matches!(name, TOUCH_MENU | TOUCH_TALK | TOUCH_MUTE) {
+            horizon_threads::android_sys::request_microphone();
+        }
         let which = match name {
             TOUCH_MENU => {
                 if down && self.native_on(vc::ID) {
@@ -145,7 +150,7 @@ impl Game<'_> {
         if !self.native_corner_shown(Corner::TopLeft) {
             return;
         }
-        let ptt = if cfg!(target_os = "ios") {
+        let ptt = if cfg!(any(target_os = "ios", target_os = "android")) {
             "key.keyboard.talk.button".to_owned()
         } else {
             self.native_mod_key(vc::ID, vc::KEY_PTT, vc::DEFAULT_PTT)

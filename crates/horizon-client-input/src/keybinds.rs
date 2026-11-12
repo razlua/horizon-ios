@@ -297,9 +297,9 @@ pub fn learn_layout(event: &winit::event::KeyEvent) {
     };
     let learn = horizon_client_core::key_display::learn_layout;
     // winit has no `key_without_modifiers` on iOS: the key as typed names it there.
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "android"))]
     let key = event.logical_key.clone();
-    #[cfg(not(target_os = "ios"))]
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     let key = {
         use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
         event.key_without_modifiers()

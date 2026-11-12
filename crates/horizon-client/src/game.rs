@@ -337,12 +337,14 @@ mod totem;
 mod touch;
 mod touch_editor;
 mod voice_chat;
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 mod ios_account;
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 pub mod ios_boot;
 mod ios_setup;
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
+mod phone;
+#[cfg(any(target_os = "ios", target_os = "android"))]
 mod ios_update;
 mod trading;
 mod transient_blocks;
@@ -573,7 +575,7 @@ impl Options {
                 .map(|path| horizon_client::auth::AuthSession::load(path.as_ref()))
                 .transpose()
         };
-        #[cfg(target_os = "ios")]
+        #[cfg(any(target_os = "ios", target_os = "android"))]
         let session = match session {
             Ok(None) => ios_boot::take_session()
                 .map(|text| horizon_client::auth::AuthSession::parse(&text))
@@ -626,7 +628,7 @@ impl Options {
         let mut o = Self {
             resources: if sibling.join("horizon-resources.json").exists() {
                 sibling
-            } else if cfg!(target_os = "ios") {
+            } else if cfg!(any(target_os = "ios", target_os = "android")) {
                 // Not in the app: `resources` in its Documents, copied there with the Files app.
                 "resources".into()
             } else {
@@ -8178,7 +8180,7 @@ impl Game<'_> {
         let was_grabbed = self.captured;
         // iOS has no pointer to grab: the grab is the game's own, and fingers turn the view
         // (touch.rs).
-        if cfg!(target_os = "ios") || (self.options.offscreen && !self.split_window) {
+        if cfg!(any(target_os = "ios", target_os = "android")) || (self.options.offscreen && !self.split_window) {
             // A genuinely hidden `--offscreen` run leaves the system pointer where
             // the person at the computer has it. Its grab is internal (an
             // agent turns the view with `mouse-move`).
@@ -12157,7 +12159,7 @@ impl Game<'_> {
         match action {
             // A splitscreen player's title never ends the process (P1's does).
             Action::Quit if self.options.split_guest => {}
-            Action::Quit if cfg!(target_os = "ios") => self.open_touch_editor(),
+            Action::Quit if cfg!(any(target_os = "ios", target_os = "android")) => self.open_touch_editor(),
             Action::Quit => event_loop.exit(),
             Action::Options => self.open_options(true),
             Action::IosExtras => {
@@ -17099,6 +17101,20 @@ impl Game<'_> {
         }
     }
 }
+/// The event loop. Android's is made with the activity's app (`entry::android_main`).
+fn new_event_loop() -> std::result::Result<EventLoop<()>, winit::error::EventLoopError> {
+    #[cfg(target_os = "android")]
+    {
+        use winit::platform::android::EventLoopBuilderExtAndroid;
+        let mut builder = EventLoop::builder();
+        if let Some(app) = crate::entry::android_app() {
+            builder.with_android_app(app.clone());
+        }
+        builder.build()
+    }
+    #[cfg(not(target_os = "android"))]
+    EventLoop::new()
+}
 /// iOS: sideways only, nothing of the system over the game, and the edges of the screen are the
 /// game's first (a swipe from one needs a second swipe to reach the system). The window as it
 /// is elsewhere.
@@ -17122,7 +17138,7 @@ trait ScreenSizeOnPhone {
 }
 impl ScreenSizeOnPhone for winit::window::WindowAttributes {
     fn with_screen_size_on_phone(mut self) -> Self {
-        if cfg!(target_os = "ios") {
+        if cfg!(any(target_os = "ios", target_os = "android")) {
             self.inner_size = None;
         }
         self
@@ -17196,8 +17212,20 @@ impl ApplicationHandler for Game<'_> {
             }
             return;
         }
+        // Android: the system's Back is Esc.
+        if cfg!(target_os = "android")
+            && let WindowEvent::KeyboardInput { event: key, .. } = &event
+            && key.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::BrowserBack)
+        {
+            if key.state == ElementState::Pressed
+                && let Err(e) = self.pad_back()
+            {
+                log::warn!("Horizon: Back: {e}");
+            }
+            return;
+        }
         // iOS: the system keyboard's return key arrives as a typed line break (touch.rs).
-        if cfg!(target_os = "ios")
+        if cfg!(any(target_os = "ios", target_os = "android"))
             && let WindowEvent::KeyboardInput { event: key, .. } = &event
             && matches!(&key.logical_key, winit::keyboard::Key::Character(c) if c == "\n" || c == "\r")
         {
@@ -21434,21 +21462,64 @@ enum App {
     Loading(Box<Loading>),
     Ready(Box<split::Split<'static>>),
 }
+impl App {
+    /// Android: the window's surface goes away whenever the app leaves the screen (winit's
+    /// `suspended`); nothing draws until a new one comes with `resumed` (`IN_BACKGROUND`).
+    fn surface_gone(&mut self) {
+        IN_BACKGROUND.store(true, std::sync::atomic::Ordering::Relaxed);
+        let renderer = match self {
+            App::Loading(loading) => loading.renderer.as_mut(),
+            App::Ready(game) => game.host.renderer.as_mut(),
+        };
+        if let Some(renderer) = renderer {
+            renderer.drop_surface();
+        }
+    }
+    /// Android: the app is on the screen again, with a new surface for its window.
+    fn surface_back(&mut self, event_loop: &ActiveEventLoop) {
+        if !IN_BACKGROUND.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+        ActiveEventLoop::set_control_flow(event_loop, ControlFlow::Poll);
+        let (renderer, window) = match self {
+            App::Loading(loading) => (loading.renderer.as_mut(), loading.window.as_ref()),
+            App::Ready(game) => (game.host.renderer.as_mut(), game.host.window.as_ref()),
+        };
+        if let Some(renderer) = renderer
+            && let Err(e) = renderer.recreate_surface()
+        {
+            log::error!("Horizon: the window's surface did not come back: {e}");
+        }
+        if let Some(window) = window {
+            window.request_redraw();
+        }
+    }
+}
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if cfg!(target_os = "android") {
+            self.surface_back(event_loop);
+        }
         match self {
             App::Loading(loading) => loading.resumed(event_loop),
             App::Ready(game) => {
                 game.resumed(event_loop);
-                if cfg!(target_os = "ios") {
+                if cfg!(any(target_os = "ios", target_os = "android")) {
                     game.host.app_active(event_loop, true);
                 }
             }
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        // Android: no surface to draw on while the app is off the screen (`surface_gone`).
+        if cfg!(target_os = "android")
+            && matches!(event, WindowEvent::RedrawRequested)
+            && IN_BACKGROUND.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
         // iOS: `Occluded` is the app entering and leaving the background (`IN_BACKGROUND`).
-        if cfg!(target_os = "ios")
+        if cfg!(any(target_os = "ios", target_os = "android"))
             && let WindowEvent::Occluded(hidden) = event
         {
             IN_BACKGROUND.store(hidden, std::sync::atomic::Ordering::Relaxed);
@@ -21464,10 +21535,13 @@ impl ApplicationHandler for App {
     /// iOS: the app is no longer the active one. Still on screen for a moment: the game hears
     /// that its window lost focus, pauses and saves while it may still run.
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
-        if cfg!(target_os = "ios")
+        if cfg!(any(target_os = "ios", target_os = "android"))
             && let App::Ready(game) = self
         {
             game.host.app_active(event_loop, false);
+        }
+        if cfg!(target_os = "android") {
+            self.surface_gone();
         }
     }
     fn device_event(&mut self, event_loop: &ActiveEventLoop, id: DeviceId, event: DeviceEvent) {
@@ -21619,12 +21693,12 @@ fn run_loading(
     };
     let app = App::Loading(Box::new(loading));
     // iOS, when the loop already runs (ios_boot.rs): it takes the app from here.
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "android"))]
     let Some(app) = ios_boot::hand_over(app) else {
         return Ok(());
     };
     let mut app = app;
-    let result = EventLoop::new()?.run_app(&mut app);
+    let result = new_event_loop()?.run_app(&mut app);
     narrator::stop();
     match &mut app {
         // Ready: splitscreen around P1's game.

@@ -4603,6 +4603,17 @@ impl Renderer {
             .unwrap_or_else(std::sync::PoisonError::into_inner) =
             self.surface.take().and_then(|s| Arc::try_unwrap(s).ok());
     }
+    /// Android: the window's surface is going away with the app (winit's `suspended`), so
+    /// nothing of it is kept. `recreate_surface` makes the new window's when the app is back.
+    pub fn drop_surface(&mut self) {
+        self.frame_gen.stop();
+        self.queue.wait();
+        self.surface = None;
+        *self
+            .spare_surface
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
     /// Reattach a window after surface loss or a failed renderer replacement.
     pub fn recreate_surface(&mut self) -> Result<()> {
         self.queue.wait();

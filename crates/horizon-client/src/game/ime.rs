@@ -53,11 +53,15 @@ impl Game<'_> {
             self.touch.keyboard_hidden = false;
         }
         self.touch.field_focused = focused;
-        let want = focused && !(cfg!(target_os = "ios") && self.touch.keyboard_hidden);
+        let want = focused && !(cfg!(any(target_os = "ios", target_os = "android")) && self.touch.keyboard_hidden);
         if want != self.ime_allowed
             && let Some(window) = &self.window
         {
             window.set_ime_allowed(want);
+            // Android: winit asks "implicitly", which a window without a text editor of its own
+            // doesn't always get a keyboard for.
+            #[cfg(target_os = "android")]
+            horizon_threads::android_sys::show_keyboard(want);
             self.ime_allowed = want;
             // The field lost the focus (or a new one took it): the composition
             // and the candidate window's place belong to the old one.

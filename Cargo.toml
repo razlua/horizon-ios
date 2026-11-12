@@ -8,6 +8,8 @@ members = [
     "crates/horizon-hdr",
     "crates/horizon-world",
     "crates/horizon-client",
+    # The Android app's native library (android_main), unofficial port.
+    "crates/horizon-android",
     "crates/horizon-client-lib",
     "crates/horizon-client-core",
     "crates/horizon-client-input",

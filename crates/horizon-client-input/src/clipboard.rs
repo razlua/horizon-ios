@@ -123,7 +123,7 @@ pub trait Clipboard {
 /// data-control protocol and falls back to X11 (XWayland) on compositors
 /// without it. When no system clipboard can be reached, text copied in the
 /// game can still be pasted in the game.
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[derive(Default)]
 pub struct SystemClipboard {
     system: Option<arboard::Clipboard>,
@@ -131,7 +131,7 @@ pub struct SystemClipboard {
     copied: Option<String>,
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 impl SystemClipboard {
     /// The text last copied by the game.
     pub fn copied(&self) -> Option<&str> {
@@ -145,7 +145,7 @@ impl SystemClipboard {
     }
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 impl Clipboard for SystemClipboard {
     fn get(&mut self) -> String {
         let Some(system) = self.system() else {
@@ -174,15 +174,21 @@ impl Clipboard for SystemClipboard {
     }
 }
 
+#[cfg(target_os = "android")]
+use horizon_threads::android_sys::{clipboard_get as system_get, clipboard_set as system_set};
+#[cfg(target_os = "ios")]
+use horizon_threads::ios_pasteboard::{get as system_get, set as system_set};
+
+/// Android: the system clipboard is ClipboardManager's (`horizon_threads::android_sys`).
 /// iOS: the system clipboard is UIPasteboard's (`horizon_threads::ios_pasteboard`); arboard has no
 /// backend there. What the game copied is kept too, for `horizon-ctl status`.
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 #[derive(Default)]
 pub struct SystemClipboard {
     copied: Option<String>,
 }
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 impl SystemClipboard {
     /// The text last copied by the game.
     pub fn copied(&self) -> Option<&str> {
@@ -190,17 +196,17 @@ impl SystemClipboard {
     }
 }
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 impl Clipboard for SystemClipboard {
     fn get(&mut self) -> String {
-        horizon_threads::ios_pasteboard::get()
+        system_get()
             .or_else(|| self.copied.clone())
             .unwrap_or_default()
     }
     fn set(&mut self, text: &str) {
         if !text.is_empty() {
             self.copied = Some(text.to_owned());
-            horizon_threads::ios_pasteboard::set(text);
+            system_set(text);
         }
     }
 }

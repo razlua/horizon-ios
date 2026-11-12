@@ -687,7 +687,7 @@ impl Loading {
     fn menu_action(&mut self, event_loop: &dyn EventLoopCtl, action: Action) {
         match action {
             // iOS: Edit HUD, which opens once the game has loaded (touch_editor.rs).
-            Action::Quit if cfg!(target_os = "ios") => {}
+            Action::Quit if cfg!(any(target_os = "ios", target_os = "android")) => {}
             Action::Quit => event_loop.exit(),
             Action::Options => self.open_menu_options(Page::Main),
             Action::IosExtras => self.open_menu_options(Page::IosExtras),

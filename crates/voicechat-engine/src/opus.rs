@@ -32,7 +32,7 @@ struct Api {
     decoder_ctl: Ctl,
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 const NAMES: &[&str] = &[
     "libopus.so.0",
     "libopus.so",
@@ -50,7 +50,7 @@ fn api() -> Result<&'static Api, String> {
 }
 
 /// iOS: the library linked in by build.rs.
-#[cfg(all(target_os = "ios", opus_linked))]
+#[cfg(all(any(target_os = "ios", target_os = "android"), opus_linked))]
 fn load() -> Result<Api, String> {
     unsafe extern "C" {
         fn opus_encoder_create(fs: i32, channels: c_int, application: c_int, error: *mut c_int) -> *mut c_void;
@@ -76,12 +76,12 @@ fn load() -> Result<Api, String> {
 }
 
 /// iOS without the library (a check off a Mac).
-#[cfg(all(target_os = "ios", not(opus_linked)))]
+#[cfg(all(any(target_os = "ios", target_os = "android"), not(opus_linked)))]
 fn load() -> Result<Api, String> {
     Err("this build has no Opus".into())
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 fn load() -> Result<Api, String> {
     let mut errors = Vec::new();
     for name in NAMES {
@@ -94,7 +94,7 @@ fn load() -> Result<Api, String> {
     Err(format!("libopus not found (install the opus package): {}", errors.join("; ")))
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 unsafe fn symbols(lib: Library) -> Result<Api, libloading::Error> {
     unsafe {
         Ok(Api {

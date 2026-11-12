@@ -1357,7 +1357,7 @@ impl Game<'_> {
     fn pad_open_keyboard(&mut self) {
         // iOS types with the system keyboard (ime.rs): the touch buttons are a pad, and this one
         // opened over chat beside it.
-        if cfg!(target_os = "ios") {
+        if cfg!(any(target_os = "ios", target_os = "android")) {
             return;
         }
         // Without xdg-open (macOS, Windows), Horizon's keyboard instead.

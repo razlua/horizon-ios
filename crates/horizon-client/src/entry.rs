@@ -6,6 +6,25 @@ pub fn main() {
     main_with(Default::default());
 }
 
+#[cfg(target_os = "android")]
+static ANDROID_APP: std::sync::OnceLock<winit::platform::android::activity::AndroidApp> =
+    std::sync::OnceLock::new();
+
+/// Android: the activity's app, which the event loop is made with and whose window flags keep
+/// the screen on.
+#[cfg(target_os = "android")]
+pub fn android_app() -> Option<&'static winit::platform::android::activity::AndroidApp> {
+    ANDROID_APP.get()
+}
+
+/// Android: the game, started by `android_main` (crates/horizon-android) on the thread the
+/// activity's glue made for it. The game folder is already the current directory.
+#[cfg(target_os = "android")]
+pub fn android_main(app: winit::platform::android::activity::AndroidApp) {
+    let _ = ANDROID_APP.set(app);
+    main();
+}
+
 /// iOS: the app's own folder is read-only and the process starts in `/`. The game folder is the
 /// app's Documents, which the Files app shows ("On My iPhone" > Horizon), and its home (logs,
 /// crash reports) is `home` in it. The prepared resources are `resources` there: unpacked at the
@@ -141,6 +160,15 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     }
     #[cfg(target_os = "ios")]
     let unpacking = ios_folders();
+    // Android: the game folder is the current directory (crates/horizon-android), its home
+    // `home` in it as on iOS; the app carries no game files to unpack.
+    #[cfg(target_os = "android")]
+    let unpacking: Option<Box<dyn FnOnce() + Send>> = {
+        if let Ok(folder) = std::env::current_dir() {
+            logging::set_game_home(folder.join("home"));
+        }
+        None
+    };
     horizon_threads::configure_allocator();
     horizon_client::telemetry::mark_start();
     horizon_client::spans::startup::init(std::time::Instant::now());
@@ -305,14 +333,14 @@ pub fn main_with(mods: crate::mod_api::Mods) {
         log::warn!("Native client hooks already installed; keeping the first callbacks");
     }
     raise_open_file_limit();
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "android"))]
     let ran = {
         // No files in the app and none prepared: the start screen downloads them (ios_setup.rs).
         let setup = unpacking.is_none()
             && !std::path::Path::new("resources/horizon-resources.json").is_file();
         game::ios_boot::run_after(unpacking, setup)
     };
-    #[cfg(not(target_os = "ios"))]
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     let ran = game::run_with();
     if let Err(error) = ran {
         // A bad command line is the caller's mistake, not a crash: no report.

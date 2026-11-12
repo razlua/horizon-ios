@@ -92,13 +92,73 @@ pub(super) fn query_srv(
 
 /// iOS: the system resolver asks (libresolv's `res_query`), with the name servers and the search
 /// rules the system has; the answer is parsed as one from a name server would be.
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 pub(super) fn query_srv_system(name: &str) -> Option<(String, u16)> {
     let reply = system::query(name, TYPE_SRV)?;
     let id = u16::from_be_bytes([*reply.first()?, *reply.get(1)?]);
     match parse_reply(id, &reply) {
         Reply::Answer(srv) => srv,
         _ => None,
+    }
+}
+
+/// Android: the system resolver asks (`android_res_nquery`, Android 10 and later), on the
+/// network the app uses; an app can't read the name servers itself.
+#[cfg(target_os = "android")]
+#[allow(unsafe_code)]
+mod system {
+    use std::ffi::{CString, c_char, c_int, c_uint};
+
+    #[repr(C)]
+    struct PollFd {
+        fd: c_int,
+        events: i16,
+        revents: i16,
+    }
+    const POLLIN: i16 = 1;
+
+    // <android/multinetwork.h>, in libandroid.
+    #[link(name = "android")]
+    unsafe extern "C" {
+        fn android_res_nquery(
+            network: u64,
+            dname: *const c_char,
+            ns_class: c_int,
+            ns_type: c_int,
+            flags: u32,
+        ) -> c_int;
+        fn android_res_nresult(fd: c_int, rcode: *mut c_int, answer: *mut u8, anslen: usize)
+        -> c_int;
+        fn android_res_cancel(fd: c_int);
+    }
+    unsafe extern "C" {
+        fn poll(fds: *mut PollFd, count: c_uint, timeout_ms: c_int) -> c_int;
+    }
+
+    /// The raw reply to a question of `kind` (class IN) about `name`.
+    pub(super) fn query(name: &str, kind: u16) -> Option<Vec<u8>> {
+        let name = CString::new(name).ok()?;
+        // SAFETY: `name` is a NUL-terminated string that outlives the call; network 0 is the
+        // app's default one. The call returns a descriptor to wait on, or a negative error.
+        let fd = unsafe { android_res_nquery(0, name.as_ptr(), 1, c_int::from(kind), 0) };
+        if fd < 0 {
+            return None;
+        }
+        let mut wait = PollFd { fd, events: POLLIN, revents: 0 };
+        // SAFETY: one valid `pollfd`, for five seconds at most.
+        let ready = unsafe { poll(&mut wait, 1, 5000) };
+        if ready <= 0 {
+            // SAFETY: the descriptor of a question still open; this closes it.
+            unsafe { android_res_cancel(fd) };
+            return None;
+        }
+        let mut answer = vec![0u8; 4096];
+        let mut rcode: c_int = 0;
+        // SAFETY: `answer` holds the length passed; the call reads the reply and closes `fd`.
+        let len = unsafe { android_res_nresult(fd, &mut rcode, answer.as_mut_ptr(), answer.len()) };
+        let len = usize::try_from(len).ok()?;
+        answer.truncate(len.min(4096));
+        Some(answer)
     }
 }
 

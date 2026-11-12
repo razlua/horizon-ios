@@ -19,6 +19,12 @@ objc2 = "0.6"
 # The keyboard's notifications take a block (ios_keyboard.rs); also already in the tree.
 block2 = "0.6"
 
+# Android: the same calls through JNI (android_sys.rs); both already in the tree through winit
+# and cpal.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Console", "Win32_System_IO", "Win32_System_Memory", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
 

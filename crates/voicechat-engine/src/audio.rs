@@ -69,7 +69,7 @@ impl AudioIo {
                     Ok((s, name)) => (Some(s), Ok(name)),
                     Err(e) => (None, Err(e)),
                 };
-                let lazy = cfg!(target_os = "ios");
+                let lazy = cfg!(any(target_os = "ios", target_os = "android"));
                 let (mut input, in_info) = if lazy {
                     (None, Err("off until you talk".to_owned()))
                 } else {
@@ -81,11 +81,18 @@ impl AudioIo {
                 *devices.lock().unwrap() = Devices { input: in_info, output: out_info };
                 // iOS: the microphone follows `MIC_WANTED`; a failed open is tried again only
                 // when it is wanted anew.
+                // A failed open (the player hasn't answered the system's permission question
+                // yet, say) is tried again every two seconds while the microphone is wanted.
                 let mut wanted = false;
+                let mut retry_at: Option<std::time::Instant> = None;
                 while !flag.load(Ordering::Relaxed) {
                     let want = MIC_WANTED.load(Ordering::Relaxed);
-                    if lazy && want != wanted {
+                    let again = want
+                        && input.is_none()
+                        && retry_at.is_some_and(|at| std::time::Instant::now() >= at);
+                    if lazy && (want != wanted || again) {
                         wanted = want;
+                        retry_at = None;
                         let info = if want {
                             record_session();
                             match open_input(&host, mic.clone()) {
@@ -93,7 +100,11 @@ impl AudioIo {
                                     input = Some(s);
                                     Ok(name)
                                 }
-                                Err(e) => Err(e),
+                                Err(e) => {
+                                    retry_at =
+                                        Some(std::time::Instant::now() + Duration::from_secs(2));
+                                    Err(e)
+                                }
                             }
                         } else {
                             input = None;
