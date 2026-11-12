@@ -14,6 +14,9 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
   *Options → Mods*, and the rest do nothing. Simple Voice Chat stays on as before. The mods in
   the app are the registry's that apply to this port's Horizon, switch themselves off, have an
   open license and compile for iOS.
+- **Modrinth resource packs in the game.** The Resource Packs screen's **Add** button searches
+  Modrinth for packs made for 26.3, with filters, and installs one with a tap. Horizon has had
+  this browser for a while, switched off; on iPhone it's always on.
 - **Key buttons for mods.** Edit HUD has letter buttons (B, C, E, G, H, I, J, K, M, N, O, P, R,
   U, V, X, Y, Z, Tab) that press those keys, for mods' keys.
 
@@ -26,6 +29,8 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 - **Edit HUD's tools come first.** Add, Remove, Smaller, Bigger, Layout, Reset and Done sit on a
   dark strip of their own, over everything, and take a tap even where a button is under them. A
   button let go over the tools moves to just under them, so it can be picked up again.
+- **The keyboard over Options from the main menu.** Its search boxes (settings, languages,
+  resource packs) didn't bring up the iPhone keyboard when Options was opened from the main menu.
 - **Open Pack Folder works on iPhone.** It, and the other folder buttons (shader packs, worlds,
   screenshots), open the Files app at that folder instead of doing nothing. Links the game opens
   go to Safari.

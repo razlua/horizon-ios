@@ -500,6 +500,9 @@ impl Loading {
         self.menu.options.languages = horizon_client::lang::available(&[&self.menu.root]);
         self.menu.options.pack_infos = packs::pack_infos(&self.vanilla_root, &[]);
         self.menu.options.pack_selection = self.settings.resource_packs.clone();
+        // Modrinth's packs on the Resource Packs screen, as in game (`refresh_pack_lists`).
+        self.menu.options.pack_browser = self.settings.extras.pack_browser
+            || cfg!(any(target_os = "ios", target_os = "android"));
         self.menu.options.pack_screen = None;
         self.menu.options_open = true;
     }

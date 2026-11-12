@@ -185,7 +185,10 @@ impl Game<'_> {
     /// (`PackSelectionScreen` makes its `PackSelectionModel` from them).
     pub(super) fn refresh_pack_lists(&mut self) {
         let infos = pack_infos(&self.vanilla_root(), &self.server_packs.active);
-        let browsing = self.settings.extras.pack_browser;
+        // Phones: always on. There's no launcher there to browse from, and the screen is
+        // the only way to get a pack without the Files app.
+        let browsing = self.settings.extras.pack_browser
+            || cfg!(any(target_os = "ios", target_os = "android"));
         let o = &mut self.ui.options;
         o.pack_browser = browsing;
         o.pack_infos = infos;
