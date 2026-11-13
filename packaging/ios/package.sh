@@ -29,8 +29,10 @@ sips -z 120 120 "$icon" --out "$app/AppIcon60x60@2x.png" >/dev/null
 sips -z 180 180 "$icon" --out "$app/AppIcon60x60@3x.png" >/dev/null
 sips -z 152 152 "$icon" --out "$app/AppIcon76x76@2x~ipad.png" >/dev/null
 plutil -lint "$app/Info.plist"
-# An ad hoc signature: sideloading tools replace it with the player's own.
-codesign --force --sign - --timestamp=none "$app" || true
+# An ad hoc signature: sideloading tools replace it with the player's own, and carry over its
+# entitlements where the player's account allows them.
+codesign --force --sign - --timestamp=none \n  --entitlements "$root/packaging/ios/Horizon.entitlements" "$app" || true
+codesign -d --entitlements - "$app" || true
 mkdir -p "$(dirname "$out")"
 out="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")"
 rm -f "$out"
