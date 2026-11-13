@@ -120,11 +120,14 @@ pub fn pressure(limit: u64) -> Pressure {
 
 const MIB: u64 = 1024 * 1024;
 /// Less room than this left before the system ends the app: hold less.
-pub const HEADROOM_LOW: u64 = 640 * MIB;
-/// More room than this left: the game may hold more again.
-pub const HEADROOM_ROOMY: u64 = 1024 * MIB;
+pub const HEADROOM_LOW: u64 = 600 * MIB;
+/// More room than this left: the game may hold more again. Close to `HEADROOM_LOW`: a phone may
+/// have only about 1 GB beyond what the game holds at any distance.
+pub const HEADROOM_ROOMY: u64 = 880 * MIB;
 /// The room a step down aims to leave.
-const HEADROOM_AIM: u64 = 832 * MIB;
+const HEADROOM_AIM: u64 = 760 * MIB;
+/// Less than this left: the system is about to end the app, so a big step at once.
+const HEADROOM_URGENT: u64 = 320 * MIB;
 
 /// How tight memory is when the system says how much room is left (`available`) and the game
 /// holds `used`. A share of a fixed cap doesn't work where much of what the game holds (its game
@@ -138,6 +141,7 @@ pub fn pressure_of_headroom(available: u64, used: u64) -> Pressure {
         } else {
             used.saturating_sub(shed) as f64 / used as f64
         };
+        let keep = if available < HEADROOM_URGENT { 0.5 } else { keep };
         Pressure::Over { keep: keep.clamp(0.5, 0.95) }
     } else if available > HEADROOM_ROOMY {
         Pressure::Room
