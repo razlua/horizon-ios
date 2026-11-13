@@ -50,6 +50,8 @@ struct RootView: View {
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .tint(Theme.accent)
+        // Dark always: the launcher's colors are made for it (LauncherController too).
+        .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)
         // The reminders follow this install's signature (Signing.swift).
         .onAppear { Signing.scheduleReminders() }
@@ -58,6 +60,12 @@ struct RootView: View {
 
 /// Landscape, with nothing of the system over it, as the game's own window.
 final class LauncherController: UIHostingController<RootView> {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // The phone may be in light mode: the launcher stays dark, with light text and tab bar.
+        overrideUserInterfaceStyle = .dark
+        view.backgroundColor = UIColor(red: 0.07, green: 0.08, blue: 0.11, alpha: 1)
+    }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
