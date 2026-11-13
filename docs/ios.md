@@ -23,7 +23,7 @@ python tools/ios/add-resources.py Horizon-unsigned.ipa <resources folder> Horizo
 
 That adds them to the app as one `resources.zip`; the game unpacks it into the app's Documents
 (`resources/`) at its first start, which takes a while. Without it, copy the folder to
-"On My iPhone > Horizon > resources" with the Files app. The .ipa with your resources in it is
+"On My iPhone > Ferrite > resources" with the Files app. The .ipa with your resources in it is
 for your own device only.
 
 ## Installing

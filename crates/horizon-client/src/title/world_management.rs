@@ -116,7 +116,7 @@ pub fn backups_path(saves: &Path) -> PathBuf {
 }
 
 /// iOS: the Files app at `path`, a folder of the app's Documents (which the Files app shows
-/// as On My iPhone > Horizon), through its `shareddocuments://` address. The folder is made
+/// as On My iPhone > Ferrite), through its `shareddocuments://` address. The folder is made
 /// first: the Files app can't open one that isn't there.
 #[cfg(target_os = "ios")]
 pub fn open_in_files(path: &Path) {

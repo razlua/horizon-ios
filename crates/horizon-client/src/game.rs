@@ -21555,7 +21555,7 @@ fn missing_resources(root: &std::path::Path) -> Option<String> {
             "Horizon's game files are missing: no horizon-resources.json in {}\n\
              This copy of the app has no resources.zip inside it. Install Horizon.ipa, the large \
              file (about 450 MB) that tools/ios/make-ipa.sh writes with your own game files, \
-             not Horizon-unsigned.ipa. Or copy the resources folder into On My iPhone > Horizon \
+             not Horizon-unsigned.ipa. Or copy the resources folder into On My iPhone > Ferrite \
              > resources with the Files app.",
             shown.display()
         ));
