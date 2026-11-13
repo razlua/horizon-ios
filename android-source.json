@@ -6,6 +6,13 @@
       "bundleIdentifier": "dev.playhorizon.unofficial.android",
       "versions": [
         {
+          "version": "2026.11.13-4",
+          "buildVersion": "8",
+          "date": "2026-11-13T09:38:51Z",
+          "downloadURL": "https://github.com/razlua/horizon-ios/releases/download/android-2026.11.13-4/Horizon.apk",
+          "size": 60220274
+        },
+        {
           "version": "2026.11.13-3",
           "buildVersion": "7",
           "date": "2026-11-13T09:22:54Z",
