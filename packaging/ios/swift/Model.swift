@@ -10,6 +10,21 @@ struct LauncherState: Decodable {
     var setup: SetupState?
     var unpacking: Counts?
     var update: UpdateInfo?
+    var settings: SettingsState?
+}
+
+/// The game's settings the Settings tab changes.
+struct SettingsState: Decodable {
+    var render_distance: Int
+    var max_fps: Int
+    var battery: Bool
+    var extras: [ExtraSetting]
+}
+
+/// An Extra Settings (Ferrite) entry: its label with the value ("Safe Area: ON") and what it does.
+struct ExtraSetting: Decodable {
+    var label: String
+    var help: String
 }
 
 /// Where the Microsoft sign-in stands. `kind`: choose, resuming, asking, code, signed, failed,

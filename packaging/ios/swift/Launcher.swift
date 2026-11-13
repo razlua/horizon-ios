@@ -37,17 +37,24 @@ enum Theme {
 
 struct RootView: View {
     @ObservedObject var model: LauncherModel
+    /// The tab shown first: Play, or the one `FERRITE_TAB` names (the simulator job's
+    /// screenshots of each tab, .github/workflows/ios.yml).
+    @State private var tab = ProcessInfo.processInfo.environment["FERRITE_TAB"] ?? "play"
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             PlayView(model: model)
                 .tabItem { Label("Play", systemImage: "play.fill") }
+                .tag("play")
             RefreshView()
                 .tabItem { Label("Refresh", systemImage: "arrow.clockwise") }
-            SettingsView()
+                .tag("refresh")
+            SettingsView(model: model)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag("settings")
             AboutView(model: model)
                 .tabItem { Label("About", systemImage: "info.circle") }
+                .tag("about")
         }
         .tint(Theme.accent)
         // Dark always: the launcher's colors are made for it (LauncherController too).

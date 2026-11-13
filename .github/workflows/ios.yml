@@ -160,6 +160,13 @@ jobs:
             sleep 10
             xcrun simctl io "$udid" screenshot "shots/after-${t}s.png" || true
           done
+          # Each of the launcher's tabs (FERRITE_TAB, packaging/ios/swift/Launcher.swift).
+          for tab in refresh settings about; do
+            xcrun simctl terminate "$udid" "$bundle" || true
+            SIMCTL_CHILD_FERRITE_TAB="$tab" xcrun simctl launch "$udid" "$bundle"
+            sleep 12
+            xcrun simctl io "$udid" screenshot "shots/tab-$tab.png" || true
+          done
           data="$(xcrun simctl get_app_container "$udid" "$bundle" data || true)"
           find "$data" -name '*.log' -exec cp {} shots/ \; || true
           xcrun simctl spawn "$udid" log show --last 2m --predicate 'process == "horizon-client"' > shots/system.log || true

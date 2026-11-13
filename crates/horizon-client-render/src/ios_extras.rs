@@ -118,7 +118,7 @@ pub fn help(item: Item) -> &'static str {
         Item::SafeArea => "Keeps the HUD and menus clear of the Dynamic Island and home bar.",
         Item::Opacity => "How see-through the touch buttons are.",
         Item::LookSpeed => "How far a finger turns the view.",
-        Item::KeepAwake => "The screen doesn't dim or lock while Horizon is open.",
+        Item::KeepAwake => "The screen doesn't dim or lock while Ferrite is open.",
     }
 }
 

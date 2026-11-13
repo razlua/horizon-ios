@@ -38,6 +38,8 @@ pub enum Action {
 pub enum LauncherAction {
     Screen(Action),
     OfflineName(String),
+    /// A setting from the launcher's Settings tab: `set:<key>=<value>`.
+    Setting { key: String, value: String },
 }
 
 /// The launcher's action text (`play:0`, `add_account`, `offline_name:Steve`, ...). None for one
@@ -60,6 +62,13 @@ pub fn parse_launcher_action(text: &str) -> Option<LauncherAction> {
         "retry_setup" => Action::RetrySetup,
         "get_update" => Action::GetUpdate,
         "offline_name" => return Some(LauncherAction::OfflineName(arg?.to_owned())),
+        "set" => {
+            let (key, value) = arg?.split_once('=')?;
+            return Some(LauncherAction::Setting {
+                key: key.to_owned(),
+                value: value.to_owned(),
+            });
+        }
         _ => return None,
     };
     Some(LauncherAction::Screen(action))
@@ -80,6 +89,11 @@ mod launcher_tests {
             parse_launcher_action("offline_name:Steve_1"),
             Some(LauncherAction::OfflineName("Steve_1".into()))
         );
+        assert_eq!(
+            parse_launcher_action("set:render_distance=16"),
+            Some(LauncherAction::Setting { key: "render_distance".into(), value: "16".into() })
+        );
+        assert_eq!(parse_launcher_action("set:render_distance"), None);
         assert_eq!(parse_launcher_action("play"), None);
         assert_eq!(parse_launcher_action("play:x"), None);
         assert_eq!(parse_launcher_action("fly"), None);

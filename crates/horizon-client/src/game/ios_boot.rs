@@ -207,6 +207,23 @@ fn sign_in_new(state: State, attempt: u64) {
     }
 }
 
+/// The settings the launcher's Settings tab shows, from the game's own files: `options.txt`,
+/// Horizon's graphics settings beside it, and Extra Settings (`ios-settings.txt`).
+fn launcher_settings() -> serde_json::Value {
+    use horizon_client::ios_extras;
+    let settings = horizon_client::settings::Settings::load(&super::Game::options_path());
+    let extras: Vec<_> = ios_extras::ITEMS
+        .iter()
+        .map(|&item| serde_json::json!({ "label": ios_extras::label(item), "help": ios_extras::help(item) }))
+        .collect();
+    serde_json::json!({
+        "render_distance": settings.render_distance,
+        "max_fps": settings.max_fps,
+        "battery": settings.horizon.battery,
+        "extras": extras,
+    })
+}
+
 /// Starts a thread for a sign-in.
 fn spawn(name: &str, job: impl FnOnce() + Send + 'static) {
     if let Err(e) = std::thread::Builder::new().name(name.into()).spawn(job) {
@@ -811,8 +828,32 @@ impl Boot {
             },
             "unpacking": shared.unpacking.then(|| json!({ "done": unpacked, "total": to_unpack })),
             "update": update,
+            "settings": launcher_settings(),
         })
         .to_string()
+    }
+
+    /// A setting the launcher's Settings tab changed, saved in the game's own files as the
+    /// game's Options would. The launcher hears the new value with the next state.
+    fn launcher_setting(&mut self, key: &str, value: &str) {
+        let path = super::Game::options_path();
+        let mut settings = horizon_client::settings::Settings::load(&path);
+        let number = value.parse::<i64>().ok();
+        match (key, number) {
+            ("render_distance", Some(n)) => settings.render_distance = n.clamp(2, 64) as i32,
+            ("max_fps", Some(n)) => settings.max_fps = n.clamp(10, 260) as u32,
+            ("battery", _) => settings.horizon.battery = value == "true",
+            ("extra", Some(i)) => {
+                if let Some(&item) = horizon_client::ios_extras::ITEMS.get(i as usize) {
+                    horizon_client::ios_extras::cycle(item, false);
+                }
+                return update(&self.state, |_| {});
+            }
+            _ => return log::warn!("Horizon iOS: the launcher set an unknown setting {key}"),
+        }
+        settings.save(&path);
+        log::info!("Horizon iOS: the launcher set {key} to {value}");
+        update(&self.state, |_| {});
     }
 
     /// What the player tapped in the launcher (`ios_screen::parse_launcher_action`).
@@ -832,6 +873,7 @@ impl Boot {
                     });
                     self.act(Action::PlayOffline);
                 }
+                Some(LauncherAction::Setting { key, value }) => self.launcher_setting(&key, &value),
                 None => log::warn!("Horizon iOS: the launcher sent an unknown action {text:?}"),
             }
         }

@@ -69,15 +69,65 @@ struct RefreshView: View {
 }
 
 struct SettingsView: View {
+    @ObservedObject var model: LauncherModel
+
     var body: some View {
         tabPage {
             Text("Settings").font(.system(size: 34, weight: .bold, design: .rounded))
-            infoCard {
-                Label("Coming here soon", systemImage: "gearshape.fill")
-                    .font(.headline)
-                    .foregroundStyle(Theme.accent)
-                Text("Render distance, Safe Area, the HUD and the battery options will be here. For now they're in the game: Options, then Extra Settings (Ferrite) and Video Settings.")
+            if let settings = model.state.settings {
+                infoCard {
+                    Text("Video").font(.headline)
+                    Stepper(value: Binding(
+                        get: { settings.render_distance },
+                        set: { model.send("set:render_distance=\($0)") }
+                    ), in: 2...64) {
+                        Text("Render distance: \(settings.render_distance) chunks")
+                    }
+                    Text("Ferrite starts a world at 8 and climbs to this while the iPhone has memory for it.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Picker("Max frame rate", selection: Binding(
+                        get: { settings.max_fps },
+                        set: { model.send("set:max_fps=\($0)") }
+                    )) {
+                        Text("30").tag(30)
+                        Text("60").tag(60)
+                        Text("120").tag(120)
+                    }
+                    .pickerStyle(.segmented)
+                    Toggle(isOn: Binding(
+                        get: { settings.battery },
+                        set: { model.send("set:battery=\($0)") }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Battery mode")
+                            Text("60 fps in worlds, 30 in menus, fewer threads.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                infoCard {
+                    Text("Extra Settings").font(.headline)
+                    ForEach(Array(settings.extras.enumerated()), id: \.offset) { index, extra in
+                        HStack(alignment: .center, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(extra.label)
+                                Text(extra.help).font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Change") { model.send("set:extra=\(index)") }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                }
+                Text("The rest is in the game: Options, then Video Settings.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
+            } else {
+                infoCard {
+                    ProgressView()
+                }
             }
         }
     }
