@@ -1259,7 +1259,7 @@ pub enum Page {
     Credits,
     /// This unofficial iOS port's own page: who makes it and where to report bugs.
     About,
-    /// Extra Settings (Horizon-iOS): the iOS port's own settings (`ios_extras`).
+    /// Extra Settings (Ferrite): the iOS port's own settings (`ios_extras`).
     IosExtras,
     /// Horizon Settings: every page Horizon adds, as a mod's settings
     /// screen hangs off vanilla's Options.
@@ -1285,7 +1285,7 @@ enum Act {
     Done,
     Cycle(Opt),
     Extra(crate::extras::Item),
-    /// An Extra Settings (Horizon-iOS) setting: its next value.
+    /// An Extra Settings (Ferrite) setting: its next value.
     IosExtra(crate::ios_extras::Item),
     Key(&'static str),
     ResetKey(&'static str),
@@ -2276,7 +2276,7 @@ impl OptionsUi {
             Page::Extras => "horizon.pages.extras",
             Page::Credits => "credits_and_attribution.screen.title",
             Page::About => "About the Project",
-            Page::IosExtras => "Extra Settings (Horizon-iOS)",
+            Page::IosExtras => "Extra Settings (Ferrite)",
             Page::Horizon => "horizon.pages.settings",
             Page::Agent => "horizon.pages.agent",
             Page::SplitProfiles => "horizon.pages.split_profiles",
@@ -3038,9 +3038,9 @@ impl OptionsUi {
                 });
                 const GREY: u32 = 0xFFA0A0A0;
                 let lines: [(&str, u32); 10] = [
-                    ("Horizon for iOS", u32::MAX),
-                    ("An unofficial, experimental port of Horizon,", GREY),
-                    ("the Rust rewrite of Minecraft: Java Edition, to iPhone.", GREY),
+                    ("Ferrite", u32::MAX),
+                    ("An unofficial, experimental iPhone port of Horizon,", GREY),
+                    ("the Rust rewrite of Minecraft: Java Edition.", GREY),
                     ("", GREY),
                     ("Made by @4rnz on Discord (razlua on GitHub).", u32::MAX),
                     ("Please help me find bugs: message me on Discord,", u32::MAX),

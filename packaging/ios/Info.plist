@@ -5,9 +5,9 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Horizon</string>
+	<string>Ferrite</string>
 	<key>CFBundleName</key>
-	<string>Horizon</string>
+	<string>Ferrite</string>
 	<key>CFBundleExecutable</key>
 	<string>horizon-client</string>
 	<key>CFBundleIdentifier</key>

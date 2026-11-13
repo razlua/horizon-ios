@@ -7,7 +7,7 @@ pub fn main() {
 }
 
 /// iOS: the app's own folder is read-only and the process starts in `/`. The game folder is the
-/// app's Documents, which the Files app shows ("On My iPhone" > Horizon), and its home (logs,
+/// app's Documents, which the Files app shows ("On My iPhone" > Ferrite), and its home (logs,
 /// crash reports) is `home` in it. The prepared resources are `resources` there: unpacked at the
 /// first start from the `resources.zip` the player added to the app (tools/ios/add-resources.py),
 /// or copied in with the Files app.

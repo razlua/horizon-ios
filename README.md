@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="packaging/icons/hicolor/256x256/apps/horizon.png" width="128" alt="Horizon's icon">
+  <img src="packaging/icons/hicolor/256x256/apps/horizon.png" width="128" alt="Ferrite's icon">
 </p>
 
-# Horizon for iOS (unofficial)
+# Ferrite
 
 Made by [razlua](https://github.com/razlua) (@4rnz on Discord).
 
-Minecraft: Java Edition running natively on your iPhone, with no streaming and no PC. This is an
-unofficial, experimental port of [Horizon](https://github.com/horizon-rust/horizon), the Rust
-rewrite of Java Edition 26.3, drawn with Metal at up to 120 Hz. Sign in with your own Microsoft
+Minecraft: Java Edition running natively on your iPhone, with no streaming and no PC. Ferrite is
+an unofficial, experimental iPhone port of [Horizon](https://github.com/horizon-rust/horizon), the
+Rust rewrite of Java Edition 26.3, drawn with Metal at up to 120 Hz. Sign in with your own Microsoft
 account and play single player worlds and servers with touch controls you can rearrange.
 
 **[Install it](#installing)** with Sideloadly, or add the AltStore / SideStore source and get
@@ -71,7 +71,7 @@ full 120 Hz.
   chat, Tab completes commands and names, Paste pastes, and Enter sends.
 - Copy and paste work with other apps. iOS asks before the game reads what you copied.
 - ProMotion screens run at 120 Hz.
-- Extra Settings (Horizon-iOS), under Options and Edit HUD on the main menu, has the port's own
+- Extra Settings (Ferrite), under Options and Edit HUD on the main menu, has the port's own
   settings: Safe Area (the HUD, menus and buttons stay clear of the Dynamic Island and the home
   bar, while backgrounds still fill the screen), button opacity, touch look speed, and keeping
   the screen on.
@@ -90,7 +90,7 @@ full 120 Hz.
 - The start screen tells you when a newer version is out. With SideStore or AltStore installed,
   **Update with SideStore** (or AltStore) installs it in one tap; otherwise the button opens the
   download page.
-- Saves, options, resource packs and logs are in the Files app, under *On My iPhone → Horizon*.
+- Saves, options, resource packs and logs are in the Files app, under *On My iPhone → Ferrite*.
 - The game pauses and saves when you leave the app.
 
 ## Installing
@@ -109,7 +109,7 @@ Apple ID for signing. Pick one of the two ways below.
    ```
    https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json
    ```
-3. Open Horizon in the source and tap *Free* or *Install*.
+3. Open Ferrite in the source and tap *Free* or *Install*.
 
 When a new build comes out, it shows up as an update under *My Apps*. The 7-day refresh happens
 there too: SideStore does it on the phone, and AltStore Classic needs AltServer running on a
@@ -128,7 +128,7 @@ stay.
 
 ### First launch
 
-Open Horizon and sign in with Microsoft. The first time, the app downloads your Minecraft 26.3
+Open Ferrite and sign in with Microsoft. The first time, the app downloads your Minecraft 26.3
 from Mojang (about 520 MB) and Horizon's tables, then sets them up. Stay on Wi-Fi with Horizon
 open. After that it starts straight away, offline too.
 
@@ -171,14 +171,14 @@ That app has your game files inside, so don't share it.
 
 ## Where things are
 
-On the phone, under *Files → On My iPhone → Horizon*:
+On the phone, under *Files → On My iPhone → Ferrite*:
 
 | Path | What it is |
 |---|---|
 | `saves/` | Worlds |
 | `options.txt`, `resourcepacks/` | Settings and packs |
 | `touch-controls.json` | Your Edit HUD layouts. Delete it to go back to the defaults |
-| `ios-settings.txt` | Extra Settings (Horizon-iOS) |
+| `ios-settings.txt` | Extra Settings (Ferrite) |
 | `home/logs/latest.log` | The log. Attach it to bug reports |
 | `home/crash-reports/` | Crash reports |
 | `ios-*-error.txt` | Written when unpacking or starting failed |
@@ -204,8 +204,7 @@ NOTE: Do __NOT__ uninstall the app before updating. Doing so WILL result in a pe
 *Options → About the Project* says who makes this port and where to report bugs. That's @4rnz on
 Discord (razlua on GitHub). Send bugs there, with `home/logs/latest.log` if you can.
 
-Built with assistance from Claude (Anthropic's AI). It isn't vibecoded: I decide what goes in, test
-every build on my own phone, and track down what's broken from playing it.
+Built with assistance from Claude (Anthropic's AI). It isn't vibecoded.
 
 ## Known issues
 

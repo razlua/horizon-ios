@@ -302,7 +302,7 @@ impl Boot {
             .map(|v| v.load(std::sync::atomic::Ordering::Relaxed));
         let progress = (shared.unpacking && total > 0).then(|| done as f32 / total as f32);
         let mut screen = Screen {
-            title: "Horizon".into(),
+            title: "Ferrite".into(),
             status: unpacking.clone(),
             progress,
             ..Default::default()
@@ -443,8 +443,8 @@ impl Boot {
                 let stage = self.progress.stage.lock().unwrap_or_else(|e| e.into_inner()).clone();
                 screen.title = "Getting the game files".into();
                 screen.lines = vec![
-                    "Horizon downloads your Minecraft 26.3 from Mojang (about 520 MB) and its own \
-                     tables, and sets them up. This happens once. Keep Horizon open, on Wi-Fi."
+                    "Ferrite downloads your Minecraft 26.3 from Mojang (about 520 MB) and its own \
+                     tables, and sets them up. This happens once. Keep Ferrite open, on Wi-Fi."
                         .into(),
                 ];
                 screen.code = None;
@@ -467,7 +467,7 @@ impl Boot {
             (Setup::Waiting, Account::Offline) => {
                 screen.title = "Sign in once first".into();
                 screen.lines = vec![
-                    "Horizon downloads the game files from Mojang with a Microsoft account that \
+                    "Ferrite downloads the game files from Mojang with a Microsoft account that \
                      owns Minecraft: Java Edition. Sign in once; after that you can play offline \
                      too."
                         .into(),
@@ -787,7 +787,7 @@ impl ApplicationHandler for Boot {
                 panorama: Arc::new(horizon_client::gfx::panorama::Faces::colour([0; 4])),
             };
             let window = Arc::new(
-                event_loop.create_window(phone_window(Window::default_attributes().with_title("Horizon")))?,
+                event_loop.create_window(phone_window(Window::default_attributes().with_title("Ferrite")))?,
             );
             let renderer = loading_renderer(
                 window.clone(),

@@ -32,12 +32,17 @@ impl Game<'_> {
         if self.ticks.is_multiple_of(200) {
             let (commit, _) = horizon_threads::allocator_commit();
             log::info!(
-                "Horizon: memory: allocated {} MB of {} MB, commit {} MB, distance {}, {pressure:?}",
+                "Horizon: memory: in RAM {} MB, allocated {} MB of {} MB, commit {} MB, distance {}, {pressure:?}",
+                ram_limit::used().unwrap_or(0) / MIB,
                 capped::live_bytes() / MIB,
                 limit / MIB,
                 commit as u64 / MIB,
                 self.render_distance_in_use()
             );
+            #[cfg(target_os = "ios")]
+            if let Some(available) = horizon_threads::memory_limit::available_bytes() {
+                log::info!("Horizon iOS: memory: {} MB left before iOS ends the app", available / MIB);
+            }
         }
         let step = self
             .ram_limit
