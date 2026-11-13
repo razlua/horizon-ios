@@ -229,6 +229,9 @@ struct Boot {
     progress: Arc<super::ios_setup::Progress>,
     /// The screen is kept on (while the setup downloads).
     awake: bool,
+    /// The SwiftUI launcher is over this screen (`horizon_threads::ios_launcher`), which then
+    /// isn't drawn.
+    launcher: bool,
 }
 
 /// Opens the event loop, unpacks (`job`) or sets the game files up (`setup`) and signs in beside
@@ -279,6 +282,7 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::R
         failed: false,
         progress: Arc::default(),
         awake: false,
+        launcher: false,
     };
     EventLoop::new()?.run_app(&mut boot)?;
     Ok(())
@@ -738,7 +742,42 @@ impl Boot {
     }
 
     /// The game's own start, with the loop already running.
+    /// The SwiftUI launcher over this screen, where the build has it, with what it shows.
+    fn show_launcher(&mut self) {
+        use horizon_threads::ios_launcher;
+        if !ios_launcher::available() || self.launcher {
+            return;
+        }
+        self.launcher = ios_launcher::show();
+        if self.launcher {
+            let version = horizon_threads::ios_bundle::info("CFBundleShortVersionString");
+            ios_launcher::update(&serde_json::json!({ "version": version }).to_string());
+        }
+        log::info!("Horizon iOS: SwiftUI launcher shown: {}", self.launcher);
+    }
+
+    /// What the player tapped in the launcher. "continue": this screen, as before.
+    fn launcher_actions(&mut self) {
+        for action in horizon_threads::ios_launcher::take_actions() {
+            match action.as_str() {
+                "continue" => self.hide_launcher(),
+                other => log::warn!("Horizon iOS: the launcher sent an unknown action {other:?}"),
+            }
+        }
+    }
+
+    fn hide_launcher(&mut self) {
+        if self.launcher {
+            horizon_threads::ios_launcher::hide();
+            self.launcher = false;
+            // This screen draws again.
+            self.drawn = 0;
+        }
+    }
+
     fn start(&mut self, event_loop: &ActiveEventLoop, session: Option<String>) {
+        // The launcher goes before the game starts.
+        self.hide_launcher();
         // The game opens its own window: this one goes first.
         self.renderer = None;
         self.window = None;
@@ -805,6 +844,7 @@ impl ApplicationHandler for Boot {
                 self.gui = Some(gui);
                 self.window = Some(window);
                 self.renderer = Some(renderer);
+                self.show_launcher();
             }
             // The unpacking and the sign-in go on without a screen.
             Err(e) => log::warn!("Horizon iOS: no start screen: {e}"),
@@ -885,6 +925,7 @@ impl ApplicationHandler for Boot {
             self.awake = running;
             horizon_threads::ios_display::keep_awake(running);
         }
+        self.launcher_actions();
         if let Some(session) = self.ready() {
             return self.start(event_loop, session);
         }
@@ -892,7 +933,7 @@ impl ApplicationHandler for Boot {
         let version = self.state.lock().unwrap_or_else(|e| e.into_inner()).version
             + UNPACKED[0].load(std::sync::atomic::Ordering::Relaxed) as u64
             + self.progress.done.load(std::sync::atomic::Ordering::Relaxed) / 1_000_000;
-        if version != self.drawn && !self.hidden {
+        if version != self.drawn && !self.hidden && !self.launcher {
             self.drawn = version;
             if let Some(window) = &self.window {
                 window.request_redraw();

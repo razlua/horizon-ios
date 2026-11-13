@@ -12,6 +12,10 @@ on:
       runner:
         description: "The Mac to build on (macos-15, macos-14, macos-26, macos-15-intel): another one when GitHub has none of one kind free"
         default: macos-15-intel
+      screenshots:
+        description: "Also build for the iOS Simulator, start the app there and save screenshots (the simulator job)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -79,6 +83,10 @@ jobs:
           python3 tools/ios/native-mods.py fetch "$RUNNER_TEMP/mods"
           python3 tools/ios/native-mods.py apply "$RUNNER_TEMP/mods" "$RUNNER_TEMP/mixins/bin/horizon-mixins" "$RUNNER_TEMP/stage"
           python3 tools/ios/native-mods.py notices "$RUNNER_TEMP/mods"
+      # The SwiftUI launcher, shown before the game starts: a static library the Rust build links
+      # (crates/horizon-threads/build.rs).
+      - name: Swift launcher
+        run: bash packaging/ios/swift/build.sh iphoneos arm64-apple-ios16.0
       - uses: Swatinem/rust-cache@v2
         with:
           key: ios-mods
@@ -106,3 +114,57 @@ jobs:
           name: Horizon-ios-unsigned
           path: dist/Horizon-unsigned.ipa
           if-no-files-found: error
+
+  # A look at the app without a phone: the same source (without the native mods, voice chat
+  # without Opus) built for the iOS Simulator, started there with no game files, and screenshots
+  # of what it shows, with its log. Run by hand (`screenshots`). Apple Silicon: the Simulator
+  # there runs arm64 apps.
+  simulator:
+    if: ${{ inputs.screenshots }}
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust with the Simulator target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-apple-ios-sim
+      - name: Swift launcher
+        run: bash packaging/ios/swift/build.sh iphonesimulator arm64-apple-ios16.0-simulator
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ios-simulator
+      - name: Build
+        run: >
+          cargo build --profile fast --target aarch64-apple-ios-sim
+          -p horizon-client --bin horizon-client
+          --no-default-features --features audio
+      - name: Package
+        run: |
+          bash packaging/ios/package.sh target/aarch64-apple-ios-sim/fast/horizon-client dist/Horizon-simulator.ipa
+          cd dist && unzip -q Horizon-simulator.ipa
+      - name: Run in the Simulator
+        run: |
+          set -euo pipefail
+          mkdir -p shots
+          xcrun simctl list devices available | tee shots/devices.txt
+          udid="$(grep -m1 -E '^ +iPhone' shots/devices.txt | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          app=dist/Payload/Horizon.app
+          bundle="$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")"
+          xcrun simctl install "$udid" "$app"
+          xcrun simctl launch "$udid" "$bundle"
+          for t in 10 20 30; do
+            sleep 10
+            xcrun simctl io "$udid" screenshot "shots/after-${t}s.png" || true
+          done
+          data="$(xcrun simctl get_app_container "$udid" "$bundle" data || true)"
+          find "$data" -name '*.log' -exec cp {} shots/ \; || true
+          xcrun simctl spawn "$udid" log show --last 2m --predicate 'process == "horizon-client"' > shots/system.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-screenshots
+          path: shots/
