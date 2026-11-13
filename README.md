@@ -204,8 +204,7 @@ NOTE: Do __NOT__ uninstall the app before updating. Doing so WILL result in a pe
 *Options → About the Project* says who makes this port and where to report bugs. That's @4rnz on
 Discord (razlua on GitHub). Send bugs there, with `home/logs/latest.log` if you can.
 
-Built with assistance from Claude (Anthropic's AI). It isn't vibecoded: I decide what goes in, test
-every build on my own phone, and track down what's broken from playing it.
+Built with assistance from Claude (Anthropic's AI). It isn't vibecoded.
 
 ## Known issues
 

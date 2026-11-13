@@ -6,6 +6,14 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
+### Fixed
+
+- **The render distance no longer drops to 2 and stays there.** The memory guard compared what
+  the game holds with 80% of what iOS allows, but much of it (game data, textures, sounds) stays
+  at any distance: on an iPhone that allows 3.3 GB the game held 2.3 GB at distance 2, so it kept
+  stepping down and never back up. It now goes by how much room iOS says is left: down when less
+  than about 640 MB is left, back up while more than 1 GB is.
+
 ### Changed
 
 - **The port is now called Ferrite, with a new icon:** an F built from blocks on yellow. The name
