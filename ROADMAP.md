@@ -50,7 +50,8 @@ redstone, multiplayer and so on) comes from upstream.
 
 ## Next
 
-Nothing is queued right now; everything from the last Next list is done. Suggestions are welcome.
+- Add/Improve performance and RAM limiting, Extra-Memory permission.
+- Launcher screen in SwiftUI
 
 ## Later
 
