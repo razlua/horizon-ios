@@ -1,4 +1,4 @@
-# Roadmap: Horizon for iOS
+# Roadmap: Ferrite
 
 This roadmap covers the iOS port only. Upstream Horizon's own roadmap is in
 [docs/upstream/ROADMAP.md](docs/upstream/ROADMAP.md). The game itself (world generation, mobs,
@@ -39,7 +39,7 @@ redstone, multiplayer and so on) comes from upstream.
       voicechat engine with Opus linked into the app. The microphone is never used.
 - [x] Improved transparency no longer crashes on iOS GPUs.
 - [x] An About the Project page in Options.
-- [x] Extra Settings (Horizon-iOS) on the main menu: Safe Area as an option (backgrounds still
+- [x] Extra Settings (Ferrite) on the main menu: Safe Area as an option (backgrounds still
       fill the screen), button opacity, touch look speed, and keeping the screen on.
 - [x] An AltStore and SideStore source, so new builds arrive as updates there.
 - [x] The start screen says when a newer build is out.

@@ -23,7 +23,7 @@ source: `https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-
 **Updating:** install over the old app with the same Apple ID. Don't delete it first, or your
 worlds and game files go with it.
 
-An unofficial port of [Horizon](https://github.com/horizon-rust/horizon), not affiliated with
+Ferrite is an unofficial port of [Horizon](https://github.com/horizon-rust/horizon), not affiliated with
 Horizon, Mojang, Microsoft or Simple Voice Chat. Bugs: @4rnz on Discord.
 """
 

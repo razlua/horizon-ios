@@ -366,7 +366,7 @@ pub enum Mode {
 pub enum Action {
     None,
     Quit,
-    /// Extra Settings (Horizon-iOS), the iOS port's own Options page.
+    /// Extra Settings (Ferrite), the iOS port's own Options page.
     IosExtras,
     Options,
     Accessibility,
@@ -1770,7 +1770,7 @@ impl Title {
                         cx - 100.0,
                         y + 120.0,
                         200.0,
-                        "Extra Settings (Horizon-iOS)",
+                        "Extra Settings (Ferrite)",
                         true,
                         9,
                     ));
