@@ -31,7 +31,8 @@ sips -z 152 152 "$icon" --out "$app/AppIcon76x76@2x~ipad.png" >/dev/null
 plutil -lint "$app/Info.plist"
 # An ad hoc signature: sideloading tools replace it with the player's own, and carry over its
 # entitlements where the player's account allows them.
-codesign --force --sign - --timestamp=none \n  --entitlements "$root/packaging/ios/Horizon.entitlements" "$app" || true
+codesign --force --sign - --timestamp=none \
+  --entitlements "$root/packaging/ios/Horizon.entitlements" "$app" || true
 codesign -d --entitlements - "$app" || true
 mkdir -p "$(dirname "$out")"
 out="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")"
