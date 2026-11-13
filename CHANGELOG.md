@@ -12,7 +12,11 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
   the game holds with 80% of what iOS allows, but much of it (game data, textures, sounds) stays
   at any distance: on an iPhone that allows 3.3 GB the game held 2.3 GB at distance 2, so it kept
   stepping down and never back up. It now goes by how much room iOS says is left: down when less
-  than about 640 MB is left, back up while more than 1 GB is.
+  than about 600 MB is left, back up while more than about 900 MB is.
+- **Big render distances no longer crash right after a world opens.** A world now starts at render
+  distance 8 and climbs a step every few seconds while there's room, up to your setting, instead
+  of loading every chunk at 32 at once (which went past what iOS allows within seconds). Memory is
+  checked four times a second, and with almost nothing left the distance drops at once.
 
 ### Changed
 

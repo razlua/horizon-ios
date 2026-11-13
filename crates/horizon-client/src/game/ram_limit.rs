@@ -16,7 +16,7 @@ impl Game<'_> {
 
     /// Once a second, on the window's game while a world is open.
     pub(super) fn tick_ram_limit(&mut self) {
-        if !self.ticks.is_multiple_of(20) {
+        if !self.ticks.is_multiple_of(ram_limit::LOOK_EVERY_TICKS) {
             return;
         }
         let chosen = self.settings.render_distance;
@@ -27,6 +27,14 @@ impl Game<'_> {
             return;
         };
         let has_far = self.settings.horizon.lod_distance > 0;
+        // iOS: a world starts at a low distance and climbs while there's room.
+        if cfg!(target_os = "ios") && self.ram_limit.start_low(chosen, ram_limit::PHONE_START_DISTANCE) {
+            log::info!(
+                "Horizon iOS: the world starts at render distance {}, climbing to {chosen} while there's room",
+                ram_limit::PHONE_START_DISTANCE
+            );
+            self.apply_render_distance_in_use();
+        }
         let pressure = ram_limit::pressure(limit);
         // Every ten seconds, what the limit sees: a report can show the trace.
         if self.ticks.is_multiple_of(200) {

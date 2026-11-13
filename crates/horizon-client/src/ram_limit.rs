@@ -20,8 +20,24 @@ const MIB: u64 = 1024 * 1024;
 pub const LOWEST_DISTANCE: i32 = 2;
 /// A step down waits this long for the last one to free its memory.
 const STEP_DOWN_EVERY: Duration = Duration::from_secs(3);
-/// A step back up waits this long after any change, so the game doesn't go up and down.
-const STEP_UP_EVERY: Duration = Duration::from_secs(30);
+/// A step back up waits this long after any change, so the game doesn't go up and down. A phone
+/// climbs sooner: its worlds start low ([`PHONE_START_DISTANCE`]).
+const STEP_UP_EVERY: Duration = if PHONE {
+    Duration::from_secs(6)
+} else {
+    Duration::from_secs(30)
+};
+/// Under this share of what it holds, a step down doesn't wait for the last one to free its
+/// memory: the system is about to end the game.
+const URGENT_KEEP: f64 = 0.6;
+/// The game runs on a phone, whose system ends an app over its memory with no warning.
+const PHONE: bool = cfg!(target_os = "ios");
+/// How often the window's game looks at the memory, in ticks: once a second, a phone four times.
+pub const LOOK_EVERY_TICKS: u64 = if PHONE { 5 } else { 20 };
+/// The render distance a phone's world starts at, climbing from there while there's room. All
+/// of a world's chunks at 32 load within seconds, faster than one look steps down: on an iPhone
+/// that allows 3.3 GB, with 2.3 GB held at any distance, that ended the game.
+pub const PHONE_START_DISTANCE: i32 = 8;
 
 /// What a [`Governor`] step changed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,12 +55,24 @@ pub struct Governor {
     cap: Option<i32>,
     far_off: bool,
     changed: Option<Instant>,
+    /// A phone's world started low already (`start_low`).
+    started: bool,
 }
 
 impl Governor {
     /// The render distance to use when the player chose `chosen`.
     pub fn distance(&self, chosen: i32) -> i32 {
         self.cap.map_or(chosen, |cap| cap.min(chosen))
+    }
+
+    /// A phone's world starts at `start` when the player chose more, once per game: the
+    /// distance in use climbs from there while there is room. True when it capped.
+    pub fn start_low(&mut self, chosen: i32, start: i32) -> bool {
+        if std::mem::replace(&mut self.started, true) || chosen <= start {
+            return false;
+        }
+        self.cap = Some(start.max(LOWEST_DISTANCE));
+        true
     }
 
     /// Whether far terrain is off for memory.
@@ -78,7 +106,7 @@ impl Governor {
         };
         let step = match pressure {
             Pressure::Over { keep } => {
-                if !waited(STEP_DOWN_EVERY) {
+                if !waited(STEP_DOWN_EVERY) && !(PHONE && keep <= URGENT_KEEP) {
                     return None;
                 }
                 if has_far && !self.far_off {
@@ -309,6 +337,23 @@ pub fn run(command: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_phone_world_starts_low_once_and_little_room_steps_down_at_once() {
+        let mut g = Governor::default();
+        assert!(g.start_low(32, PHONE_START_DISTANCE));
+        assert_eq!(g.distance(32), PHONE_START_DISTANCE);
+        // Once per game, and never above the player's choice.
+        assert!(!g.start_low(32, PHONE_START_DISTANCE));
+        assert!(!Governor::default().start_low(6, PHONE_START_DISTANCE));
+        // Two steps down in a row: the second waits, unless (on a phone) almost nothing is left.
+        let mut g = Governor::default();
+        let at = Instant::now();
+        assert!(g.step(at, OVER, 32, false).is_some());
+        assert_eq!(g.step(at, OVER, 32, false), None);
+        let urgent = g.step(at, Pressure::Over { keep: 0.5 }, 32, false);
+        assert_eq!(urgent.is_some(), PHONE);
+    }
 
     #[test]
     fn a_phone_limit_sits_just_under_what_the_system_allows() {
