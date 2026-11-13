@@ -1,4 +1,4 @@
-//! Extra Settings (Horizon-iOS): the iOS port's own settings, on their own Options page
+//! Extra Settings (Ferrite): the iOS port's own settings, on their own Options page
 //! (`options_ui::Page::IosExtras`, opened from the title). Kept in `ios-settings.txt` in the game
 //! folder, apart from `options.txt`, so the game's own files stay as they are.
 use std::sync::Once;
@@ -10,7 +10,7 @@ const FILE: &str = "ios-settings.txt";
 pub const TITLE: &str = if cfg!(target_os = "android") {
     "Extra Settings (Horizon-Android)"
 } else {
-    "Extra Settings (Horizon-iOS)"
+    "Extra Settings (Ferrite)"
 };
 
 static LOADED: Once = Once::new();

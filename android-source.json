@@ -1,8 +1,8 @@
 {
-  "name": "Horizon for Android (unofficial)",
+  "name": "Ferrite for Android (unofficial)",
   "apps": [
     {
-      "name": "Horizon",
+      "name": "Ferrite",
       "bundleIdentifier": "dev.playhorizon.unofficial.android",
       "versions": [
         {

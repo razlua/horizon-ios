@@ -366,7 +366,7 @@ pub enum Mode {
 pub enum Action {
     None,
     Quit,
-    /// Extra Settings (Horizon-iOS), the iOS port's own Options page.
+    /// Extra Settings (Ferrite), the iOS port's own Options page.
     IosExtras,
     Options,
     Accessibility,

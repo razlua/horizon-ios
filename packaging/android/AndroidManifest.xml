@@ -14,7 +14,7 @@
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
 
     <application
-        android:label="Horizon"
+        android:label="Ferrite"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/Horizon"
         android:hasCode="true"
