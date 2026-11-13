@@ -18,6 +18,15 @@
       "category": "games",
       "versions": [
         {
+          "version": "2026.11.13",
+          "buildVersion": "42",
+          "date": "2026-11-13T06:36:51Z",
+          "localizedDescription": "Render distance 32 no longer crashes; less battery per frame; one-tap updates with SideStore or AltStore.",
+          "downloadURL": "https://github.com/razlua/horizon-ios/releases/download/ios-2026.11.13/Horizon-unsigned.ipa",
+          "size": 35951334,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "2026.11.12",
           "buildVersion": "38",
           "date": "2026-11-12T18:37:43Z",

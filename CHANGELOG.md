@@ -6,6 +6,10 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
+Nothing yet.
+
+## 2026.11.13
+
 ### Added
 
 - **One-tap updates with SideStore or AltStore.** When a newer version is out, the start screen's
