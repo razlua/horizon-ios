@@ -17,6 +17,14 @@ are in that folder (`LICENSE.MIT`, `LICENSE.APACHE`).
 The GLSL frontend also resets the common type for each comma-separated declarator so one
 variable's array specifier does not change later variables.
 
+## winit
+
+`third_party/winit` is [winit](https://github.com/rust-windowing/winit) 0.30.13 by the winit
+contributors, under the Apache-2.0 license (`LICENSE` in that folder). One change, in
+`src/platform_impl/android/mod.rs`: a mouse's or a touchpad's events on Android are sent as mouse
+events (`CursorMoved`, `MouseMotion`, `MouseInput`, `MouseWheel`), as on a computer, instead of
+as touches.
+
 ## libmimalloc-sys and mimalloc
 
 `third_party/libmimalloc-sys` is [libmimalloc-sys](https://github.com/purpleprotocol/mimalloc_rust)

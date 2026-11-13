@@ -8187,6 +8187,12 @@ impl Game<'_> {
             if capture {
                 self.mouse.set_ignore_first_move();
             }
+            // Android: a mouse (a Chromebook's, or one plugged into a phone) is captured while
+            // playing, to look around with it.
+            #[cfg(target_os = "android")]
+            if capture != self.captured {
+                horizon_threads::android_sys::pointer_capture(capture);
+            }
             self.captured = capture;
             self.capture_mode = None;
         } else if capture {

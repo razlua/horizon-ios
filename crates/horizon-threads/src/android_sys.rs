@@ -177,6 +177,15 @@ pub fn show_keyboard(show: bool) {
     });
 }
 
+/// Captures the mouse for looking around, or lets it go (`HorizonActivity.setPointerCapture`,
+/// which does nothing without a mouse). Called when the game grabs and frees the pointer.
+pub fn pointer_capture(on: bool) {
+    with_activity(|env, activity| {
+        env.call_method(activity, "setPointerCapture", "(Z)V", &[JValue::Bool(on.into())])?;
+        Ok(())
+    });
+}
+
 /// Asks the player for the microphone (`RECORD_AUDIO`), unless the app already has it. Android
 /// shows its own question; the voice chat opens the microphone once the answer is yes.
 pub fn request_microphone() {

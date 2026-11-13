@@ -6,6 +6,14 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
+### Android: mouse support (`android-port` branch)
+
+- **A mouse works like on a computer.** On a Chromebook, or with a mouse plugged into a phone or
+  tablet, moving the mouse turns the view while you play (the pointer is locked to the game, as
+  on PC), left click breaks, right click places, the wheel scrolls the hotbar, and in menus the
+  pointer clicks buttons. Before, Android sent the mouse as a finger. A keyboard already worked:
+  WASD, Space, Shift, E, T, 1-9 and Esc. Touch controls work the same as before.
+
 ### Android 2026.11.12 (pre-release, `android-port` branch)
 
 - **An Android port.** The game builds as an `.apk` for Android 10 and later, for phones and
