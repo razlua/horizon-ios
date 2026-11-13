@@ -43,7 +43,7 @@ struct LauncherView: View {
             )
             .ignoresSafeArea()
             VStack(spacing: 18) {
-                Text("Horizon")
+                Text("Ferrite")
                     .font(.system(size: 44, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                 Text("Minecraft: Java Edition on iPhone. Unofficial.")

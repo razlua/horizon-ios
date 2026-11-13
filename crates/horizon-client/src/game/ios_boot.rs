@@ -820,14 +820,26 @@ impl ApplicationHandler for Boot {
         if self.window.is_some() || self.failed {
             return;
         }
+        let window = match event_loop
+            .create_window(phone_window(Window::default_attributes().with_title("Ferrite")))
+        {
+            Ok(window) => Arc::new(window),
+            // The unpacking and the sign-in go on without a screen.
+            Err(e) => return log::warn!("Horizon iOS: no start screen: {e}"),
+        };
+        self.window = Some(window.clone());
+        // The launcher first: it needs only the window.
+        self.show_launcher();
+        // The iOS Simulator's GPU can't run the renderer (no indirect drawing): there the
+        // launcher alone shows, for the screenshots of the simulator job (ios.yml).
+        if cfg!(target_abi = "sim") {
+            return;
+        }
         let made = (|| -> super::Result<_> {
             let gui = UiResources {
                 atlas: HudAtlas::build(std::path::Path::new("resources"))?,
                 panorama: Arc::new(horizon_client::gfx::panorama::Faces::colour([0; 4])),
             };
-            let window = Arc::new(
-                event_loop.create_window(phone_window(Window::default_attributes().with_title("Ferrite")))?,
-            );
             let renderer = loading_renderer(
                 window.clone(),
                 false,
@@ -836,17 +848,14 @@ impl ApplicationHandler for Boot {
                 None,
                 horizon_client::graphics::GraphicsApi::Auto,
             )?;
-            Ok((gui, window, renderer))
+            Ok((gui, renderer))
         })();
         match made {
-            Ok((gui, window, renderer)) => {
+            Ok((gui, renderer)) => {
                 window.request_redraw();
                 self.gui = Some(gui);
-                self.window = Some(window);
                 self.renderer = Some(renderer);
-                self.show_launcher();
             }
-            // The unpacking and the sign-in go on without a screen.
             Err(e) => log::warn!("Horizon iOS: no start screen: {e}"),
         }
     }
