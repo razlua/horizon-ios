@@ -24,6 +24,7 @@ struct PlayView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    expiryBanner
                     content
                     if let unpacking = state.unpacking, unpacking.total > 0 {
                         ProgressView(value: Double(unpacking.done), total: Double(unpacking.total)) {
@@ -218,6 +219,20 @@ struct PlayView: View {
                     if !accounts.isEmpty { secondary("Back") { model.send("back") } }
                     secondary("Play offline") { model.send("offline") }
                 }
+            }
+        }
+    }
+
+    /// Two days or less before Ferrite stops opening: a warning above everything.
+    @ViewBuilder private var expiryBanner: some View {
+        if let expiry = Signing.expiry, let days = Signing.daysLeft, days <= 2 {
+            card {
+                Label(days == 0 ? "Ferrite has run out" : "Refresh before \(Signing.format(expiry))",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+                    .foregroundStyle(days <= 1 ? Color.red : Theme.accent)
+                Text("Sign it again with Sideloadly, AltStore or SideStore, or it won't open after that. Your worlds stay.")
+                    .foregroundStyle(.secondary)
             }
         }
     }

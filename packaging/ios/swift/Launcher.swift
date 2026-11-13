@@ -51,6 +51,8 @@ struct RootView: View {
         }
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
+        // The reminders follow this install's signature (Signing.swift).
+        .onAppear { Signing.scheduleReminders() }
     }
 }
 

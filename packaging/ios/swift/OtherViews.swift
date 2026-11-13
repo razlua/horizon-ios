@@ -16,17 +16,45 @@ private func tabPage<Content: View>(@ViewBuilder _ content: () -> Content) -> so
     }
 }
 
-private func infoCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+func infoCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
     VStack(alignment: .leading, spacing: 10, content: content)
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 16))
 }
 
+/// How long Ferrite keeps opening, colored by how soon it runs out.
+struct ExpiryCard: View {
+    var body: some View {
+        infoCard {
+            if let expiry = Signing.expiry, let days = Signing.daysLeft {
+                let color: Color = days <= 1 ? .red : (days <= 2 ? Theme.accent : .green)
+                Label(days == 0 ? "Ferrite has run out" : "Signed until \(Signing.format(expiry))",
+                      systemImage: days <= 2 ? "exclamationmark.triangle.fill" : "checkmark.seal.fill")
+                    .font(.headline)
+                    .foregroundStyle(color)
+                Text(days == 1 ? "1 day left." : "\(days) days left.")
+                    .foregroundStyle(.secondary)
+                if let team = Signing.team {
+                    Text("Signed by \(team).").font(.footnote).foregroundStyle(.secondary)
+                }
+                Text("Ferrite reminds you a day before, and again on the day, if you allow its notifications.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Label("Ferrite can't tell when it runs out", systemImage: "questionmark.circle")
+                    .font(.headline)
+                Text("This copy wasn't signed by a sideloading tool.").foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 struct RefreshView: View {
     var body: some View {
         tabPage {
             Text("Refresh").font(.system(size: 34, weight: .bold, design: .rounded))
+            ExpiryCard()
             infoCard {
                 Label("Refresh from inside Ferrite", systemImage: "arrow.clockwise.circle.fill")
                     .font(.headline)

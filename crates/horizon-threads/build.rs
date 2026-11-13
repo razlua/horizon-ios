@@ -29,7 +29,7 @@ fn main() {
             println!("cargo:rustc-link-search=native={dir}");
         }
     }
-    for framework in ["SwiftUI", "UIKit", "Foundation"] {
+    for framework in ["SwiftUI", "UIKit", "Foundation", "UserNotifications"] {
         println!("cargo:rustc-link-lib=framework={framework}");
     }
 }
