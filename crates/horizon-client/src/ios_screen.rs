@@ -32,6 +32,60 @@ pub enum Action {
     GetUpdate,
 }
 
+/// What the SwiftUI launcher (packaging/ios/swift) sent: one of this screen's actions, or the
+/// offline name typed in its text field, to play with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LauncherAction {
+    Screen(Action),
+    OfflineName(String),
+}
+
+/// The launcher's action text (`play:0`, `add_account`, `offline_name:Steve`, ...). None for one
+/// this build doesn't know.
+pub fn parse_launcher_action(text: &str) -> Option<LauncherAction> {
+    let (word, arg) = match text.split_once(':') {
+        Some((word, arg)) => (word, Some(arg)),
+        None => (text, None),
+    };
+    let index = || arg?.parse::<usize>().ok();
+    let action = match word {
+        "open_link" => Action::OpenLink,
+        "retry" => Action::Retry,
+        "offline" => Action::Offline,
+        "play" => Action::Play(index()?),
+        "add_account" => Action::AddAccount,
+        "remove_mode" => Action::RemoveMode,
+        "remove" => Action::Remove(index()?),
+        "back" => Action::Back,
+        "retry_setup" => Action::RetrySetup,
+        "get_update" => Action::GetUpdate,
+        "offline_name" => return Some(LauncherAction::OfflineName(arg?.to_owned())),
+        _ => return None,
+    };
+    Some(LauncherAction::Screen(action))
+}
+
+#[cfg(test)]
+mod launcher_tests {
+    use super::*;
+
+    #[test]
+    fn the_launcher_s_actions_are_the_screen_s() {
+        let screen = |a| Some(LauncherAction::Screen(a));
+        assert_eq!(parse_launcher_action("play:2"), screen(Action::Play(2)));
+        assert_eq!(parse_launcher_action("remove:0"), screen(Action::Remove(0)));
+        assert_eq!(parse_launcher_action("add_account"), screen(Action::AddAccount));
+        assert_eq!(parse_launcher_action("get_update"), screen(Action::GetUpdate));
+        assert_eq!(
+            parse_launcher_action("offline_name:Steve_1"),
+            Some(LauncherAction::OfflineName("Steve_1".into()))
+        );
+        assert_eq!(parse_launcher_action("play"), None);
+        assert_eq!(parse_launcher_action("play:x"), None);
+        assert_eq!(parse_launcher_action("fly"), None);
+    }
+}
+
 /// How a button looks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Look {

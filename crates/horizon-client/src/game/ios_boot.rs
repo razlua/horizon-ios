@@ -232,6 +232,8 @@ struct Boot {
     /// The SwiftUI launcher is over this screen (`horizon_threads::ios_launcher`), which then
     /// isn't drawn.
     launcher: bool,
+    /// The state version the launcher was last sent (`launcher_state`).
+    sent: u64,
 }
 
 /// Opens the event loop, unpacks (`job`) or sets the game files up (`setup`) and signs in beside
@@ -283,6 +285,7 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::R
         progress: Arc::default(),
         awake: false,
         launcher: false,
+        sent: 0,
     };
     EventLoop::new()?.run_app(&mut boot)?;
     Ok(())
@@ -602,6 +605,12 @@ impl Boot {
         let Some(Some(action)) = self.with_ui(&mut batch, |ui| screen.click(ui)) else {
             return;
         };
+        let _ = event_loop;
+        self.act(action);
+    }
+
+    /// What a button does: tapped on this screen, or in the SwiftUI launcher.
+    fn act(&mut self, action: Action) {
         let state = self.state.clone();
         let account = |i: usize| {
             state
@@ -722,7 +731,6 @@ impl Boot {
                 }
             }
         }
-        let _ = event_loop;
         if let Some(window) = &self.window {
             window.request_redraw();
         }
@@ -750,18 +758,81 @@ impl Boot {
         }
         self.launcher = ios_launcher::show();
         if self.launcher {
-            let version = horizon_threads::ios_bundle::info("CFBundleShortVersionString");
-            ios_launcher::update(&serde_json::json!({ "version": version }).to_string());
+            ios_launcher::update(&self.launcher_state());
         }
         log::info!("Horizon iOS: SwiftUI launcher shown: {}", self.launcher);
     }
 
-    /// What the player tapped in the launcher. "continue": this screen, as before.
+    /// What the launcher shows, as JSON (packaging/ios/swift/Model.swift): the same state this
+    /// screen draws. A signed-in account's session never goes in it.
+    fn launcher_state(&self) -> String {
+        use std::sync::atomic::Ordering::Relaxed;
+        use serde_json::json;
+        let shared = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let account = match &shared.account {
+            Account::Choose { removing } => json!({ "kind": "choose", "removing": removing }),
+            Account::Resuming(name) => json!({ "kind": "resuming", "name": name }),
+            Account::Asking => json!({ "kind": "asking" }),
+            Account::Code { code, uri, link } => {
+                json!({ "kind": "code", "code": code, "uri": uri, "link": link })
+            }
+            Account::Signed { name, .. } => json!({ "kind": "signed", "name": name }),
+            Account::Failed(why) => json!({ "kind": "failed", "error": why }),
+            Account::OfflineName { name, problem, .. } => {
+                json!({ "kind": "offline_name", "name": name, "problem": problem })
+            }
+            Account::Offline => json!({ "kind": "offline" }),
+        };
+        let (kind, error) = match &shared.setup {
+            Setup::NotNeeded => ("not_needed", None),
+            Setup::Waiting => ("waiting", None),
+            Setup::Running => ("running", None),
+            Setup::Failed(why) => ("failed", Some(why.clone())),
+            Setup::Done => ("done", None),
+        };
+        let stage = self.progress.stage.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let [unpacked, to_unpack] = UNPACKED.each_ref().map(|v| v.load(Relaxed));
+        let update = shared.newer.as_ref().map(|newer| {
+            json!({
+                "version": newer.version,
+                "installer": super::ios_update::installer(),
+            })
+        });
+        json!({
+            "version": horizon_threads::ios_bundle::info("CFBundleShortVersionString"),
+            "account": account,
+            "accounts": shared.accounts.iter().map(|a| a.name.clone()).collect::<Vec<_>>(),
+            "setup": {
+                "kind": kind,
+                "error": error,
+                "stage": stage,
+                "done": self.progress.done.load(Relaxed),
+                "total": self.progress.total.load(Relaxed),
+            },
+            "unpacking": shared.unpacking.then(|| json!({ "done": unpacked, "total": to_unpack })),
+            "update": update,
+        })
+        .to_string()
+    }
+
+    /// What the player tapped in the launcher (`ios_screen::parse_launcher_action`).
     fn launcher_actions(&mut self) {
-        for action in horizon_threads::ios_launcher::take_actions() {
-            match action.as_str() {
-                "continue" => self.hide_launcher(),
-                other => log::warn!("Horizon iOS: the launcher sent an unknown action {other:?}"),
+        use horizon_client::ios_screen::{LauncherAction, parse_launcher_action};
+        for text in horizon_threads::ios_launcher::take_actions() {
+            match parse_launcher_action(&text) {
+                Some(LauncherAction::Screen(action)) => self.act(action),
+                // Typed in the launcher's own text field: played with as typed on this screen.
+                Some(LauncherAction::OfflineName(name)) => {
+                    update(&self.state, |s| {
+                        s.account = Account::OfflineName {
+                            name,
+                            editing: false,
+                            problem: None,
+                        }
+                    });
+                    self.act(Action::PlayOffline);
+                }
+                None => log::warn!("Horizon iOS: the launcher sent an unknown action {text:?}"),
             }
         }
     }
@@ -942,6 +1013,11 @@ impl ApplicationHandler for Boot {
         let version = self.state.lock().unwrap_or_else(|e| e.into_inner()).version
             + UNPACKED[0].load(std::sync::atomic::Ordering::Relaxed) as u64
             + self.progress.done.load(std::sync::atomic::Ordering::Relaxed) / 1_000_000;
+        // The launcher shows the same state: sent again when it changes.
+        if self.launcher && version != self.sent {
+            self.sent = version;
+            horizon_threads::ios_launcher::update(&self.launcher_state());
+        }
         if version != self.drawn && !self.hidden && !self.launcher {
             self.drawn = version;
             if let Some(window) = &self.window {
