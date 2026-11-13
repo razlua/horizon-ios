@@ -8,7 +8,8 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ### Changed
 
-- **The port is now called Ferrite.** The name under the app icon, the start screen, About the
+- **The port is now called Ferrite, with a new icon:** an F built from blocks on yellow. The name
+  under the app icon, the start screen, About the
   Project, Extra Settings and the AltStore / SideStore source say Ferrite, and the Files app shows
   its folder as *On My iPhone > Ferrite*. It is the same app: it installs over the old one with
   your worlds, sign-ins and settings, and updates keep coming through the same source.
