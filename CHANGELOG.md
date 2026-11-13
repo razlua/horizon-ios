@@ -13,6 +13,13 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
   the new version, which they sign and install over the app, worlds and sign-ins kept. Without
   either, **Get the update** opens the download page as before.
 
+### Fixed
+
+- **High render distances no longer crash the app.** At render distance 32 the game held more
+  memory than iOS allows and iOS closed it, with nothing in the log. The game now knows how much
+  the phone allows and lowers the render distance it uses while memory is tight (it says so in
+  chat), then raises it again when there's room. Your setting stays as you chose it.
+
 ### Changed
 
 - **Less work for each frame, for battery.** The app is now built fully optimized (the build

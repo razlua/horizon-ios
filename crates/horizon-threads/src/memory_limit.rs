@@ -217,12 +217,60 @@ pub fn resident_bytes() -> Option<u64> {
     }
 }
 
+/// iOS: the memory the system counts against the app, in bytes: its physical footprint (the
+/// GPU's buffers and textures included), the number iOS ends an app for, not its resident size.
+#[cfg(target_os = "ios")]
+pub fn resident_bytes() -> Option<u64> {
+    // `rusage_info_v0` (<sys/resource.h>); the libc crate declares the call for macOS only.
+    #[repr(C)]
+    struct Usage {
+        uuid: [u8; 16],
+        user_time: u64,
+        system_time: u64,
+        pkg_idle_wkups: u64,
+        interrupt_wkups: u64,
+        pageins: u64,
+        wired_size: u64,
+        resident_size: u64,
+        phys_footprint: u64,
+        proc_start_abstime: u64,
+        proc_exit_abstime: u64,
+    }
+    unsafe extern "C" {
+        // <libproc.h>, iOS 7 and later.
+        fn proc_pid_rusage(pid: libc::c_int, flavor: libc::c_int, buffer: *mut Usage)
+        -> libc::c_int;
+    }
+    const RUSAGE_INFO_V0: libc::c_int = 0;
+    // SAFETY: all-zero is a valid value of this plain C struct, which is the layout the V0 flavor
+    // writes, and the call writes only into it.
+    unsafe {
+        let mut usage: Usage = std::mem::zeroed();
+        (proc_pid_rusage(libc::getpid(), RUSAGE_INFO_V0, &raw mut usage) == 0)
+            .then_some(usage.phys_footprint)
+    }
+}
+
+/// iOS: how much the app may hold before the system ends it, in bytes: what it holds now and
+/// what `os_proc_available_memory` says is left. None where the system doesn't say.
+#[cfg(target_os = "ios")]
+pub fn system_limit() -> Option<u64> {
+    unsafe extern "C" {
+        // <os/proc.h>, iOS 13 and later.
+        fn os_proc_available_memory() -> usize;
+    }
+    // SAFETY: takes nothing and returns a number.
+    let available = unsafe { os_proc_available_memory() } as u64;
+    (available > 0).then(|| resident_bytes().unwrap_or(0) + available)
+}
+
 /// The memory this process holds in RAM, in bytes: not known on this system.
 #[cfg(not(any(
     windows,
     target_os = "linux",
     target_os = "android",
-    target_os = "macos"
+    target_os = "macos",
+    target_os = "ios"
 )))]
 pub fn resident_bytes() -> Option<u64> {
     None

@@ -166,7 +166,26 @@ pub fn start(home: &Path, side: &'static str) {
             Err(_) => log::warn!("{HARD_ENV}={value} is not a number of MiB: no hard limit set"),
         }
     }
+    // iOS: there is no launcher, and the system ends an app that holds more than it allows,
+    // with no warning and no log. The limit is a share of that, so the render distance steps
+    // down well before.
+    #[cfg(target_os = "ios")]
+    if memory_limit::get().is_none()
+        && let Some(system) = memory_limit::system_limit()
+    {
+        let mb = phone_limit_mb(system / MIB);
+        log::info!("Horizon iOS: the system allows {} MiB; the RAM limit is {mb} MiB", system / MIB);
+        set(Some(mb));
+    }
 }
+
+/// The RAM limit on a phone that allows `system_mb`: room for the bursts of a world's loading,
+/// which can grow faster than one look a second steps down.
+pub fn phone_limit_mb(system_mb: u64) -> u64 {
+    system_mb / 100 * PHONE_SHARE_PERCENT
+}
+/// The share of what the phone allows that the game holds at most.
+const PHONE_SHARE_PERCENT: u64 = 80;
 
 fn set(mb: Option<u64>) {
     memory_limit::set(mb.map(|mb| mb.saturating_mul(MIB)), exceeded);
@@ -185,9 +204,13 @@ fn set_hard(mb: Option<u64>) {
 }
 
 fn exceeded(used: u64, limit: u64) {
+    let fix = if cfg!(target_os = "ios") {
+        "Lower the render distance, or close other apps."
+    } else {
+        "Raise the limit in the launcher's Launch panel."
+    };
     let message = format!(
-        "The game can't run under its RAM limit: it holds {} MiB and the limit is {} MiB. Raise \
-         the limit in the launcher's Launch panel.",
+        "The game can't run under its RAM limit: it holds {} MiB and the limit is {} MiB. {fix}",
         used / MIB,
         limit / MIB
     );
@@ -284,6 +307,14 @@ pub fn run(command: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_phone_keeps_a_fifth_of_what_the_system_allows_free() {
+        // An iPhone 17 with Horizon in front allows about 6 GiB.
+        assert_eq!(phone_limit_mb(6144), 4880);
+        // The governor steps down past nine tenths of the limit: under three quarters of it all.
+        assert!(phone_limit_mb(6144) / 10 * 9 < 6144 / 4 * 3);
+    }
 
     const FAR_OVER: Pressure = Pressure::Over { keep: 0.125 };
     const OVER: Pressure = Pressure::Over { keep: 0.8 };
