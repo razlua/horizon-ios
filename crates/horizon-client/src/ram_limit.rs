@@ -179,13 +179,15 @@ pub fn start(home: &Path, side: &'static str) {
     }
 }
 
-/// The RAM limit on a phone that allows `system_mb`: room for the bursts of a world's loading,
-/// which can grow faster than one look a second steps down.
+/// The RAM limit on a phone that allows `system_mb`: just under it. The render distance in use
+/// follows the room iOS says is left (`memory_limit::pressure_of_headroom`), well before this;
+/// the limit is only where a game that can't get under it ends with a report, instead of being
+/// ended by iOS with none.
 pub fn phone_limit_mb(system_mb: u64) -> u64 {
-    system_mb / 100 * PHONE_SHARE_PERCENT
+    system_mb.saturating_sub(PHONE_RESERVE_MB).max(system_mb / 2)
 }
-/// The share of what the phone allows that the game holds at most.
-const PHONE_SHARE_PERCENT: u64 = 80;
+/// What the limit leaves below what the phone allows.
+const PHONE_RESERVE_MB: u64 = 192;
 
 fn set(mb: Option<u64>) {
     memory_limit::set(mb.map(|mb| mb.saturating_mul(MIB)), exceeded);
@@ -309,11 +311,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_phone_keeps_a_fifth_of_what_the_system_allows_free() {
-        // An iPhone 17 with Horizon in front allows about 6 GiB.
-        assert_eq!(phone_limit_mb(6144), 4880);
-        // The governor steps down past nine tenths of the limit: under three quarters of it all.
-        assert!(phone_limit_mb(6144) / 10 * 9 < 6144 / 4 * 3);
+    fn a_phone_limit_sits_just_under_what_the_system_allows() {
+        // The iPhone of the report allowed 3376 MiB, and the game held 2.3 GB at distance 2.
+        assert_eq!(phone_limit_mb(3376), 3184);
+        assert!(phone_limit_mb(3376) > 2400);
+        assert_eq!(phone_limit_mb(200), 100);
     }
 
     const FAR_OVER: Pressure = Pressure::Over { keep: 0.125 };
