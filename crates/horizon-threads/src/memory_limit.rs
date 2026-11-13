@@ -108,9 +108,64 @@ pub fn pressure_of_commit(commit: u64, limit: u64) -> Pressure {
     }
 }
 
-/// How tight memory is under `limit`: what the game holds in RAM against it.
+/// How tight memory is under `limit`: what the game holds in RAM against it. iOS: the room the
+/// system says is left ([`pressure_of_headroom`]) decides, since that is what it ends apps by.
 pub fn pressure(limit: u64) -> Pressure {
+    #[cfg(target_os = "ios")]
+    if let (Some(available), Some(used)) = (available_bytes(), resident_bytes()) {
+        return pressure_of_headroom(available, used);
+    }
     resident_bytes().map_or(Pressure::Steady, |used| pressure_of_usage(used, limit))
+}
+
+const MIB: u64 = 1024 * 1024;
+/// Less room than this left before the system ends the app: hold less.
+pub const HEADROOM_LOW: u64 = 640 * MIB;
+/// More room than this left: the game may hold more again.
+pub const HEADROOM_ROOMY: u64 = 1024 * MIB;
+/// The room a step down aims to leave.
+const HEADROOM_AIM: u64 = 832 * MIB;
+
+/// How tight memory is when the system says how much room is left (`available`) and the game
+/// holds `used`. A share of a fixed cap doesn't work where much of what the game holds (its game
+/// data, textures, sounds) stays at any render distance: on an iPhone that allows 3.3 GB the game
+/// held 2.3 GB at render distance 2, so a cap at 80% stepped down to 2 and never back up.
+pub fn pressure_of_headroom(available: u64, used: u64) -> Pressure {
+    if available < HEADROOM_LOW {
+        let shed = HEADROOM_AIM - available;
+        let keep = if used == 0 {
+            0.8
+        } else {
+            used.saturating_sub(shed) as f64 / used as f64
+        };
+        Pressure::Over { keep: keep.clamp(0.5, 0.95) }
+    } else if available > HEADROOM_ROOMY {
+        Pressure::Room
+    } else {
+        Pressure::Steady
+    }
+}
+
+#[cfg(test)]
+mod headroom_tests {
+    use super::*;
+
+    #[test]
+    fn room_left_decides_and_a_big_fixed_share_still_climbs_back() {
+        let gb = |g: f64| (g * 1024.0) as u64 * MIB;
+        // The iPhone of the report: 3.3 GB allowed, 2.3 GB held at distance 2, 1 GB left.
+        assert_eq!(pressure_of_headroom(gb(1.05), gb(2.3)), Pressure::Room);
+        assert_eq!(pressure_of_headroom(gb(0.8), gb(2.55)), Pressure::Steady);
+        match pressure_of_headroom(gb(0.4), gb(2.95)) {
+            Pressure::Over { keep } => assert!(keep > 0.8 && keep < 0.95, "{keep}"),
+            other => panic!("{other:?}"),
+        }
+        // Almost nothing left: a big step, though not below half.
+        match pressure_of_headroom(0, gb(1.0)) {
+            Pressure::Over { keep } => assert_eq!(keep, 0.5),
+            other => panic!("{other:?}"),
+        }
+    }
 }
 
 /// How long the game has been over the cap with nothing left to give up.
@@ -255,13 +310,20 @@ pub fn resident_bytes() -> Option<u64> {
 /// what `os_proc_available_memory` says is left. None where the system doesn't say.
 #[cfg(target_os = "ios")]
 pub fn system_limit() -> Option<u64> {
+    available_bytes().map(|available| resident_bytes().unwrap_or(0) + available)
+}
+
+/// iOS: how much more the app may hold before the system ends it (`os_proc_available_memory`),
+/// in bytes. None where the system doesn't say.
+#[cfg(target_os = "ios")]
+pub fn available_bytes() -> Option<u64> {
     unsafe extern "C" {
         // <os/proc.h>, iOS 13 and later.
         fn os_proc_available_memory() -> usize;
     }
     // SAFETY: takes nothing and returns a number.
     let available = unsafe { os_proc_available_memory() } as u64;
-    (available > 0).then(|| resident_bytes().unwrap_or(0) + available)
+    (available > 0).then_some(available)
 }
 
 /// The memory this process holds in RAM, in bytes: not known on this system.
