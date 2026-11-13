@@ -102,6 +102,11 @@ jobs:
           "$NDK_BIN/llvm-readelf" -d "$lib" | grep -E "NEEDED|SONAME" || true
           # The activity's entry point must be among the library's exported symbols.
           "$NDK_BIN/llvm-readelf" --dyn-syms "$lib" | grep ANativeActivity_onCreate
+          # Android loads the library with dlopen, which refuses initial-exec ("static") TLS:
+          # such a library never starts ("TLS symbol ... using IE access model").
+          if "$NDK_BIN/llvm-readelf" -d "$lib" | grep -q STATIC_TLS; then
+            echo "libhorizon.so uses static TLS, which Android can't load"; exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: libhorizon-${{ matrix.abi }}
