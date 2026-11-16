@@ -177,10 +177,11 @@ jobs:
             xcrun simctl io "$udid" screenshot "shots/after-${t}s.png" || true
           done
           # Each of the launcher's tabs (FERRITE_TAB, packaging/ios/swift/Launcher.swift).
+          # --terminate-running-process waits for the last one to end: a plain terminate could
+          # leave it closing while the next launched, and its screenshot came out black.
           for tab in refresh settings about; do
-            xcrun simctl terminate "$udid" "$bundle" || true
-            SIMCTL_CHILD_FERRITE_TAB="$tab" xcrun simctl launch "$udid" "$bundle"
-            sleep 12
+            SIMCTL_CHILD_FERRITE_TAB="$tab" xcrun simctl launch --terminate-running-process "$udid" "$bundle"
+            sleep 15
             xcrun simctl io "$udid" screenshot "shots/tab-$tab.png" || true
           done
           data="$(xcrun simctl get_app_container "$udid" "$bundle" data || true)"
