@@ -19,7 +19,7 @@ https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.js
 ```
 
 **Android:** an experimental `.apk` with the same touch HUD is on the
-[releases page](https://github.com/razlua/horizon-ios/releases) (the newest "Horizon for
+[releases page](https://github.com/razlua/horizon-ios/releases) (the newest "Ferrite for
 Android" one). It's built on the `android-port` branch; see
 [docs/android.md](https://github.com/razlua/horizon-ios/blob/android-port/docs/android.md).
 
@@ -46,7 +46,7 @@ looking out over the whole view.
 Launchers like PojavLauncher run the Java game in a Java virtual machine on the phone, which needs
 JIT turned on to be playable. Horizon is the game rewritten in Rust and compiled for the iPhone,
 drawing straight to Metal, so there's no Java and no JIT to set up, and it runs at the screen's
-full 120 Hz.
+full 120 Hz (Using ProMotion, some phones do NOT support ProMotion).
 
 ## What works
 
@@ -129,7 +129,7 @@ stay.
 ### First launch
 
 Open Ferrite and sign in with Microsoft. The first time, the app downloads your Minecraft 26.3
-from Mojang (about 520 MB) and Horizon's tables, then sets them up. Stay on Wi-Fi with Horizon
+from Mojang (about 520 MB) and Horizon's tables, then sets them up. Stay on Wi-Fi with Ferrite
 open. After that it starts straight away, offline too.
 
 With a free Apple ID the app has to be signed again every 7 days, and you can have at most 3
@@ -137,7 +137,7 @@ sideloaded apps at once.
 
 ### How the game files get there
 
-Horizon's preparation runs a few of Mojang's Java classes to work out data tables (blocks,
+Ferrite's preparation runs a few of Mojang's Java classes to work out data tables (blocks,
 entities, collision, world generation), and a phone can't run Java. Those tables are the same for
 everyone on a version, so they're worked out once and published in this repository's
 `tables-<revision>` release. That release has none of Minecraft's files in it, so no textures,
@@ -153,21 +153,7 @@ That app has your game files inside, so don't share it.
 
 ## Controls
 
-| Where | Do | What happens |
-|---|---|---|
-| World | Thumb on the left side | Move. Push past the edge to sprint |
-| World | Drag anywhere else | Look around |
-| World | Jump, Sneak, Use, Hit | Jump, sneak, use or place, attack or mine. Drag a button to aim while holding it |
-| World | Inv, Chat, Drop, Cam, `<` `>` | Inventory, chat, drop item, camera, hotbar left and right |
-| Anywhere | Esc (top centre) | Same as the Escape key |
-| Chat | Tab, Paste, Enter (top right) | Complete, paste, send |
-| Chat | Tap the line at the bottom | Type again |
-| Menus | Tap | Click |
-| Menus | Swipe up or down | Scroll |
-| Menus | Drag sideways, or hold then drag | Drag sliders and items |
-| Menus | Second finger tap | Right-click |
-| Main menu | Edit HUD | Change the touch buttons |
-| World | VC, Talk, Mic (add them in Edit HUD) | Voice chat menu, talk while held, mute |
+Controls are shown on screen and are editable via the HUD Editor in the main menu.
 
 ## Where things are
 
@@ -189,7 +175,7 @@ deletes them.
 
 ## Updating
 
-The "Get Update" page likely sent you here.
+The "Get Update" button likely sent you here.
 
 Updating step-by-step (Not with SideStore, altstore, etc. Made for stuff like Sideloadly): 
 
@@ -201,7 +187,7 @@ NOTE: Do __NOT__ uninstall the app before updating. Doing so WILL result in a pe
 
 ## About
 
-*Options → About the Project* says who makes this port and where to report bugs. That's @4rnz on
+*Options → About the Project* says who makes this port and where to report bugs. @4rnz on
 Discord (razlua on GitHub). Send bugs there, with `home/logs/latest.log` if you can.
 
 Built with assistance from Claude (Anthropic's AI). It isn't vibecoded.
