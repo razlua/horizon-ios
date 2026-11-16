@@ -16,15 +16,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 FOOTER = """
 ---
 
-**Install:** download `Horizon-unsigned.ipa` below and follow
-[Installing](https://github.com/razlua/horizon-ios#installing), or add the AltStore / SideStore
-source: `https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json`
+**Install:** download `Horizon-unsigned.ipa` below and follow the
+[iPhone install steps](https://github.com/razlua/horizon-ios#installing-on-iphone-and-ipad), or add
+the AltStore / SideStore source:
+`https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json`
 
-**Updating:** install over the old app with the same Apple ID. Don't delete it first, or your
-worlds and game files go with it.
+**Updating:** install over the app you have. Deleting it first deletes your worlds.
 
-Ferrite is an unofficial port of [Horizon](https://github.com/horizon-rust/horizon), not affiliated with
-Horizon, Mojang, Microsoft or Simple Voice Chat. Bugs: @4rnz on Discord.
+Unofficial port of [Horizon](https://github.com/horizon-rust/horizon). Not affiliated with Horizon,
+Mojang or Microsoft. Bugs: @4rnz on Discord.
 """
 
 
