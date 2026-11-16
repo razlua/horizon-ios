@@ -195,15 +195,14 @@ struct SkinPicture: View {
     }
 }
 
-/// The player of `uuid`, whole, from the front.
+/// The player of `uuid`, whole, in 3D (SkinModel3D.swift).
 struct SkinFigure: View {
     let uuid: String
     var height: CGFloat = 200
     @ObservedObject private var store = SkinStore.shared
 
     var body: some View {
-        SkinPicture(art: store.skins[uuid].flatMap(SkinArt.front), height: height)
-            .shadow(color: Color.black.opacity(0.45), radius: 14, x: 0, y: 10)
+        SkinStage(skin: store.skins[uuid], height: height)
             .task(id: uuid) { store.load(uuid) }
     }
 }
@@ -243,14 +242,13 @@ struct SkinChanger: View {
             LauncherBackground()
             HStack(spacing: 28) {
                 preview
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "tshirt.fill").foregroundStyle(Theme.accent)
-                        Text("Change skin").font(.system(size: 26, weight: .heavy, design: .rounded))
-                    }
-                    Text("For \(account.name). Pick a skin PNG (64 x 64) from Files, then Upload: it's your skin everywhere you play Java Edition.")
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Change skin")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                    Text("For \(account.name). Pick a skin PNG (64 x 64) from Files, then Upload. It becomes your skin everywhere you play Java Edition.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondary)
                     Picker("Model", selection: $slim) {
                         Text("Classic arms").tag(false)
                         Text("Slim arms").tag(true)
@@ -269,9 +267,8 @@ struct SkinChanger: View {
                     } label: {
                         Label("Upload", systemImage: "arrow.up.circle.fill")
                             .font(.headline)
-                            .foregroundStyle(Color.black)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 2)
                     }
                     .ferriteButton(prominent: true)
                     .disabled(pickedData == nil || status == "working")
@@ -300,39 +297,38 @@ struct SkinChanger: View {
         }
     }
 
-    /// The chosen skin on the player, or the current one.
+    /// The chosen skin on the player, or the current one, in 3D: drag to see its back.
     private var preview: some View {
         let shown = picked.map { Skin(image: $0, slim: slim) } ?? store.skins[account.uuid]
-        return VStack(spacing: 10) {
-            SkinPicture(art: shown.flatMap(SkinArt.front), height: 220)
-                .shadow(color: Color.black.opacity(0.45), radius: 14, x: 0, y: 10)
-            Text(picked == nil ? "Current skin" : "Preview")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+        return VStack(spacing: 8) {
+            SkinStage(skin: shown, height: 236)
+            Text(picked == nil ? "Current skin, drag to turn" : "Preview, drag to turn")
+                .font(.footnote)
+                .foregroundStyle(Theme.muted)
         }
-        .padding(.horizontal, 30)
+        .padding(.horizontal, 24)
         .padding(.vertical, 20)
-        .glassCard(cornerRadius: 30)
+        .card(cornerRadius: 20)
     }
 
     @ViewBuilder private var statusLine: some View {
         if let problem {
             Label(problem, systemImage: "exclamationmark.triangle.fill")
                 .font(.footnote)
-                .foregroundStyle(Color.red)
+                .foregroundStyle(Theme.bad)
         } else if status == "working" {
             HStack(spacing: 8) {
                 ProgressView()
-                Text("Uploading...").font(.footnote).foregroundStyle(.secondary)
+                Text("Uploading...").font(.footnote).foregroundStyle(Theme.secondary)
             }
         } else if status == "done" {
             Label("Your new skin is on.", systemImage: "checkmark.circle.fill")
                 .font(.footnote)
-                .foregroundStyle(Color.green)
+                .foregroundStyle(Theme.good)
         } else if status == "failed" {
             Label(model.state.skin?.message ?? "The upload didn't work.", systemImage: "exclamationmark.triangle.fill")
                 .font(.footnote)
-                .foregroundStyle(Color.red)
+                .foregroundStyle(Theme.bad)
         }
     }
 

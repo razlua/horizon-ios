@@ -6,64 +6,51 @@ import UIKit
 
 // MARK: Refresh
 
-/// The days left of the signature's 7, as a ring.
-struct ExpiryRing: View {
-    var size: CGFloat = 116
-
-    var body: some View {
-        let days = Signing.daysLeft
-        let fraction = days.map { min(1, Double($0) / 7) } ?? 0
-        let color: Color = days.map { $0 <= 1 ? Color.red : ($0 <= 2 ? Theme.accent : Color.green) } ?? Color.gray
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.08), lineWidth: 11)
-            Circle()
-                .trim(from: 0, to: fraction)
-                .stroke(color, style: StrokeStyle(lineWidth: 11, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .shadow(color: color.opacity(0.5), radius: 6)
-            VStack(spacing: 0) {
-                Text(days.map { "\($0)" } ?? "?")
-                    .font(.system(size: 38, weight: .heavy, design: .rounded))
-                    .monospacedDigit()
-                Text(days == 1 ? "day left" : "days left")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(width: size, height: size)
-    }
-}
-
-/// How long Ferrite keeps opening: the ring, the date and the reminders.
+/// How long Ferrite keeps opening: the days left as a big number and as 7 blocks, the date and
+/// the reminders.
 struct ExpiryCard: View {
     var body: some View {
-        HStack(spacing: 22) {
-            ExpiryRing()
-            VStack(alignment: .leading, spacing: 6) {
-                if let expiry = Signing.expiry, let days = Signing.daysLeft {
-                    Text(days == 0 ? "Ferrite has run out" : "Signed until \(Signing.format(expiry))")
-                        .font(.title3.weight(.bold))
-                    if let team = Signing.team {
-                        Label("Signed by \(team)", systemImage: "person.badge.key.fill")
+        HStack(alignment: .center, spacing: 28) {
+            if let expiry = Signing.expiry, let days = Signing.daysLeft {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(days)")
+                            .font(.system(size: 48, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(days <= 1 ? Theme.bad : Theme.text)
+                        Text(days == 1 ? "day left" : "days left")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.secondary)
                     }
-                    Label("A reminder comes a day before, and again on the day.", systemImage: "bell.badge.fill")
+                    DaysBlocks(block: 16)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(days == 0 ? "Ferrite has run out" : "Signed until \(Signing.format(expiry))")
+                        .font(.headline)
+                        .foregroundStyle(Theme.text)
+                    if let team = Signing.team {
+                        Text("Signed by \(team)")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.secondary)
+                    }
+                    Text("A reminder comes a day before, and again on the day.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
+                        .foregroundStyle(Theme.muted)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Ferrite can't tell when it runs out")
-                        .font(.title3.weight(.bold))
+                        .font(.headline)
+                        .foregroundStyle(Theme.text)
                     Text("This copy wasn't signed by a sideloading tool.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondary)
                 }
             }
             Spacer(minLength: 0)
         }
         .padding(20)
-        .glassCard(cornerRadius: 28)
+        .card()
     }
 }
 
@@ -72,18 +59,13 @@ struct RefreshView: View {
 
     var body: some View {
         tabPage {
-            PageTitle(title: "Refresh", symbol: "arrow.clockwise.circle.fill")
+            PageTitle(title: "Refresh")
             ExpiryCard()
             AppleIDCard(model: model)
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(Theme.accent)
-                Text("Sign in and Check work now. Refresh now, signing and installing Ferrite again over itself, comes in the next builds: it also needs a pairing file and LocalDevVPN. Until then, refresh with Sideloadly, AltStore or SideStore.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(16)
-            .glassCard(cornerRadius: 22)
+            Text("Sign in and Check work now. Refresh now, signing and installing Ferrite again over itself, comes in the next builds and also needs a pairing file and LocalDevVPN. Until then, refresh with Sideloadly, AltStore or SideStore.")
+                .font(.footnote)
+                .foregroundStyle(Theme.muted)
+                .padding(.horizontal, 4)
         }
     }
 }
@@ -107,13 +89,12 @@ struct AppleIDCard: View {
         let status = signer?.status ?? "signed_out"
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(Theme.accent)
-                Text("Apple ID").font(.title3.weight(.bold))
+                Text("Apple ID")
+                    .font(.headline)
+                    .foregroundStyle(Theme.text)
                 Spacer()
                 if status == "signed_in" {
-                    Chip(text: "Signed in", symbol: "checkmark.circle.fill", color: Color.green)
+                    Chip(text: "Signed in", symbol: "checkmark.circle.fill", color: Theme.good)
                 }
             }
             switch status {
@@ -124,11 +105,11 @@ struct AppleIDCard: View {
                 }
             case "needs_code":
                 Text("Apple sent a code to your devices. Type it here.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondary)
                 if let message = signer?.message {
                     Label(message, systemImage: "exclamationmark.circle.fill")
                         .font(.footnote)
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(Theme.bad)
                 }
                 TextField("6-digit code", text: $code)
                     .keyboardType(.numberPad)
@@ -141,7 +122,6 @@ struct AppleIDCard: View {
                 } label: {
                     Label("Submit code", systemImage: "checkmark.shield.fill")
                         .font(.headline)
-                        .foregroundStyle(Color.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 4)
                 }
@@ -164,18 +144,18 @@ struct AppleIDCard: View {
                 }
             case "signed_in":
                 Label(signer?.email ?? "", systemImage: "envelope.fill")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondary)
                 if let team = signer?.team {
                     Label("Team: \(team)", systemImage: "person.2.fill")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondary)
                 }
                 if let expires = signer?.checked_expires {
                     Label(
                         "Check: Apple would sign Ferrite again until \(Signing.format(Date(timeIntervalSince1970: expires))).",
                         systemImage: "checkmark.seal.fill"
                     )
-                    .foregroundStyle(Color.green)
+                    .foregroundStyle(Theme.good)
                 }
                 HStack(spacing: 10) {
                     Button {
@@ -184,7 +164,6 @@ struct AppleIDCard: View {
                     } label: {
                         Label("Check", systemImage: "checkmark.shield.fill")
                             .font(.headline)
-                            .foregroundStyle(Color.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
                     }
@@ -198,12 +177,12 @@ struct AppleIDCard: View {
                 }
                 Text("Check makes Ferrite's signing certificate (the first time) and a new 7-day profile, without installing anything. It never removes another app's certificate.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondary)
             default:
                 if status == "failed", let message = signer?.message {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(Theme.bad)
                 }
                 HStack(spacing: 10) {
                     TextField("Apple ID (email)", text: $email)
@@ -223,18 +202,17 @@ struct AppleIDCard: View {
                 } label: {
                     Label("Sign in", systemImage: "person.crop.circle.badge.checkmark")
                         .font(.headline)
-                        .foregroundStyle(Color.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 4)
                 }
                 .ferriteButton(prominent: true)
-                Label("Your password goes only to Apple and isn't saved.", systemImage: "lock.fill")
+                Label("Your password goes only to Apple and isn't saved.", systemImage: "lock")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
         }
         .padding(20)
-        .glassCard(cornerRadius: 28)
+        .card()
     }
 }
 
@@ -245,24 +223,24 @@ struct SettingsView: View {
 
     var body: some View {
         tabPage {
-            PageTitle(title: "Settings", symbol: "gearshape.fill")
+            PageTitle(title: "Settings")
             if let settings = model.state.settings {
-                section(title: "Video", symbol: "display") {
+                section(title: "Video") {
                     Stepper(value: Binding(
                         get: { settings.render_distance },
                         set: { model.send("set:render_distance=\($0)") }
                     ), in: 2...64) {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text("Render distance")
                             Text("\(settings.render_distance) chunks")
-                                .foregroundStyle(Theme.accent)
-                                .monospacedDigit()
+                                .font(.body.monospacedDigit())
+                                .foregroundStyle(Theme.secondary)
                         }
                     }
-                    Text("Ferrite starts a world at 8 and climbs to this while the iPhone has memory for it.")
+                    Text("A world starts at 8 and climbs to this while the iPhone has memory for it.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Divider().opacity(0.4)
+                        .foregroundStyle(Theme.muted)
+                    Divider().overlay(Theme.hairline)
                     HStack {
                         Text("Max frame rate")
                         Spacer()
@@ -278,71 +256,69 @@ struct SettingsView: View {
                         .frame(maxWidth: 240)
                     }
                 }
-                section(title: "Battery", symbol: "battery.100.bolt") {
+                section(title: "Battery") {
                     Toggle(isOn: Binding(
                         get: { settings.battery },
                         set: { model.send("set:battery=\($0)") }
                     )) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Battery mode")
-                            Text("60 fps in worlds, 30 in menus, fewer threads.")
+                            Text("60 fps in worlds, 30 in menus, fewer threads")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Theme.muted)
                         }
                     }
                     .tint(Theme.accent)
                 }
-                section(title: "Extra Settings", symbol: "slider.horizontal.3") {
+                section(title: "Extra settings") {
                     ForEach(Array(settings.extras.enumerated()), id: \.offset) { index, extra in
                         if index > 0 {
-                            Divider().opacity(0.4)
+                            Divider().overlay(Theme.hairline)
                         }
                         HStack(alignment: .center, spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(extra.label)
-                                Text(extra.help).font(.footnote).foregroundStyle(.secondary)
+                                Text(extra.help).font(.footnote).foregroundStyle(Theme.muted)
                             }
                             Spacer()
                             Button {
                                 feelTap(.light)
                                 model.send("set:extra=\(index)")
                             } label: {
-                                Label("Change", systemImage: "arrow.triangle.2.circlepath")
-                                    .font(.subheadline.weight(.semibold))
+                                Text("Change")
+                                    .font(.subheadline.weight(.medium))
                             }
                             .ferriteButton(prominent: false)
                         }
                     }
                 }
-                Label("The rest is in the game: Options, then Video Settings.", systemImage: "info.circle")
+                Text("The rest is in the game: Options, then Video Settings.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
+                    .padding(.horizontal, 4)
             } else {
                 HStack {
                     Spacer()
-                    ProgressView().tint(Theme.accent)
+                    ProgressView().tint(Theme.secondary)
                     Spacer()
                 }
-                .padding(30)
-                .glassCard(cornerRadius: 28)
+                .padding(32)
+                .card()
             }
         }
     }
 
     private func section<Content: View>(
         title: String,
-        symbol: String,
         @ViewBuilder _ content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: symbol)
-                .font(.headline)
-                .foregroundStyle(Theme.accent)
+            CardHeading(title)
             content()
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 26)
+        .card()
     }
 }
 
@@ -354,43 +330,44 @@ struct AboutView: View {
 
     var body: some View {
         tabPage {
-            HStack(spacing: 22) {
-                FerriteLogo(size: 104)
-                    .shadow(color: Theme.accent.opacity(0.4), radius: 18, x: 0, y: 6)
+            HStack(spacing: 20) {
+                FerriteLogo(size: 88)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Ferrite")
-                        .font(.system(size: 40, weight: .heavy, design: .rounded))
-                    if let version = model.state.version {
-                        Chip(text: "Version \(version)", symbol: "shippingbox.fill")
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("Ferrite")
+                            .font(.system(size: 32, weight: .semibold))
+                            .foregroundStyle(Theme.text)
+                        if let version = model.state.version {
+                            Text(version)
+                                .font(.footnote.monospaced())
+                                .foregroundStyle(Theme.muted)
+                        }
                     }
                     Text("Minecraft: Java Edition on iPhone. An unofficial, experimental port of Horizon, the Rust rewrite of Java Edition.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondary)
                 }
-            }
-            .padding(22)
-            .glassCard(cornerRadius: 30)
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Credits", systemImage: "heart.fill")
-                    .font(.headline)
-                    .foregroundStyle(Theme.accent)
-                credit("Ferrite", "Made by razlua (@4rnz on Discord).")
-                credit("Horizon", "By Ludovic Marie and the Horizon contributors, MIT.")
-                credit("Microsoft sign-in", "Cazza Launcher's Azure application.")
-                Text("Not affiliated with Horizon, Mojang or Microsoft. Minecraft is a trademark of Mojang Synergies AB.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassCard(cornerRadius: 26)
+            .card()
+            VStack(alignment: .leading, spacing: 10) {
+                CardHeading("Credits")
+                credit("Ferrite", "Made by razlua (@4rnz on Discord)")
+                credit("Horizon", "By Ludovic Marie and the Horizon contributors, MIT")
+                credit("Microsoft sign-in", "Cazza Launcher's Azure application")
+                Text("Not affiliated with Horizon, Mojang or Microsoft. Minecraft is a trademark of Mojang Synergies AB.")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.muted)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
             VStack(alignment: .leading, spacing: 12) {
-                Label("Found a bug?", systemImage: "ladybug.fill")
-                    .font(.headline)
-                    .foregroundStyle(Theme.accent)
+                CardHeading("Found a bug?")
                 Text("Send the log to @4rnz on Discord, with what you did before it went wrong.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondary)
                 HStack(spacing: 10) {
                     Button {
                         feelTap(.light)
@@ -398,7 +375,6 @@ struct AboutView: View {
                     } label: {
                         Label("Send logs", systemImage: "square.and.arrow.up")
                             .font(.headline)
-                            .foregroundStyle(Color.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
                     }
@@ -416,19 +392,19 @@ struct AboutView: View {
                 if noLog {
                     Text("There's no log yet: play once first.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassCard(cornerRadius: 26)
+            .card()
         }
     }
 
     private func credit(_ name: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(name).font(.subheadline.weight(.bold))
-            Text(text).font(.subheadline).foregroundStyle(.secondary)
+            Text(name).font(.subheadline.weight(.medium))
+            Text(text).font(.subheadline).foregroundStyle(Theme.secondary)
         }
     }
 }

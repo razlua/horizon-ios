@@ -9,8 +9,9 @@ at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/relea
 
 ### Added
 
-- **Launcher.** Ferrite opens on a native launcher with four tabs. Play has your accounts with
-  their skins, a skin changer, Microsoft sign-in and the download. Refresh shows when the app's
+- **Launcher.** Ferrite opens on a native launcher with four tabs. Play has your player in 3D
+  (drag to turn it), your accounts, a skin changer with a 3D preview, Microsoft sign-in and the
+  download. Refresh shows when the app's
   signature runs out, with a reminder a day before and on the day, and lets you sign in with your
   Apple ID to check it. Settings has render distance, max frame rate, Battery mode and Extra Settings.
   About has the credits and Send logs.

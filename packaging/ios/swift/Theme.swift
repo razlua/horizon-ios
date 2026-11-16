@@ -1,182 +1,103 @@
-// Ferrite's look: the icon's yellow on charcoal, Liquid Glass on iOS 26 (with frosted material
-// before it), the background the glass sits on, and the logos.
-//
-// Liquid Glass needs the iOS 26 SDK (Xcode 26, Swift 6.2): `#if compiler(>=6.2)` keeps the file
-// building with an older Xcode, and `#available(iOS 26.0, *)` keeps iOS 16 to 25 on the material.
+// Ferrite's look: graphite greys like the game's own screens, the icon's yellow for the one thing
+// that matters on a screen (Play, the selection, the days left), and the logos. Surfaces are flat
+// steps of one grey with a hairline edge: no glows, no colored washes.
 import SwiftUI
 import UIKit
 
-/// Ferrite's colors.
+/// Ferrite's colors: one neutral ramp, three text roles, one accent.
 enum Theme {
-    /// The icon's yellow, #FFC21A.
+    /// The icon's yellow, #FFC21A: Play, the selection, the days left.
     static let accent = Color(red: 1.0, green: 0.76, blue: 0.10)
-    /// The icon's amber, #F59E0B.
-    static let amber = Color(red: 0.96, green: 0.62, blue: 0.04)
-    /// The icon's charcoal, #1F2937.
+    /// Text and symbols on the yellow.
+    static let accentInk = Color(red: 0.09, green: 0.08, blue: 0.05)
+    /// The icon's charcoal, #1F2937, for the logo's blocks.
     static let iron = Color(red: 0.12, green: 0.16, blue: 0.22)
     /// The icon's darker charcoal, #111827.
     static let ironDark = Color(red: 0.07, green: 0.09, blue: 0.15)
     /// The icon's pale yellow, #FEF3C7.
     static let cream = Color(red: 1.0, green: 0.95, blue: 0.78)
-    static let background = Color(red: 0.05, green: 0.06, blue: 0.08)
-    static let field = Color.white.opacity(0.07)
-}
 
-#if compiler(>=6.2)
-/// The glass of a card or a capsule: tinted, and answering touches when `interactive`.
-@available(iOS 26.0, *)
-private func ferriteGlass(tint: Color?, interactive: Bool) -> Glass {
-    var glass = Glass.regular
-    if let tint {
-        glass = glass.tint(tint)
-    }
-    if interactive {
-        glass = glass.interactive()
-    }
-    return glass
+    /// The graphite ramp, darkest first.
+    static let background = Color(red: 0.055, green: 0.058, blue: 0.063)
+    static let surface = Color(red: 0.098, green: 0.102, blue: 0.110)
+    static let raised = Color(red: 0.145, green: 0.149, blue: 0.157)
+    static let hairline = Color.white.opacity(0.08)
+    static let field = Color.white.opacity(0.06)
+
+    static let text = Color.white.opacity(0.94)
+    static let secondary = Color.white.opacity(0.62)
+    static let muted = Color.white.opacity(0.40)
+
+    /// Meaning only: all good, and a problem. Toned down to sit with the greys.
+    static let good = Color(red: 0.47, green: 0.80, blue: 0.53)
+    static let bad = Color(red: 0.95, green: 0.43, blue: 0.39)
 }
-#endif
 
 extension View {
-    /// A Liquid Glass card (iOS 26), or frosted material before it.
-    @ViewBuilder
-    func glassCard(cornerRadius: CGFloat = 24, tint: Color? = nil) -> some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
-            self.glassEffect(
-                ferriteGlass(tint: tint, interactive: false),
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    /// A card: one step up from the background, with a hairline edge.
+    func card(cornerRadius: CGFloat = 16) -> some View {
+        self
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Theme.hairline, lineWidth: 1)
+            }
+    }
+
+    /// A small tile (an account, More): raised when selected, with the accent's edge.
+    func tile(selected: Bool = false) -> some View {
+        self
+            .background(
+                selected ? Theme.raised : Theme.surface,
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
-        } else {
-            self.frosted(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous), tint: tint)
-        }
-        #else
-        self.frosted(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous), tint: tint)
-        #endif
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(selected ? Theme.accent : Theme.hairline, lineWidth: selected ? 1.5 : 1)
+            }
     }
 
-    /// A Liquid Glass capsule (iOS 26), or frosted material before it.
-    @ViewBuilder
-    func glassCapsule(tint: Color? = nil, interactive: Bool = false) -> some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
-            self.glassEffect(ferriteGlass(tint: tint, interactive: interactive), in: Capsule())
-        } else {
-            self.frosted(Capsule(), tint: tint)
-        }
-        #else
-        self.frosted(Capsule(), tint: tint)
-        #endif
-    }
-
-    /// A glass button (iOS 26): prominent ones in Ferrite's yellow. Bordered ones before it.
-    @ViewBuilder
+    /// Ferrite's buttons: the prominent one in the yellow, the rest a raised grey.
     func ferriteButton(prominent: Bool) -> some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
-            if prominent {
-                self.buttonStyle(.glassProminent).tint(Theme.accent)
-            } else {
-                self.buttonStyle(.glass)
-            }
-        } else {
-            self.borderedButton(prominent: prominent)
-        }
-        #else
-        self.borderedButton(prominent: prominent)
-        #endif
-    }
-
-    /// iOS 16 to 25: frosted material, a faint tint and a hairline edge in `shape`.
-    fileprivate func frosted<S: Shape>(_ shape: S, tint: Color?) -> some View {
-        self.background {
-            ZStack {
-                shape.fill(.ultraThinMaterial)
-                shape.fill((tint ?? Color.white).opacity(tint == nil ? 0.03 : 0.22))
-                shape.stroke(Color.white.opacity(0.14), lineWidth: 1)
-            }
-        }
-    }
-
-    @ViewBuilder
-    fileprivate func borderedButton(prominent: Bool) -> some View {
-        if prominent {
-            self.buttonStyle(.borderedProminent).tint(Theme.accent)
-        } else {
-            self.buttonStyle(.bordered).tint(Color.white)
-        }
+        self.buttonStyle(FerriteButtonStyle(prominent: prominent))
     }
 }
 
-/// What every tab sits on: charcoal, two glows in Ferrite's colors, and faint blocks, so the
-/// glass has something to show through it. Still, for the battery.
+struct FerriteButtonStyle: ButtonStyle {
+    let prominent: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        FerriteButtonBody(configuration: configuration, prominent: prominent)
+    }
+}
+
+private struct FerriteButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let prominent: Bool
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        configuration.label
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .foregroundStyle(prominent ? Theme.accentInk : Theme.text)
+            .background(prominent ? Theme.accent : Theme.raised, in: shape)
+            .overlay {
+                shape.stroke(prominent ? Color.clear : Theme.hairline, lineWidth: 1)
+            }
+            .opacity(enabled ? (configuration.isPressed ? 0.82 : 1) : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// What every tab sits on: the darkest grey.
 struct LauncherBackground: View {
     var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
-            ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.09, green: 0.10, blue: 0.14), Color(red: 0.03, green: 0.035, blue: 0.05)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                Circle()
-                    .fill(Theme.accent.opacity(0.32))
-                    .frame(width: width * 0.55, height: width * 0.55)
-                    .blur(radius: 90)
-                    .position(x: width * 0.10, y: height * 0.02)
-                Circle()
-                    .fill(Theme.amber.opacity(0.24))
-                    .frame(width: width * 0.5, height: width * 0.5)
-                    .blur(radius: 100)
-                    .position(x: width * 0.96, y: height * 1.02)
-                BlockField()
-            }
-        }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
-    }
-}
-
-/// Faint outlines of blocks, seen from above at an angle, scattered over the background.
-private struct BlockField: View {
-    var body: some View {
-        Canvas { context, size in
-            let edge: CGFloat = 26
-            let dx = edge * 0.8660254
-            let dy = edge * 0.5
-            var row = 0
-            var y: CGFloat = -edge
-            while y < size.height + edge {
-                var column = 0
-                var x: CGFloat = row % 2 == 0 ? dx : dx * 4
-                while x < size.width + dx {
-                    // A fixed scatter: the same blocks every time.
-                    let seed = (row &* 7919) ^ (column &* 104_729)
-                    if seed % 3 == 0 {
-                        var outline = Path()
-                        outline.move(to: CGPoint(x: x, y: y))
-                        outline.addLine(to: CGPoint(x: x + dx, y: y + dy))
-                        outline.addLine(to: CGPoint(x: x + dx, y: y + dy + edge))
-                        outline.addLine(to: CGPoint(x: x, y: y + 2 * dy + edge))
-                        outline.addLine(to: CGPoint(x: x - dx, y: y + dy + edge))
-                        outline.addLine(to: CGPoint(x: x - dx, y: y + dy))
-                        outline.closeSubpath()
-                        outline.move(to: CGPoint(x: x - dx, y: y + dy))
-                        outline.addLine(to: CGPoint(x: x, y: y + 2 * dy))
-                        outline.addLine(to: CGPoint(x: x + dx, y: y + dy))
-                        outline.move(to: CGPoint(x: x, y: y + 2 * dy))
-                        outline.addLine(to: CGPoint(x: x, y: y + 2 * dy + edge))
-                        context.stroke(outline, with: .color(Color.white.opacity(0.045)), lineWidth: 1)
-                    }
-                    x += dx * 6
-                    column += 1
-                }
-                y += edge * 2.25
-                row += 1
-            }
-        }
+        Theme.background
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
     }
 }
 
@@ -190,11 +111,7 @@ struct FerriteLogo: View {
             let square = CGRect(x: 0, y: 0, width: canvas.width, height: canvas.height)
             context.fill(
                 Path(roundedRect: square, cornerRadius: 230 * k, style: .continuous),
-                with: .linearGradient(
-                    Gradient(colors: [Theme.accent, Theme.amber]),
-                    startPoint: CGPoint(x: 0, y: 0),
-                    endPoint: CGPoint(x: 0, y: canvas.height)
-                )
+                with: .color(Theme.accent)
             )
             let blocks: [(CGFloat, CGFloat)] = [
                 (280, 220), (400, 220), (520, 220), (280, 340), (280, 460), (400, 460), (520, 460),
@@ -242,51 +159,90 @@ struct MicrosoftLogo: View {
     }
 }
 
-/// A small glass capsule with a symbol: the version, the days left, a status.
+/// A quiet status: a small symbol and a short text, in one color, with no capsule.
 struct Chip: View {
     let text: String
     let symbol: String
-    var color: Color = .white
+    var color: Color = Theme.secondary
 
     var body: some View {
-        Label(text, systemImage: symbol)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(color)
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .glassCapsule()
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.caption)
+            Text(text)
+                .font(.footnote.weight(.medium))
+                .monospacedDigit()
+        }
+        .foregroundStyle(color)
+        .lineLimit(1)
     }
 }
 
-/// A tab's page: the background, and its content scrolling over it.
+/// Ferrite's signature: the 7 days a free signature lasts, as 7 blocks, the ones left filled.
+struct DaysBlocks: View {
+    var block: CGFloat = 10
+
+    var body: some View {
+        let days = Signing.daysLeft
+        let filled = days.map { max(0, min(7, $0)) } ?? 0
+        let color: Color = days.map { $0 <= 1 ? Theme.bad : Theme.accent } ?? Theme.muted
+        HStack(spacing: max(2, (block * 0.3).rounded())) {
+            ForEach(0..<7, id: \.self) { i in
+                RoundedRectangle(cornerRadius: max(1.5, block * 0.18), style: .continuous)
+                    .fill(i < filled ? color : Color.white.opacity(0.09))
+                    .frame(width: block, height: block)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(days.map { "\($0) of 7 days left" } ?? "Days left unknown")
+    }
+}
+
+/// "5 days left", "1 day left", "Run out".
+func daysLeftText(_ days: Int) -> String {
+    days == 0 ? "Run out" : (days == 1 ? "1 day left" : "\(days) days left")
+}
+
+/// A tab's page: the background, and its content scrolling over it. The last card scrolls up
+/// clear of the floating tab bar.
 func tabPage<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
     ZStack {
         LauncherBackground()
         ScrollView {
             VStack(alignment: .leading, spacing: 16, content: content)
                 .padding(.horizontal, 28)
-                .padding(.vertical, 18)
+                .padding(.top, 20)
+                .padding(.bottom, 32)
                 .frame(maxWidth: 760, alignment: .leading)
                 .frame(maxWidth: .infinity)
         }
     }
 }
 
-/// A tab's title, with its symbol in Ferrite's yellow.
+/// A tab's title.
 struct PageTitle: View {
     let title: String
-    let symbol: String
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(Theme.accent)
-            Text(title)
-                .font(.system(size: 32, weight: .heavy, design: .rounded))
-        }
-        .padding(.bottom, 2)
+        Text(title)
+            .font(.system(size: 28, weight: .semibold))
+            .foregroundStyle(Theme.text)
+            .padding(.bottom, 4)
+    }
+}
+
+/// A card's small heading: sentence case, secondary, no symbol.
+struct CardHeading: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Theme.secondary)
     }
 }
 
@@ -294,7 +250,11 @@ struct PageTitle: View {
 extension View {
     func fieldStyle() -> some View {
         self.padding(12)
-            .background(Theme.field, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(Theme.field, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Theme.hairline, lineWidth: 1)
+            }
     }
 }
 

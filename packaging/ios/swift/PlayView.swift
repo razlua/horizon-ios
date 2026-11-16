@@ -24,8 +24,8 @@ struct PlayView: View {
             LauncherBackground()
             content
                 .padding(.horizontal, 28)
-                .padding(.top, 14)
-                .padding(.bottom, 6)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.opacity)
         }
@@ -53,36 +53,30 @@ struct PlayView: View {
     private var home: some View {
         let index = max(0, min(selected, accounts.count - 1))
         let account = accounts[index]
-        return HStack(alignment: .center, spacing: 26) {
-            VStack(spacing: 10) {
-                SkinFigure(uuid: account.uuid, height: 205)
-                    .padding(.top, 6)
-                    .background(alignment: .bottom) {
-                        Ellipse()
-                            .fill(Color.black.opacity(0.4))
-                            .frame(width: 110, height: 16)
-                            .blur(radius: 6)
-                            .offset(y: 6)
-                    }
+        return HStack(alignment: .center, spacing: 24) {
+            // The one rich thing on the screen: the player, in 3D.
+            VStack(spacing: 8) {
+                SkinFigure(uuid: account.uuid, height: 212)
                 Text(account.name)
-                    .font(.title3.weight(.bold))
+                    .font(.headline)
+                    .foregroundStyle(Theme.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Button {
                     changingSkin = true
                 } label: {
-                    Label("Change skin", systemImage: "tshirt.fill")
-                        .font(.subheadline.weight(.semibold))
+                    Label("Change skin", systemImage: "tshirt")
+                        .font(.subheadline.weight(.medium))
                 }
                 .ferriteButton(prominent: false)
             }
-            .frame(width: 190)
+            .frame(width: 196)
             .padding(.vertical, 16)
             .padding(.horizontal, 12)
-            .glassCard(cornerRadius: 32)
+            .card(cornerRadius: 20)
 
             VStack(alignment: .leading, spacing: 12) {
-                header(greeting: "Welcome back, \(account.name)")
+                header(subtitle: nil)
                 Button {
                     feelTap()
                     model.send("play:\(index)")
@@ -93,15 +87,14 @@ struct PlayView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(Color.black)
+                    .font(.title3.weight(.semibold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 8)
                 }
                 .ferriteButton(prominent: true)
                 expiryNote
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         ForEach(Array(accounts.enumerated()), id: \.offset) { i, other in
                             accountChip(other, at: i, selected: i == index)
                         }
@@ -109,16 +102,17 @@ struct PlayView: View {
                             model.send("add_account")
                         } label: {
                             Label("Add account", systemImage: "plus")
-                                .font(.subheadline.weight(.semibold))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 9)
-                                .glassCapsule(interactive: true)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Theme.secondary)
+                                .frame(height: 40)
+                                .padding(.horizontal, 12)
+                                .tile()
                         }
                         .buttonStyle(.plain)
                     }
                     .padding(.vertical, 2)
                 }
-                HStack(spacing: 10) {
+                HStack(spacing: 16) {
                     Menu {
                         Button {
                             model.send("offline")
@@ -132,11 +126,9 @@ struct PlayView: View {
                             Label("Remove an account", systemImage: "person.crop.circle.badge.minus")
                         }
                     } label: {
-                        Label("More", systemImage: "ellipsis.circle")
-                            .font(.footnote.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .glassCapsule(interactive: true)
+                        Label("More", systemImage: "ellipsis")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(Theme.secondary)
                     }
                     updateBanner
                     Spacer(minLength: 0)
@@ -156,18 +148,16 @@ struct PlayView: View {
             selected = i
         } label: {
             HStack(spacing: 8) {
-                HeadAvatar(uuid: account.uuid, size: 26)
+                HeadAvatar(uuid: account.uuid, size: 24)
                 Text(account.name)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(isSelected ? Theme.text : Theme.secondary)
                     .lineLimit(1)
             }
-            .padding(.leading, 6)
-            .padding(.trailing, 14)
-            .padding(.vertical, 6)
-            .glassCapsule(tint: isSelected ? Theme.accent.opacity(0.45) : nil, interactive: true)
-            .overlay {
-                Capsule().stroke(isSelected ? Theme.accent : Color.clear, lineWidth: 1.5)
-            }
+            .frame(height: 40)
+            .padding(.leading, 8)
+            .padding(.trailing, 12)
+            .tile(selected: isSelected)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -186,29 +176,36 @@ struct PlayView: View {
         }
     }
 
-    /// The logo, the name, a greeting, and the version and days-left chips.
-    private func header(greeting: String) -> some View {
+    /// The logo and the name (with a line under it on the sign-in screens), then the days left
+    /// as blocks and the version, quiet.
+    private func header(subtitle: String?) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            FerriteLogo(size: 42)
-                .shadow(color: Theme.accent.opacity(0.35), radius: 10, x: 0, y: 2)
-            VStack(alignment: .leading, spacing: 1) {
+            FerriteLogo(size: 36)
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Ferrite")
-                    .font(.system(size: 26, weight: .heavy, design: .rounded))
-                Text(greeting)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 8)
             if let days = Signing.daysLeft {
-                Chip(
-                    text: days == 0 ? "Run out" : (days == 1 ? "1 day left" : "\(days) days left"),
-                    symbol: days <= 2 ? "exclamationmark.triangle.fill" : "checkmark.seal.fill",
-                    color: days < 2 ? Color.red : (days == 2 ? Theme.accent : Color.green)
-                )
+                HStack(spacing: 8) {
+                    DaysBlocks(block: 8)
+                    Text(daysLeftText(days))
+                        .font(.footnote.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(days <= 1 ? Theme.bad : Theme.secondary)
+                }
             }
             if let version = state.version {
-                Chip(text: "v\(version)", symbol: "shippingbox.fill")
+                Text(version)
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(Theme.muted)
             }
         }
     }
@@ -220,8 +217,8 @@ struct PlayView: View {
                 days == 0 ? "Ferrite has run out: sign it again to keep playing." : "Refresh before \(Signing.format(expiry)), or Ferrite won't open.",
                 systemImage: "clock.fill"
             )
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(days <= 1 ? Color.red : Theme.accent)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(days <= 1 ? Theme.bad : Theme.accent)
         }
     }
 
@@ -232,15 +229,12 @@ struct PlayView: View {
                 model.send("get_update")
             } label: {
                 Label(
-                    update.installer.map { "Version \(update.version) is out: update with \($0)" } ?? "Version \(update.version) is out: get it",
-                    systemImage: "arrow.down.circle.fill"
+                    update.installer.map { "Update to \(update.version) with \($0)" } ?? "Get version \(update.version)",
+                    systemImage: "arrow.down.circle"
                 )
-                .font(.footnote.weight(.semibold))
+                .font(.footnote.weight(.medium))
                 .foregroundStyle(Theme.accent)
                 .lineLimit(1)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .glassCapsule(interactive: true)
             }
             .buttonStyle(.plain)
         }
@@ -251,7 +245,7 @@ struct PlayView: View {
             ProgressView(value: Double(unpacking.done), total: Double(unpacking.total)) {
                 Text("Unpacking your game files. The first start takes a minute.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondary)
             }
             .tint(Theme.accent)
         }
@@ -261,12 +255,12 @@ struct PlayView: View {
 
     private func centered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                header(greeting: "Minecraft: Java Edition on iPhone")
-                VStack(alignment: .leading, spacing: 14, content: content)
-                    .padding(22)
+            VStack(alignment: .leading, spacing: 16) {
+                header(subtitle: "Minecraft: Java Edition on iPhone")
+                VStack(alignment: .leading, spacing: 12, content: content)
+                    .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassCard(cornerRadius: 28)
+                    .card(cornerRadius: 16)
                 unpackingBar
             }
             .frame(maxWidth: 640)
@@ -275,12 +269,12 @@ struct PlayView: View {
         }
     }
 
-    private func cardTitle(_ title: String, symbol: String, color: Color = Theme.accent) -> some View {
+    private func cardTitle(_ title: String, symbol: String, color: Color = Theme.secondary) -> some View {
         HStack(spacing: 10) {
             Image(systemName: symbol).foregroundStyle(color)
             Text(title)
         }
-        .font(.title2.weight(.bold))
+        .font(.title3.weight(.semibold))
     }
 
     private func primary(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
@@ -290,7 +284,6 @@ struct PlayView: View {
         } label: {
             Label(title, systemImage: symbol)
                 .font(.headline)
-                .foregroundStyle(Color.black)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
         }
@@ -329,24 +322,24 @@ struct PlayView: View {
         let stage = state.setup?.stage ?? ""
         cardTitle("Getting the game files", symbol: "arrow.down.circle.fill")
         Text("Ferrite downloads your Minecraft 26.3 from Mojang (about 520 MB) and its own tables, and sets them up. This happens once: keep Ferrite open, on Wi-Fi.")
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.secondary)
         if total > 0 {
             let fraction = min(1, Double(done) / Double(total))
             HStack(alignment: .firstTextBaseline) {
                 Text("\(Int(fraction * 100))%")
-                    .font(.system(size: 34, weight: .heavy, design: .rounded))
+                    .font(.system(size: 34, weight: .semibold))
                     .monospacedDigit()
                     .contentTransition(.numericText())
                 Spacer()
                 Text("\(megabytes(done)) of \(megabytes(total)) MB")
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondary)
             }
             ProgressView(value: fraction)
                 .tint(Theme.accent)
                 .scaleEffect(x: 1, y: 1.6, anchor: .center)
-            Text(stage).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+            Text(stage).font(.footnote).foregroundStyle(Theme.secondary).lineLimit(2)
         } else {
             waiting(stage.isEmpty ? "Starting the download..." : "\(stage)...")
         }
@@ -357,16 +350,16 @@ struct PlayView: View {
     }
 
     @ViewBuilder private var setupFailed: some View {
-        cardTitle("The download stopped", symbol: "exclamationmark.triangle.fill", color: Color.red)
-        Text(state.setup?.error ?? "").foregroundStyle(.secondary)
-        Text("Try again goes on where it stopped.").font(.footnote).foregroundStyle(.secondary)
+        cardTitle("The download stopped", symbol: "exclamationmark.triangle.fill", color: Theme.bad)
+        Text(state.setup?.error ?? "").foregroundStyle(Theme.secondary)
+        Text("Try again goes on where it stopped.").font(.footnote).foregroundStyle(Theme.secondary)
         primary("Try again", symbol: "arrow.clockwise") { model.send("retry_setup") }
     }
 
     @ViewBuilder private var signInFirst: some View {
         cardTitle("Sign in once first", symbol: "person.crop.circle.badge.exclamationmark")
         Text("Ferrite downloads the game files from Mojang with a Microsoft account that owns Minecraft: Java Edition. Sign in once; after that you can play offline too.")
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.secondary)
         primary("Sign in", symbol: "person.crop.circle") { model.send("back") }
     }
 
@@ -374,9 +367,9 @@ struct PlayView: View {
         let account = state.account
         switch account?.kind ?? "asking" {
         case "choose":
-            cardTitle("Remove an account", symbol: "person.crop.circle.badge.minus", color: Color.red)
+            cardTitle("Remove an account", symbol: "person.crop.circle.badge.minus", color: Theme.bad)
             Text("Tap an account to remove it from this iPhone. Its worlds stay.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondary)
             ForEach(Array(accounts.enumerated()), id: \.offset) { index, other in
                 Button(role: .destructive) {
                     model.send("remove:\(index)")
@@ -398,14 +391,14 @@ struct PlayView: View {
         case "code":
             HStack(spacing: 12) {
                 MicrosoftLogo(size: 24)
-                Text("Sign in with Microsoft").font(.title2.weight(.bold))
+                Text("Sign in with Microsoft").font(.title3.weight(.semibold))
             }
             Text("Tap Open sign-in page and sign in with the Microsoft account that owns Minecraft: Java Edition, then come back here.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondary)
             if let code = account?.code {
                 HStack(spacing: 14) {
                     Text(code)
-                        .font(.system(size: 42, weight: .heavy, design: .monospaced))
+                        .font(.system(size: 42, weight: .semibold, design: .monospaced))
                         .textSelection(.enabled)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -429,24 +422,24 @@ struct PlayView: View {
             if let uri = account?.uri {
                 Text("Or open \(uri) on any device and enter the code.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondary)
             }
             HStack(spacing: 10) {
                 ProgressView().tint(Theme.accent)
-                Text("Waiting for you to sign in...").font(.footnote).foregroundStyle(.secondary)
+                Text("Waiting for you to sign in...").font(.footnote).foregroundStyle(Theme.secondary)
             }
             backOrOffline
         case "signed":
             waiting("Signed in as \(account?.name ?? ""). Starting...")
         case "failed":
-            cardTitle("Sign-in didn't work", symbol: "exclamationmark.triangle.fill", color: Color.red)
-            Text(account?.error ?? "").foregroundStyle(.secondary)
+            cardTitle("Sign-in didn't work", symbol: "exclamationmark.triangle.fill", color: Theme.bad)
+            Text(account?.error ?? "").foregroundStyle(Theme.secondary)
             primary("Try again", symbol: "arrow.clockwise") { model.send("retry") }
             backOrOffline
         case "offline_name":
             cardTitle("Play offline", symbol: "wifi.slash")
             Text("Your name in single player and on offline-mode servers: 3 to 16 letters, numbers or _.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondary)
             TextField("Name", text: $offlineName)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -456,7 +449,7 @@ struct PlayView: View {
             if let problem = account?.problem {
                 Label(problem, systemImage: "exclamationmark.circle.fill")
                     .font(.footnote)
-                    .foregroundStyle(Color.red)
+                    .foregroundStyle(Theme.bad)
             }
             primary("Play", symbol: "play.fill") { model.send("offline_name:\(offlineName)") }
             secondary("Back", symbol: "chevron.left") { model.send("back") }
