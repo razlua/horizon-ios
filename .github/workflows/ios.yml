@@ -39,6 +39,14 @@ jobs:
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
+      # Xcode 26 (the iOS 26 SDK, Swift 6.2) when the image has it, for the launcher's Liquid
+      # Glass (packaging/ios/swift/Theme.swift); the image's default is Xcode 16. Without it the
+      # launcher builds with its material fallback.
+      - name: Xcode 26
+        run: |
+          x="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$x" ]; then sudo xcode-select -s "$x"; fi
+          xcodebuild -version
       - name: Rust with the iOS target
         run: |
           rustup toolchain install stable --profile minimal
@@ -117,32 +125,40 @@ jobs:
 
   # A look at the app without a phone: the same source (without the native mods, voice chat
   # without Opus) built for the iOS Simulator, started there with no game files, and screenshots
-  # of what it shows, with its log. Run by hand (`screenshots`). Apple Silicon: the Simulator
-  # there runs arm64 apps.
+  # of what it shows, with its log. Run by hand (`screenshots`). Intel, whose Simulator runs
+  # x86_64 apps: the Apple Silicon machines were often all taken, and the job was cancelled.
   simulator:
     if: ${{ inputs.screenshots }}
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+      # Xcode 26 (the iOS 26 SDK, Swift 6.2) when the image has it, for the launcher's Liquid
+      # Glass (packaging/ios/swift/Theme.swift); the image's default is Xcode 16. Without it the
+      # launcher builds with its material fallback.
+      - name: Xcode 26
+        run: |
+          x="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$x" ]; then sudo xcode-select -s "$x"; fi
+          xcodebuild -version
       - name: Rust with the Simulator target
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-          rustup target add aarch64-apple-ios-sim
+          rustup target add x86_64-apple-ios
       - name: Swift launcher
-        run: bash packaging/ios/swift/build.sh iphonesimulator arm64-apple-ios16.0-simulator
+        run: bash packaging/ios/swift/build.sh iphonesimulator x86_64-apple-ios16.0-simulator
       - uses: Swatinem/rust-cache@v2
         with:
           key: ios-simulator
       - name: Build
         run: >
-          cargo build --profile fast --target aarch64-apple-ios-sim
+          cargo build --profile fast --target x86_64-apple-ios
           -p horizon-client --bin horizon-client
           --no-default-features --features audio
       - name: Package
         run: |
-          bash packaging/ios/package.sh target/aarch64-apple-ios-sim/fast/horizon-client dist/Horizon-simulator.ipa
+          bash packaging/ios/package.sh target/x86_64-apple-ios/fast/horizon-client dist/Horizon-simulator.ipa
           cd dist && unzip -q Horizon-simulator.ipa
       - name: Run in the Simulator
         run: |

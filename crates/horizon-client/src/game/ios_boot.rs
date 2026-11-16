@@ -90,6 +90,14 @@ struct Shared {
     version: u64,
     /// A newer build that is out, from `ios_update`.
     newer: Option<super::ios_update::Newer>,
+    /// The launcher's skin changer: its last upload.
+    skin: Option<SkinUpload>,
+}
+
+/// Where the skin changer's upload stands: "working", "done" or "failed" (with why).
+struct SkinUpload {
+    status: &'static str,
+    message: Option<String>,
 }
 
 type State = Arc<Mutex<Shared>>;
@@ -266,6 +274,7 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::R
         attempt: 0,
         version: 1,
         newer: None,
+        skin: None,
     }));
     let checking = state.clone();
     spawn("Update check", move || {
@@ -821,7 +830,15 @@ impl Boot {
         json!({
             "version": horizon_threads::ios_bundle::info("CFBundleShortVersionString"),
             "account": account,
-            "accounts": shared.accounts.iter().map(|a| a.name.clone()).collect::<Vec<_>>(),
+            "accounts": shared
+                .accounts
+                .iter()
+                .map(|a| json!({ "name": a.name, "uuid": a.uuid }))
+                .collect::<Vec<_>>(),
+            "skin": shared
+                .skin
+                .as_ref()
+                .map(|s| json!({ "status": s.status, "message": s.message })),
             "setup": {
                 "kind": kind,
                 "error": error,
@@ -860,6 +877,62 @@ impl Boot {
         update(&self.state, |_| {});
     }
 
+    /// The skin changer's Upload: `.skin-upload.png` (written by the launcher in the game folder)
+    /// as the skin of the saved account at `index`, on a thread of its own. A fresh Minecraft
+    /// token comes from the account's refresh token, whose successor is kept.
+    fn upload_skin(&mut self, index: usize, slim: bool) {
+        let saved = self
+            .state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .accounts
+            .get(index)
+            .cloned();
+        let Some(saved) = saved else {
+            return log::warn!("Horizon iOS: no saved account {index} for the skin");
+        };
+        let path = std::env::current_dir()
+            .map(|dir| dir.join(".skin-upload.png"))
+            .unwrap_or_else(|_| ".skin-upload.png".into());
+        update(&self.state, |s| {
+            s.skin = Some(SkinUpload {
+                status: "working",
+                message: None,
+            })
+        });
+        let state = self.state.clone();
+        spawn("Skin", move || {
+            let result = (|| -> std::result::Result<(), String> {
+                let png = std::fs::read(&path).map_err(|e| format!("The skin file can't be read: {e}"))?;
+                let _ = std::fs::remove_file(&path);
+                if !horizon_client::ios_screen::png_size(&png)
+                    .is_some_and(horizon_client::ios_screen::is_skin_size)
+                {
+                    return Err("A skin is a PNG of 64 x 64 pixels (or the old 64 x 32).".into());
+                }
+                let signed = ios_account::resume(&saved)?;
+                ios_account::keep_token(&signed);
+                ios_account::upload_skin(&signed.access_token, &png, slim)
+            })();
+            match &result {
+                Ok(()) => log::info!("Horizon iOS: the skin of {} changed", saved.name),
+                Err(e) => log::warn!("Horizon iOS: the skin didn't change: {e}"),
+            }
+            update(&state, |s| {
+                s.skin = Some(match result {
+                    Ok(()) => SkinUpload {
+                        status: "done",
+                        message: None,
+                    },
+                    Err(e) => SkinUpload {
+                        status: "failed",
+                        message: Some(e),
+                    },
+                })
+            });
+        });
+    }
+
     /// What the player tapped in the launcher (`ios_screen::parse_launcher_action`).
     fn launcher_actions(&mut self) {
         use horizon_client::ios_screen::{LauncherAction, parse_launcher_action};
@@ -887,6 +960,7 @@ impl Boot {
                     }
                 }
                 Some(LauncherAction::SignerSignOut) => ferrite_signer::sign_out(),
+                Some(LauncherAction::SkinUpload { index, slim }) => self.upload_skin(index, slim),
                 None => log::warn!("Horizon iOS: the launcher sent an unknown action {text:?}"),
             }
         }
@@ -957,8 +1031,9 @@ impl ApplicationHandler for Boot {
         // The launcher first: it needs only the window.
         self.show_launcher();
         // The iOS Simulator's GPU can't run the renderer (no indirect drawing): there the
-        // launcher alone shows, for the screenshots of the simulator job (ios.yml).
-        if cfg!(target_abi = "sim") {
+        // launcher alone shows, for the screenshots of the simulator job (ios.yml). An x86_64
+        // iOS build is always a Simulator's, though its target has no "sim" abi.
+        if cfg!(any(target_abi = "sim", all(target_os = "ios", target_arch = "x86_64"))) {
             return;
         }
         let made = (|| -> super::Result<_> {

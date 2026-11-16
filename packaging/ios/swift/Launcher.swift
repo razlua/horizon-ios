@@ -28,13 +28,6 @@ final class LauncherModel: ObservableObject {
     }
 }
 
-/// Ferrite's colors: the icon's yellow on charcoal.
-enum Theme {
-    static let accent = Color(red: 1.0, green: 0.76, blue: 0.10)
-    static let background = Color(red: 0.07, green: 0.08, blue: 0.11)
-    static let card = Color.white.opacity(0.06)
-}
-
 struct RootView: View {
     @ObservedObject var model: LauncherModel
     /// The tab shown first: Play, or the one `FERRITE_TAB` names (the simulator job's
@@ -71,7 +64,7 @@ final class LauncherController: UIHostingController<RootView> {
         super.viewDidLoad()
         // The phone may be in light mode: the launcher stays dark, with light text and tab bar.
         overrideUserInterfaceStyle = .dark
-        view.backgroundColor = UIColor(red: 0.07, green: 0.08, blue: 0.11, alpha: 1)
+        view.backgroundColor = UIColor(Theme.background)
     }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
     override var prefersStatusBarHidden: Bool { true }

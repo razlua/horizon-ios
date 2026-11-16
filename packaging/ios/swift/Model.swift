@@ -6,12 +6,25 @@ import Foundation
 struct LauncherState: Decodable {
     var version: String?
     var account: AccountState?
-    var accounts: [String]?
+    var accounts: [AccountInfo]?
     var setup: SetupState?
     var unpacking: Counts?
     var update: UpdateInfo?
     var settings: SettingsState?
     var signer: SignerState?
+    var skin: SkinUploadState?
+}
+
+/// A saved Microsoft account: its Minecraft name and uuid (without dashes), for its skin.
+struct AccountInfo: Decodable {
+    var name: String
+    var uuid: String
+}
+
+/// The skin changer's last upload. `status`: working, done or failed (with `message`).
+struct SkinUploadState: Decodable {
+    var status: String
+    var message: String?
 }
 
 /// Signing Ferrite again with an Apple ID (crates/ferrite-signer). `status`: signed_out,
