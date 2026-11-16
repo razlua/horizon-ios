@@ -19,9 +19,23 @@ ls -lh "$out/libHorizonUI.a"
 # toolchain's back-deployment ones (swiftCompatibility56 and the like).
 toolchain="$(cd "$(dirname "$(xcrun --find swiftc)")/../lib/swift/$sdk_name" && pwd)"
 runtime="$sdk/usr/lib/swift:$toolchain"
+# The C compiler's runtime: Swift's `#available` checks (the launcher's Liquid Glass, iOS 26) call
+# ___isPlatformVersionAtLeast from it, and the Rust link (cc -nodefaultlibs) doesn't add it.
+clang_dir="$(cd "$(dirname "$(xcrun --find clang)")/../lib/clang" && pwd)"
+clang_version="$(ls "$clang_dir" | sort -V | tail -1)"
+case "$sdk_name" in
+  iphoneos) clang_rt="$clang_dir/$clang_version/lib/darwin/libclang_rt.ios.a" ;;
+  *) clang_rt="$clang_dir/$clang_version/lib/darwin/libclang_rt.iossim.a" ;;
+esac
+if [ ! -f "$clang_rt" ]; then
+  echo "no compiler runtime at $clang_rt" >&2
+  exit 1
+fi
 if [ -n "${GITHUB_ENV:-}" ]; then
   echo "HORIZON_IOS_SWIFT_LIB=$out/libHorizonUI.a" >> "$GITHUB_ENV"
   echo "HORIZON_IOS_SWIFT_RUNTIME=$runtime" >> "$GITHUB_ENV"
+  echo "HORIZON_IOS_CLANG_RT=$clang_rt" >> "$GITHUB_ENV"
 fi
 echo "HORIZON_IOS_SWIFT_LIB=$out/libHorizonUI.a"
 echo "HORIZON_IOS_SWIFT_RUNTIME=$runtime"
+echo "HORIZON_IOS_CLANG_RT=$clang_rt"
