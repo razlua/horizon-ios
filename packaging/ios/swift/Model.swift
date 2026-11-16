@@ -11,6 +11,19 @@ struct LauncherState: Decodable {
     var unpacking: Counts?
     var update: UpdateInfo?
     var settings: SettingsState?
+    var signer: SignerState?
+}
+
+/// Signing Ferrite again with an Apple ID (crates/ferrite-signer). `status`: signed_out,
+/// signing_in, needs_code, working, signed_in or failed.
+struct SignerState: Decodable {
+    var status: String
+    var message: String?
+    var email: String?
+    var team: String?
+    var sms_to: String?
+    var checked_bundle_id: String?
+    var checked_expires: Double?
 }
 
 /// The game's settings the Settings tab changes.

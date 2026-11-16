@@ -40,6 +40,10 @@ pub enum LauncherAction {
     OfflineName(String),
     /// A setting from the launcher's Settings tab: `set:<key>=<value>`.
     Setting { key: String, value: String },
+    /// The Refresh tab's Check: what a new signature would be.
+    SignerCheck,
+    /// The Refresh tab's Sign out of the Apple ID.
+    SignerSignOut,
 }
 
 /// The launcher's action text (`play:0`, `add_account`, `offline_name:Steve`, ...). None for one
@@ -62,6 +66,8 @@ pub fn parse_launcher_action(text: &str) -> Option<LauncherAction> {
         "retry_setup" => Action::RetrySetup,
         "get_update" => Action::GetUpdate,
         "offline_name" => return Some(LauncherAction::OfflineName(arg?.to_owned())),
+        "signer_check" => return Some(LauncherAction::SignerCheck),
+        "signer_sign_out" => return Some(LauncherAction::SignerSignOut),
         "set" => {
             let (key, value) = arg?.split_once('=')?;
             return Some(LauncherAction::Setting {
@@ -94,6 +100,7 @@ mod launcher_tests {
             Some(LauncherAction::Setting { key: "render_distance".into(), value: "16".into() })
         );
         assert_eq!(parse_launcher_action("set:render_distance"), None);
+        assert_eq!(parse_launcher_action("signer_check"), Some(LauncherAction::SignerCheck));
         assert_eq!(parse_launcher_action("play"), None);
         assert_eq!(parse_launcher_action("play:x"), None);
         assert_eq!(parse_launcher_action("fly"), None);

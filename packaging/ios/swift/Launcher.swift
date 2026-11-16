@@ -46,7 +46,7 @@ struct RootView: View {
             PlayView(model: model)
                 .tabItem { Label("Play", systemImage: "play.fill") }
                 .tag("play")
-            RefreshView()
+            RefreshView(model: model)
                 .tabItem { Label("Refresh", systemImage: "arrow.clockwise") }
                 .tag("refresh")
             SettingsView(model: model)

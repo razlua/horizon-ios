@@ -829,6 +829,7 @@ impl Boot {
             "unpacking": shared.unpacking.then(|| json!({ "done": unpacked, "total": to_unpack })),
             "update": update,
             "settings": launcher_settings(),
+            "signer": ferrite_signer::state_json(),
         })
         .to_string()
     }
@@ -874,6 +875,15 @@ impl Boot {
                     self.act(Action::PlayOffline);
                 }
                 Some(LauncherAction::Setting { key, value }) => self.launcher_setting(&key, &value),
+                // The Refresh tab: what a new signature for this app would be, and signing out.
+                // (The Apple ID and its password go to ferrite_signer directly, never here.)
+                Some(LauncherAction::SignerCheck) => {
+                    match horizon_threads::ios_bundle::info("CFBundleIdentifier") {
+                        Some(bundle_id) => ferrite_signer::check(&bundle_id),
+                        None => log::warn!("Horizon iOS: no bundle ID to sign"),
+                    }
+                }
+                Some(LauncherAction::SignerSignOut) => ferrite_signer::sign_out(),
                 None => log::warn!("Horizon iOS: the launcher sent an unknown action {text:?}"),
             }
         }
@@ -1054,7 +1064,8 @@ impl ApplicationHandler for Boot {
         // The unpacking's and the setup's progress draw again too.
         let version = self.state.lock().unwrap_or_else(|e| e.into_inner()).version
             + UNPACKED[0].load(std::sync::atomic::Ordering::Relaxed) as u64
-            + self.progress.done.load(std::sync::atomic::Ordering::Relaxed) / 1_000_000;
+            + self.progress.done.load(std::sync::atomic::Ordering::Relaxed) / 1_000_000
+            + ferrite_signer::version();
         // The launcher shows the same state: sent again when it changes.
         if self.launcher && version != self.sent {
             self.sent = version;
