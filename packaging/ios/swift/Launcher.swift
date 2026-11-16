@@ -16,9 +16,22 @@ final class LauncherModel: ObservableObject {
     static let shared = LauncherModel()
     @Published var state = LauncherState()
 
+    /// The simulator job's look at the Play tab with saved accounts (`FERRITE_DEMO=1`,
+    /// .github/workflows/ios.yml): two public players in place of the sign-in. A phone never
+    /// sets it.
+    private let demo = ProcessInfo.processInfo.environment["FERRITE_DEMO"] == "1"
+
     func apply(_ json: String) {
         if let data = json.data(using: .utf8),
-           let state = try? JSONDecoder().decode(LauncherState.self, from: data) {
+           var state = try? JSONDecoder().decode(LauncherState.self, from: data) {
+            if demo {
+                state.account = AccountState(kind: "choose", removing: false)
+                state.accounts = [
+                    AccountInfo(name: "Notch", uuid: "069a79f444e94726a5befca90e38aaf5"),
+                    AccountInfo(name: "jeb_", uuid: "853c80ef3c3749fdaa49938b674adae6"),
+                ]
+                state.setup = nil
+            }
             self.state = state
         }
     }

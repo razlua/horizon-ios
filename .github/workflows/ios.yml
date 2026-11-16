@@ -184,6 +184,10 @@ jobs:
             sleep 15
             xcrun simctl io "$udid" screenshot "shots/tab-$tab.png" || true
           done
+          # The Play tab with saved accounts and their skins (FERRITE_DEMO, Launcher.swift).
+          SIMCTL_CHILD_FERRITE_DEMO=1 xcrun simctl launch --terminate-running-process "$udid" "$bundle"
+          sleep 20
+          xcrun simctl io "$udid" screenshot "shots/tab-play-accounts.png" || true
           data="$(xcrun simctl get_app_container "$udid" "$bundle" data || true)"
           find "$data" -name '*.log' -exec cp {} shots/ \; || true
           xcrun simctl spawn "$udid" log show --last 2m --predicate 'process == "horizon-client"' > shots/system.log || true
