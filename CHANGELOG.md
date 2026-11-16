@@ -17,6 +17,10 @@ at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/relea
 - **Speed Trade.** A >> button next to a trade's result keeps making the selected trade until you
   stop it or the villager runs out. Speed (4, 10 or 20 a second) and Hold or Tap are in Extra
   Settings. Works in single player and on servers.
+- **Inventory by finger.** Hold a stack and slide across slots to split it evenly, as a mouse
+  drag does on PC. Hold still on the first slot before sliding to put one item in each. Lists
+  (creative tabs, recipe book, JEI, packs) keep gliding after a quick swipe and slow down, and a
+  touch stops them.
 - **Ferrite VC.** The voice chat has a new name and a new menu with Voice, Groups and Keys tabs,
   drawn with the game's own buttons, sliders and text fields.
 

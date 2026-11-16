@@ -18817,6 +18817,7 @@ impl Game<'_> {
             return;
         }
         horizon_client::spans::time("pads", || self.poll_pads(event_loop));
+        self.touch_frame(event_loop);
         self.pause_if_inactive();
         if self.options.frames.is_some() && self.started.elapsed() > self.options.timeout {
             self.error = Some("frame-limited run timed out".into());
