@@ -449,8 +449,11 @@ impl Boot {
                 ];
                 screen.code = None;
                 screen.buttons.clear();
+                let mb = |bytes: u64| bytes as f64 / 1_000_000.0;
                 screen.status = Some(if total > 0 {
-                    format!("{stage}: {} of {} MB", done / 1_000_000, total / 1_000_000)
+                    format!("{stage}: {:.1} of {:.1} MB", mb(done), mb(total))
+                } else if stage.is_empty() {
+                    "Starting the download...".to_owned()
                 } else {
                     format!("{stage}...")
                 });
@@ -891,7 +894,8 @@ impl ApplicationHandler for Boot {
         // The unpacking's and the setup's progress draw again too.
         let version = self.state.lock().unwrap_or_else(|e| e.into_inner()).version
             + UNPACKED[0].load(std::sync::atomic::Ordering::Relaxed) as u64
-            + self.progress.done.load(std::sync::atomic::Ordering::Relaxed) / 1_000_000;
+            + self.progress.done.load(std::sync::atomic::Ordering::Relaxed) / 100_000
+            + self.progress.steps.load(std::sync::atomic::Ordering::Relaxed);
         if version != self.drawn && !self.hidden {
             self.drawn = version;
             if let Some(window) = &self.window {
