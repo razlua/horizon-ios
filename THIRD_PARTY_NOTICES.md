@@ -17,6 +17,15 @@ are in that folder (`LICENSE.MIT`, `LICENSE.APACHE`).
 The GLSL frontend also resets the common type for each comma-separated declarator so one
 variable's array specifier does not change later variables.
 
+## isideload, idevice and apple-codesign (iOS only)
+
+The iOS app's Refresh tab (`crates/ferrite-signer`) uses [isideload](https://github.com/nab138/isideload)
+(MIT, Nicholas Sharp) to sign Ferrite again with the player's Apple ID: sign-in, certificates, App
+IDs, provisioning profiles and code signing. It brings [idevice](https://github.com/jkcoxson/idevice)
+(MIT, Jackson Coxson) and isideload's fork of [apple-codesign](https://github.com/indygreg/apple-platform-rs)
+(MPL-2.0, Gregory Szorc). They are used unchanged, from crates.io; their licenses are in their
+crates.
+
 ## libmimalloc-sys and mimalloc
 
 `third_party/libmimalloc-sys` is [libmimalloc-sys](https://github.com/purpleprotocol/mimalloc_rust)

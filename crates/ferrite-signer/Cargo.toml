@@ -1,0 +1,19 @@
+[package]
+name = "ferrite-signer"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish = false
+description = "Ferrite (iOS): signs Ferrite again with the player's Apple ID, so it keeps opening (isideload)."
+
+# Everything is iOS only: elsewhere the crate is empty.
+[target.'cfg(target_os = "ios")'.dependencies]
+# Apple ID sign-in (SRP, 2FA, anisette), certificates, App IDs and profiles, code signing. MIT.
+# `install`: idevice, which talks to the phone's installer (the refresh itself).
+isideload = { version = "=0.3.17", default-features = false, features = ["install", "keyring-storage", "tokio-mt"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+# isideload logs through tracing: with no subscriber, its events go to the game's log.
+tracing = { version = "0.1", features = ["log"] }
+log = "0.4"
+plist = "1.8"
+serde_json = "1"

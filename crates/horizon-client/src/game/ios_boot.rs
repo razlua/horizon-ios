@@ -90,6 +90,14 @@ struct Shared {
     version: u64,
     /// A newer build that is out, from `ios_update`.
     newer: Option<super::ios_update::Newer>,
+    /// The launcher's skin changer: its last upload.
+    skin: Option<SkinUpload>,
+}
+
+/// Where the skin changer's upload stands: "working", "done" or "failed" (with why).
+struct SkinUpload {
+    status: &'static str,
+    message: Option<String>,
 }
 
 type State = Arc<Mutex<Shared>>;
@@ -207,6 +215,23 @@ fn sign_in_new(state: State, attempt: u64) {
     }
 }
 
+/// The settings the launcher's Settings tab shows, from the game's own files: `options.txt`,
+/// Horizon's graphics settings beside it, and Extra Settings (`ios-settings.txt`).
+fn launcher_settings() -> serde_json::Value {
+    use horizon_client::ios_extras;
+    let settings = horizon_client::settings::Settings::load(&super::Game::options_path());
+    let extras: Vec<_> = ios_extras::ITEMS
+        .iter()
+        .map(|&item| serde_json::json!({ "label": ios_extras::label(item), "help": ios_extras::help(item) }))
+        .collect();
+    serde_json::json!({
+        "render_distance": settings.render_distance,
+        "max_fps": settings.max_fps,
+        "battery": settings.horizon.battery,
+        "extras": extras,
+    })
+}
+
 /// Starts a thread for a sign-in.
 fn spawn(name: &str, job: impl FnOnce() + Send + 'static) {
     if let Err(e) = std::thread::Builder::new().name(name.into()).spawn(job) {
@@ -229,6 +254,11 @@ struct Boot {
     progress: Arc<super::ios_setup::Progress>,
     /// The screen is kept on (while the setup downloads).
     awake: bool,
+    /// The SwiftUI launcher is over this screen (`horizon_threads::ios_launcher`), which then
+    /// isn't drawn.
+    launcher: bool,
+    /// The state version the launcher was last sent (`launcher_state`).
+    sent: u64,
 }
 
 /// Opens the event loop, unpacks (`job`) or sets the game files up (`setup`) and signs in beside
@@ -244,6 +274,7 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::R
         attempt: 0,
         version: 1,
         newer: None,
+        skin: None,
     }));
     let checking = state.clone();
     spawn("Update check", move || {
@@ -279,6 +310,8 @@ pub fn run_after(job: Option<Box<dyn FnOnce() + Send>>, setup: bool) -> super::R
         failed: false,
         progress: Arc::default(),
         awake: false,
+        launcher: false,
+        sent: 0,
     };
     EventLoop::new()?.run_app(&mut boot)?;
     Ok(())
@@ -601,6 +634,12 @@ impl Boot {
         let Some(Some(action)) = self.with_ui(&mut batch, |ui| screen.click(ui)) else {
             return;
         };
+        let _ = event_loop;
+        self.act(action);
+    }
+
+    /// What a button does: tapped on this screen, or in the SwiftUI launcher.
+    fn act(&mut self, action: Action) {
         let state = self.state.clone();
         let account = |i: usize| {
             state
@@ -721,7 +760,6 @@ impl Boot {
                 }
             }
         }
-        let _ = event_loop;
         if let Some(window) = &self.window {
             window.request_redraw();
         }
@@ -741,7 +779,205 @@ impl Boot {
     }
 
     /// The game's own start, with the loop already running.
+    /// The SwiftUI launcher over this screen, where the build has it, with what it shows.
+    fn show_launcher(&mut self) {
+        use horizon_threads::ios_launcher;
+        if !ios_launcher::available() || self.launcher {
+            return;
+        }
+        self.launcher = ios_launcher::show();
+        if self.launcher {
+            ios_launcher::update(&self.launcher_state());
+        }
+        log::info!("Horizon iOS: SwiftUI launcher shown: {}", self.launcher);
+    }
+
+    /// What the launcher shows, as JSON (packaging/ios/swift/Model.swift): the same state this
+    /// screen draws. A signed-in account's session never goes in it.
+    fn launcher_state(&self) -> String {
+        use std::sync::atomic::Ordering::Relaxed;
+        use serde_json::json;
+        let shared = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let account = match &shared.account {
+            Account::Choose { removing } => json!({ "kind": "choose", "removing": removing }),
+            Account::Resuming(name) => json!({ "kind": "resuming", "name": name }),
+            Account::Asking => json!({ "kind": "asking" }),
+            Account::Code { code, uri, link } => {
+                json!({ "kind": "code", "code": code, "uri": uri, "link": link })
+            }
+            Account::Signed { name, .. } => json!({ "kind": "signed", "name": name }),
+            Account::Failed(why) => json!({ "kind": "failed", "error": why }),
+            Account::OfflineName { name, problem, .. } => {
+                json!({ "kind": "offline_name", "name": name, "problem": problem })
+            }
+            Account::Offline => json!({ "kind": "offline" }),
+        };
+        let (kind, error) = match &shared.setup {
+            Setup::NotNeeded => ("not_needed", None),
+            Setup::Waiting => ("waiting", None),
+            Setup::Running => ("running", None),
+            Setup::Failed(why) => ("failed", Some(why.clone())),
+            Setup::Done => ("done", None),
+        };
+        let stage = self.progress.stage.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let [unpacked, to_unpack] = UNPACKED.each_ref().map(|v| v.load(Relaxed));
+        let update = shared.newer.as_ref().map(|newer| {
+            json!({
+                "version": newer.version,
+                "installer": super::ios_update::installer(),
+            })
+        });
+        json!({
+            "version": horizon_threads::ios_bundle::info("CFBundleShortVersionString"),
+            "account": account,
+            "accounts": shared
+                .accounts
+                .iter()
+                .map(|a| json!({ "name": a.name, "uuid": a.uuid }))
+                .collect::<Vec<_>>(),
+            "skin": shared
+                .skin
+                .as_ref()
+                .map(|s| json!({ "status": s.status, "message": s.message })),
+            "setup": {
+                "kind": kind,
+                "error": error,
+                "stage": stage,
+                "done": self.progress.done.load(Relaxed),
+                "total": self.progress.total.load(Relaxed),
+            },
+            "unpacking": shared.unpacking.then(|| json!({ "done": unpacked, "total": to_unpack })),
+            "update": update,
+            "settings": launcher_settings(),
+            "signer": ferrite_signer::state_json(),
+        })
+        .to_string()
+    }
+
+    /// A setting the launcher's Settings tab changed, saved in the game's own files as the
+    /// game's Options would. The launcher hears the new value with the next state.
+    fn launcher_setting(&mut self, key: &str, value: &str) {
+        let path = super::Game::options_path();
+        let mut settings = horizon_client::settings::Settings::load(&path);
+        let number = value.parse::<i64>().ok();
+        match (key, number) {
+            ("render_distance", Some(n)) => settings.render_distance = n.clamp(2, 64) as i32,
+            ("max_fps", Some(n)) => settings.max_fps = n.clamp(10, 260) as u32,
+            ("battery", _) => settings.horizon.battery = value == "true",
+            ("extra", Some(i)) => {
+                if let Some(&item) = horizon_client::ios_extras::ITEMS.get(i as usize) {
+                    horizon_client::ios_extras::cycle(item, false);
+                }
+                return update(&self.state, |_| {});
+            }
+            _ => return log::warn!("Horizon iOS: the launcher set an unknown setting {key}"),
+        }
+        settings.save(&path);
+        log::info!("Horizon iOS: the launcher set {key} to {value}");
+        update(&self.state, |_| {});
+    }
+
+    /// The skin changer's Upload: `.skin-upload.png` (written by the launcher in the game folder)
+    /// as the skin of the saved account at `index`, on a thread of its own. A fresh Minecraft
+    /// token comes from the account's refresh token, whose successor is kept.
+    fn upload_skin(&mut self, index: usize, slim: bool) {
+        let saved = self
+            .state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .accounts
+            .get(index)
+            .cloned();
+        let Some(saved) = saved else {
+            return log::warn!("Horizon iOS: no saved account {index} for the skin");
+        };
+        let path = std::env::current_dir()
+            .map(|dir| dir.join(".skin-upload.png"))
+            .unwrap_or_else(|_| ".skin-upload.png".into());
+        update(&self.state, |s| {
+            s.skin = Some(SkinUpload {
+                status: "working",
+                message: None,
+            })
+        });
+        let state = self.state.clone();
+        spawn("Skin", move || {
+            let result = (|| -> std::result::Result<(), String> {
+                let png = std::fs::read(&path).map_err(|e| format!("The skin file can't be read: {e}"))?;
+                let _ = std::fs::remove_file(&path);
+                if !horizon_client::ios_screen::png_size(&png)
+                    .is_some_and(horizon_client::ios_screen::is_skin_size)
+                {
+                    return Err("A skin is a PNG of 64 x 64 pixels (or the old 64 x 32).".into());
+                }
+                let signed = ios_account::resume(&saved)?;
+                ios_account::keep_token(&signed);
+                ios_account::upload_skin(&signed.access_token, &png, slim)
+            })();
+            match &result {
+                Ok(()) => log::info!("Horizon iOS: the skin of {} changed", saved.name),
+                Err(e) => log::warn!("Horizon iOS: the skin didn't change: {e}"),
+            }
+            update(&state, |s| {
+                s.skin = Some(match result {
+                    Ok(()) => SkinUpload {
+                        status: "done",
+                        message: None,
+                    },
+                    Err(e) => SkinUpload {
+                        status: "failed",
+                        message: Some(e),
+                    },
+                })
+            });
+        });
+    }
+
+    /// What the player tapped in the launcher (`ios_screen::parse_launcher_action`).
+    fn launcher_actions(&mut self) {
+        use horizon_client::ios_screen::{LauncherAction, parse_launcher_action};
+        for text in horizon_threads::ios_launcher::take_actions() {
+            match parse_launcher_action(&text) {
+                Some(LauncherAction::Screen(action)) => self.act(action),
+                // Typed in the launcher's own text field: played with as typed on this screen.
+                Some(LauncherAction::OfflineName(name)) => {
+                    update(&self.state, |s| {
+                        s.account = Account::OfflineName {
+                            name,
+                            editing: false,
+                            problem: None,
+                        }
+                    });
+                    self.act(Action::PlayOffline);
+                }
+                Some(LauncherAction::Setting { key, value }) => self.launcher_setting(&key, &value),
+                // The Refresh tab: what a new signature for this app would be, and signing out.
+                // (The Apple ID and its password go to ferrite_signer directly, never here.)
+                Some(LauncherAction::SignerCheck) => {
+                    match horizon_threads::ios_bundle::info("CFBundleIdentifier") {
+                        Some(bundle_id) => ferrite_signer::check(&bundle_id),
+                        None => log::warn!("Horizon iOS: no bundle ID to sign"),
+                    }
+                }
+                Some(LauncherAction::SignerSignOut) => ferrite_signer::sign_out(),
+                Some(LauncherAction::SkinUpload { index, slim }) => self.upload_skin(index, slim),
+                None => log::warn!("Horizon iOS: the launcher sent an unknown action {text:?}"),
+            }
+        }
+    }
+
+    fn hide_launcher(&mut self) {
+        if self.launcher {
+            horizon_threads::ios_launcher::hide();
+            self.launcher = false;
+            // This screen draws again.
+            self.drawn = 0;
+        }
+    }
+
     fn start(&mut self, event_loop: &ActiveEventLoop, session: Option<String>) {
+        // The launcher goes before the game starts.
+        self.hide_launcher();
         // The game opens its own window: this one goes first.
         self.renderer = None;
         self.window = None;
@@ -784,14 +1020,27 @@ impl ApplicationHandler for Boot {
         if self.window.is_some() || self.failed {
             return;
         }
+        let window = match event_loop
+            .create_window(phone_window(Window::default_attributes().with_title("Ferrite")))
+        {
+            Ok(window) => Arc::new(window),
+            // The unpacking and the sign-in go on without a screen.
+            Err(e) => return log::warn!("Horizon iOS: no start screen: {e}"),
+        };
+        self.window = Some(window.clone());
+        // The launcher first: it needs only the window.
+        self.show_launcher();
+        // The iOS Simulator's GPU can't run the renderer (no indirect drawing): there the
+        // launcher alone shows, for the screenshots of the simulator job (ios.yml). An x86_64
+        // iOS build is always a Simulator's, though its target has no "sim" abi.
+        if cfg!(any(target_abi = "sim", all(target_os = "ios", target_arch = "x86_64"))) {
+            return;
+        }
         let made = (|| -> super::Result<_> {
             let gui = UiResources {
                 atlas: HudAtlas::build(std::path::Path::new("resources"))?,
                 panorama: Arc::new(horizon_client::gfx::panorama::Faces::colour([0; 4])),
             };
-            let window = Arc::new(
-                event_loop.create_window(phone_window(Window::default_attributes().with_title("Ferrite")))?,
-            );
             let renderer = loading_renderer(
                 window.clone(),
                 false,
@@ -800,16 +1049,14 @@ impl ApplicationHandler for Boot {
                 None,
                 horizon_client::graphics::GraphicsApi::Auto,
             )?;
-            Ok((gui, window, renderer))
+            Ok((gui, renderer))
         })();
         match made {
-            Ok((gui, window, renderer)) => {
+            Ok((gui, renderer)) => {
                 window.request_redraw();
                 self.gui = Some(gui);
-                self.window = Some(window);
                 self.renderer = Some(renderer);
             }
-            // The unpacking and the sign-in go on without a screen.
             Err(e) => log::warn!("Horizon iOS: no start screen: {e}"),
         }
     }
@@ -888,6 +1135,7 @@ impl ApplicationHandler for Boot {
             self.awake = running;
             horizon_threads::ios_display::keep_awake(running);
         }
+        self.launcher_actions();
         if let Some(session) = self.ready() {
             return self.start(event_loop, session);
         }
@@ -895,8 +1143,14 @@ impl ApplicationHandler for Boot {
         let version = self.state.lock().unwrap_or_else(|e| e.into_inner()).version
             + UNPACKED[0].load(std::sync::atomic::Ordering::Relaxed) as u64
             + self.progress.done.load(std::sync::atomic::Ordering::Relaxed) / 100_000
-            + self.progress.steps.load(std::sync::atomic::Ordering::Relaxed);
-        if version != self.drawn && !self.hidden {
+            + self.progress.steps.load(std::sync::atomic::Ordering::Relaxed)
+            + ferrite_signer::version();
+        // The launcher shows the same state: sent again when it changes.
+        if self.launcher && version != self.sent {
+            self.sent = version;
+            horizon_threads::ios_launcher::update(&self.launcher_state());
+        }
+        if version != self.drawn && !self.hidden && !self.launcher {
             self.drawn = version;
             if let Some(window) = &self.window {
                 window.request_redraw();

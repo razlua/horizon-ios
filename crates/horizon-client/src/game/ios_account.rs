@@ -21,6 +21,7 @@ const XSTS_URL: &str = "https://xsts.auth.xboxlive.com/xsts/authorize";
 const MC_LOGIN_URL: &str = "https://api.minecraftservices.com/authentication/login_with_xbox";
 const MC_PROFILE_URL: &str = "https://api.minecraftservices.com/minecraft/profile";
 const MC_ENTITLEMENTS_URL: &str = "https://api.minecraftservices.com/entitlements/mcstore";
+const MC_SKINS_URL: &str = "https://api.minecraftservices.com/minecraft/profile/skins";
 
 /// A code to enter at Microsoft's page.
 #[derive(Clone, Debug)]
@@ -358,6 +359,60 @@ pub fn save(signed: &Signed) {
         },
     );
     write(&accounts);
+}
+
+/// Keeps a signed-in account's new refresh token (Microsoft gives a new one at each sign-in) in
+/// its place in the list, without making it the one played last.
+pub fn keep_token(signed: &Signed) {
+    let mut accounts = saved();
+    match accounts.iter_mut().find(|a| a.uuid == signed.uuid) {
+        Some(account) => {
+            account.name = signed.name.clone();
+            account.refresh_token = signed.refresh_token.clone();
+            write(&accounts);
+        }
+        None => save(signed),
+    }
+}
+
+/// Sets the account's skin to `png` (64 x 64, or 64 x 32), on the slim or the classic model,
+/// through the Minecraft services, with a fresh access token (`resume`). The token goes in the
+/// request's header only.
+pub fn upload_skin(access_token: &str, png: &[u8], slim: bool) -> Result<(), String> {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let boundary = format!("ferrite-skin-{stamp:x}");
+    let variant = if slim { "slim" } else { "classic" };
+    let mut body = Vec::with_capacity(png.len() + 512);
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"variant\"\r\n\r\n{variant}\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"skin.png\"\r\nContent-Type: image/png\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(png);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    let (status, reply) = answer(
+        agent()
+            .post(MC_SKINS_URL)
+            .set("Authorization", &format!("Bearer {access_token}"))
+            .set("Content-Type", &format!("multipart/form-data; boundary={boundary}"))
+            .send_bytes(&body),
+    )?;
+    if (200..300).contains(&status) {
+        return Ok(());
+    }
+    let why = text(&reply, "errorMessage")
+        .or_else(|| text(&reply, "error"))
+        .unwrap_or_else(|| format!("status {status}"));
+    Err(format!("Minecraft didn't take the skin: {why}"))
 }
 
 /// Forgets a saved account (signed out, or its sign-in no longer works).
