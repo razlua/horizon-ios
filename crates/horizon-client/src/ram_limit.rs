@@ -23,10 +23,22 @@ const STEP_DOWN_EVERY: Duration = Duration::from_secs(3);
 /// A step back up waits this long after any change, so the game doesn't go up and down. A phone
 /// climbs sooner: its worlds start low ([`PHONE_START_DISTANCE`]).
 const STEP_UP_EVERY: Duration = if PHONE {
-    Duration::from_secs(6)
+    Duration::from_secs(3)
 } else {
     Duration::from_secs(30)
 };
+
+/// The distance a step up goes to from `cap` toward `chosen`: one more on a computer; on a phone
+/// a third of the way there (at least one), so a world started at 8 reaches 29 in seven
+/// steps (about 21 s) instead of 21. One step at a time took over two minutes to see far chunks.
+fn step_up(cap: i32, chosen: i32) -> i32 {
+    if PHONE { phone_step_up(cap, chosen) } else { cap + 1 }
+}
+
+fn phone_step_up(cap: i32, chosen: i32) -> i32 {
+    // A third of the way, rounded up: 8, 15, 20, 23, 25, 27, 28, 29.
+    cap + ((chosen - cap + 2) / 3).max(1)
+}
 /// Under this share of what it holds, a step down doesn't wait for the last one to free its
 /// memory: the system is about to end the game.
 const URGENT_KEEP: f64 = 0.6;
@@ -126,7 +138,7 @@ impl Governor {
             }
             Pressure::Room if waited(STEP_UP_EVERY) => match self.cap {
                 Some(cap) => {
-                    let next = cap + 1;
+                    let next = step_up(cap, chosen);
                     self.cap = (next < chosen).then_some(next);
                     Some(Step::Raised(next.min(chosen)))
                 }
@@ -389,6 +401,21 @@ mod tests {
         assert!(distances.len() < 6, "gets there fast: {distances:?}");
         assert!(g.at_lowest(32, true));
         assert_eq!(g.distance(32), LOWEST_DISTANCE);
+    }
+
+    #[test]
+    fn a_phone_climbs_from_8_to_29_in_a_few_steps_and_never_past_it() {
+        let mut d = PHONE_START_DISTANCE;
+        let mut steps = Vec::new();
+        while d < 29 {
+            d = phone_step_up(d, 29).min(29);
+            steps.push(d);
+        }
+        assert!(steps.len() <= 7, "{steps:?}");
+        assert!(steps.windows(2).all(|w| w[1] > w[0]), "{steps:?}");
+        assert_eq!(steps.last(), Some(&29));
+        // Close to the setting: one at a time.
+        assert_eq!(phone_step_up(27, 29), 28);
     }
 
     #[test]
