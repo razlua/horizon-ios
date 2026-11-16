@@ -57,6 +57,8 @@ pub(super) struct MerchantState {
     pub(super) speed: bool,
     /// When Speed Trade trades next.
     pub(super) speed_next: Option<std::time::Instant>,
+    /// A finger's swipe so far, in rows not yet scrolled: it comes in fractions of a row.
+    pub(super) wheel: f32,
 }
 impl MerchantState {
     /// `Merchant.showProgressBar`: villagers only.
@@ -336,6 +338,7 @@ impl Game<'_> {
             grab: None,
             speed: false,
             speed_next: None,
+            wheel: 0.0,
         });
         Ok(true)
     }
@@ -394,6 +397,7 @@ impl Game<'_> {
             grab: None,
             speed: false,
             speed_next: None,
+            wheel: 0.0,
         });
     }
     /// A server's trading window (no mob here: the server keeps it).
@@ -412,6 +416,7 @@ impl Game<'_> {
             grab: None,
             speed: false,
             speed_next: None,
+            wheel: 0.0,
         });
     }
     fn open_merchant_state(&mut self, state: MerchantState) {
@@ -536,7 +541,9 @@ impl Game<'_> {
     pub(super) fn merchant_click(&mut self, local: (f32, f32)) -> bool {
         // Speed Trade's button: trades the selected offer at once, and again while held.
         if horizon_client::ios_extras::speed_trade() && on_speed_button(local) {
-            let toggle = horizon_client::ios_extras::speed_trade_toggle();
+            // A finger held still is no press (touch.rs), so on a touch screen it's a tap to
+            // start and a tap to stop.
+            let toggle = horizon_client::ios_extras::speed_trade_toggle() || self.touch.used;
             let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
                 return false;
             };
@@ -655,7 +662,7 @@ impl Game<'_> {
     /// The mouse button or the finger let go on the trading screen: a held Speed Trade stops,
     /// and a finger that tapped an offer without moving picks it (`MerchantScreen.mouseClicked`).
     pub(super) fn merchant_release(&mut self) {
-        let toggle = horizon_client::ios_extras::speed_trade_toggle();
+        let toggle = horizon_client::ios_extras::speed_trade_toggle() || self.touch.used;
         let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
             return;
         };
@@ -720,12 +727,21 @@ impl Game<'_> {
         }
     }
     pub(super) fn merchant_scroll(&mut self, d: f32) {
+        let fingers = self.touch.used;
         let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
             return;
         };
         if m.session.offers.len() > 7 {
             let max = m.session.offers.len() - 7;
-            m.scroll = scrolled(m.scroll, max, d);
+            if fingers {
+                // A swipe comes in fractions of a row, which vanilla's (int) cast drops (down
+                // never moved; up jumped a row each time): whole rows as they add up.
+                let (rows, rest) = swipe_rows(m.wheel, d);
+                m.wheel = rest;
+                m.scroll = scrolled(m.scroll, max, rows);
+            } else {
+                m.scroll = scrolled(m.scroll, max, d);
+            }
         }
     }
     /// `MerchantScreen` rendering.
@@ -1019,7 +1035,7 @@ impl Game<'_> {
                 self.draw_stack_tooltip(batch, &stack, self.cursor.0, self.cursor.1);
             }
         } else if speed_hover {
-            let hold = if horizon_client::ios_extras::speed_trade_toggle() {
+            let hold = if horizon_client::ios_extras::speed_trade_toggle() || self.touch.used {
                 "Tap to start or stop trading the selected offer."
             } else {
                 "Hold to keep trading the selected offer."
@@ -1043,6 +1059,13 @@ impl Game<'_> {
         }
         true
     }
+}
+
+/// A swipe's `d` rows added to what was left over: the whole rows to scroll, and the rest.
+fn swipe_rows(left: f32, d: f32) -> (f32, f32) {
+    let total = left + d;
+    let rows = total.trunc();
+    (rows, total - rows)
 }
 
 /// Whether `local` (GUI origin relative) is on Speed Trade's button.
@@ -1132,6 +1155,25 @@ mod tests {
         assert_eq!(finger_scroll(1, -40.0, 12), 0);
         assert_eq!(finger_scroll(4, 400.0, 12), 5);
         assert_eq!(finger_scroll(2, 8.0, 12), 2, "under half a row stays");
+    }
+
+    #[test]
+    fn a_swipe_s_fractions_add_up_to_whole_rows_both_ways() {
+        let (mut left, mut moved) = (0.0, 0.0);
+        for _ in 0..7 {
+            let (rows, rest) = swipe_rows(left, 0.3);
+            moved += rows;
+            left = rest;
+        }
+        assert_eq!(moved, 2.0, "2.1 rows of swipe: 2 rows, 0.1 left over");
+        let (mut left, mut moved) = (0.0, 0.0);
+        for _ in 0..7 {
+            let (rows, rest) = swipe_rows(left, -0.3);
+            moved += rows;
+            left = rest;
+        }
+        assert_eq!(moved, -2.0);
+        assert_eq!(scrolled(0, 5, -1.0), 1, "a whole row down moves the list");
     }
 
     #[test]
