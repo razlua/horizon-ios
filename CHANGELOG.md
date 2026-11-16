@@ -6,7 +6,20 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
+### Added
+
+- **Speed Trade.** A **>>** button right of a trade's result keeps trading the selected offer:
+  pick the trade in the list, then hold the button, and it refills the payment from your
+  inventory and takes the result (as Shift-click does), over and over, until you let go or the
+  villager runs out. In *Extra Settings (Ferrite)*: on or off, how fast (4, 10 or 20 trades a
+  second), and Hold or Tap on/off. Works in single player and on servers.
+
 ### Fixed
+
+- **The villager trading list scrolls with your finger.** Drag anywhere on the trades (or the
+  scroller) and the list follows, as lists do on a phone; a tap still picks a trade, and only
+  when your finger lifts without moving, so scrolling doesn't pick the trade under it. Before,
+  only the 6-pixel scroller moved it.
 
 - **The render distance no longer drops to 2 and stays there.** The memory guard compared what
   the game holds with 80% of what iOS allows, but much of it (game data, textures, sounds) stays
