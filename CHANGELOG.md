@@ -6,6 +6,13 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ## Unreleased
 
+### Android: the download says what it's doing
+
+- **The game files' download shows each step and each retry.** It used to show only "..." until
+  a whole megabyte had arrived, so a slow or retried first download looked stuck. Now the screen
+  updates at every step and every 100 KB, shows a file's size as soon as the download starts, and
+  shows "trying again (2 of 4: why)" when a download is retried.
+
 ### Android: mouse support (`android-port` branch)
 
 - **A mouse works like on a computer.** On a Chromebook, or with a mouse plugged into a phone or

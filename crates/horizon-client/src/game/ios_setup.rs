@@ -30,6 +30,8 @@ pub struct Progress {
     pub done: AtomicU64,
     pub total: AtomicU64,
     pub stage: Mutex<String>,
+    /// Counts the changes of `stage`, so the screen draws each one.
+    pub steps: AtomicU64,
     /// The player left: stop at the next file.
     pub cancel: AtomicBool,
 }
@@ -38,6 +40,11 @@ impl Progress {
     fn stage(&self, text: &str) {
         log::info!("Horizon setup: {text}");
         *self.stage.lock().unwrap_or_else(|e| e.into_inner()) = text.to_owned();
+        self.steps.fetch_add(1, Relaxed);
+    }
+
+    fn current(&self) -> String {
+        self.stage.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -71,16 +78,27 @@ fn download(
         return Ok(());
     }
     let mut last = String::new();
+    // The step this download belongs to, to say "trying again" under it.
+    let step = progress.current();
+    let step = step.split(" (trying again").next().unwrap_or("").to_owned();
     for attempt in 0..TRIES {
         if progress.cancel.load(Relaxed) {
             return Err("cancelled".into());
         }
         if attempt > 0 {
+            log::warn!("Horizon setup: {last}; trying again ({} of {TRIES})", attempt + 1);
+            progress.stage(&format!("{step} (trying again, {} of {TRIES}: {last})", attempt + 1));
             std::thread::sleep(Duration::from_secs(1 << attempt));
         }
         let mut counted = 0u64;
         let result = (|| -> Result<Vec<u8>, String> {
             let response = agent.get(url).call().map_err(|e| e.to_string())?;
+            // The first download's size is the whole bar's until the rest is known.
+            if progress.total.load(Relaxed) == 0
+                && let Some(size) = response.header("Content-Length").and_then(|v| v.parse::<u64>().ok())
+            {
+                progress.total.store(progress.done.load(Relaxed) + size, Relaxed);
+            }
             let mut reader = response.into_reader();
             let mut bytes = Vec::new();
             let mut chunk = [0u8; 64 * 1024];
@@ -102,13 +120,13 @@ fn download(
                 }
                 return std::fs::write(to, &bytes).map_err(|e| format!("{}: {e}", to.display()));
             }
-            Ok(_) => last = format!("{url}: the download does not match its checksum"),
-            Err(e) => last = format!("{url}: {e}"),
+            Ok(_) => last = "the download does not match its checksum".to_owned(),
+            Err(e) => last = e,
         }
         // What this try counted comes off again: the next try counts the file anew.
         progress.done.fetch_sub(counted, Relaxed);
     }
-    Err(last)
+    Err(format!("{url}: {last}"))
 }
 
 fn hex_sha1(bytes: &[u8]) -> String {
