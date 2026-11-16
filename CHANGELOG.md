@@ -27,7 +27,9 @@ at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/relea
 ### Fixed
 
 - The villager trading list scrolls when you drag it. A tap still picks a trade.
-- The render distance no longer drops to 2 and stays there.
+- The render distance no longer drops to 2 and stays there, and it no longer drops early: the
+  memory guard steps down only when less than 200 MB is left, so an iPhone 17 keeps 29 instead of
+  dropping to 17.
 - Big render distances no longer crash right after a world opens. A world starts at 8 and climbs
   to your setting while there's memory for it.
 - The first download shows each step, its size and each retry, instead of "..." until a whole

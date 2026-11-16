@@ -119,15 +119,16 @@ pub fn pressure(limit: u64) -> Pressure {
 }
 
 const MIB: u64 = 1024 * 1024;
-/// Less room than this left before the system ends the app: hold less.
-pub const HEADROOM_LOW: u64 = 600 * MIB;
-/// More room than this left: the game may hold more again. Close to `HEADROOM_LOW`: a phone may
-/// have only about 1 GB beyond what the game holds at any distance.
-pub const HEADROOM_ROOMY: u64 = 880 * MIB;
+/// Less room than this left before the system ends the app: hold less. Kept small so a phone
+/// keeps the render distance it can hold (600 MB held an iPhone 17 at 17 instead of 29); the
+/// world's slow start (`ram_limit`) and the urgent step keep chunk bursts from reaching zero.
+pub const HEADROOM_LOW: u64 = 200 * MIB;
+/// More room than this left: the game may hold more again.
+pub const HEADROOM_ROOMY: u64 = 300 * MIB;
 /// The room a step down aims to leave.
-const HEADROOM_AIM: u64 = 760 * MIB;
+const HEADROOM_AIM: u64 = 250 * MIB;
 /// Less than this left: the system is about to end the app, so a big step at once.
-const HEADROOM_URGENT: u64 = 320 * MIB;
+const HEADROOM_URGENT: u64 = 100 * MIB;
 
 /// How tight memory is when the system says how much room is left (`available`) and the game
 /// holds `used`. A share of a fixed cap doesn't work where much of what the game holds (its game
@@ -159,9 +160,11 @@ mod headroom_tests {
         let gb = |g: f64| (g * 1024.0) as u64 * MIB;
         // The iPhone of the report: 3.3 GB allowed, 2.3 GB held at distance 2, 1 GB left.
         assert_eq!(pressure_of_headroom(gb(1.05), gb(2.3)), Pressure::Room);
-        assert_eq!(pressure_of_headroom(gb(0.8), gb(2.55)), Pressure::Steady);
-        match pressure_of_headroom(gb(0.4), gb(2.95)) {
-            Pressure::Over { keep } => assert!(keep > 0.8 && keep < 0.95, "{keep}"),
+        // An iPhone 17 at distance 29 with about 450 MB left: room, it keeps its distance.
+        assert_eq!(pressure_of_headroom(gb(0.45), gb(4.0)), Pressure::Room);
+        assert_eq!(pressure_of_headroom(gb(0.25), gb(4.2)), Pressure::Steady);
+        match pressure_of_headroom(gb(0.15), gb(4.3)) {
+            Pressure::Over { keep } => assert!(keep > 0.9 && keep <= 0.95, "{keep}"),
             other => panic!("{other:?}"),
         }
         // Almost nothing left: a big step, though not below half.
