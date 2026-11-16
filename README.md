@@ -80,9 +80,10 @@ full 120 Hz (Using ProMotion, some phones do NOT support ProMotion).
   ([NATIVE_MODS.md](NATIVE_MODS.md) lists them with their licenses). They all start off: turn on
   the ones you want in *Options → Mods*. For a mod's key, add its letter in Edit HUD (B, C, G, R,
   V, X, Z and others, marked "mods").
-- Simple Voice Chat works on servers with the plugin or mod: you hear the players who use it,
-  coming from where they stand, and you can talk. Add the voice chat buttons in Edit HUD: **VC**
-  opens the voice chat menu (mute, voice activation or push to talk, volumes, groups), **Talk**
+- **Ferrite VC**, the voice chat, works on servers with the Simple Voice Chat plugin or mod: you
+  hear the players who use it, coming from where they stand, and you can talk. Add its buttons in
+  Edit HUD: **VC** opens its menu (Voice: mute, push to talk or voice activation, volume and
+  microphone sliders with a live level; Groups; Keys), **Talk**
   sends your voice while you hold it, and **Mic** mutes and unmutes. The microphone only opens
   the first time you talk (iOS asks for permission then) and closes when you mute it. Its
   settings are also in *Options → Mods*. The client is unofficial (the engine of Horizon's

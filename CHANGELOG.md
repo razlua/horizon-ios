@@ -8,6 +8,13 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ### Added
 
+- **Ferrite VC: the voice chat, renamed and with a new menu.** The menu (V, or the VC button) has
+  three tabs drawn with the game's own buttons, sliders and text fields, 20 px tall like the
+  game's, so it's easy to tap: **Voice** (microphone, voice chat on or off, push to talk or voice
+  activation, group names, and sliders for the voice volume, microphone gain and activation level
+  you tap where you want them, with a live microphone level and the activation line on it),
+  **Groups** (join, leave, password groups, make a group) and **Keys** (each hotkey and its key).
+  The header shows Ferrite VC with the connection's status light.
 - **Speed Trade.** A **>>** button right of a trade's result keeps trading the selected offer:
   pick the trade in the list, then hold the button, and it refills the payment from your
   inventory and takes the result (as Shift-click does), over and over, until you let go or the
