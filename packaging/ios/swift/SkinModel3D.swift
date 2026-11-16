@@ -1,7 +1,7 @@
 // The player in 3D: the skin's parts as boxes, textured pixel-sharp from the skin as the game
 // does (each face cut from its place in the 64 x 64 texture), the second layer (hat, jacket,
-// sleeves, trousers) a little bigger around them. A finger turns the player. SceneKit draws it
-// only when something changes, so it costs nothing while it stands still.
+// sleeves, trousers) a little bigger around them. A finger turns the player. Drawn at 30 frames a
+// second, only while the launcher is on screen.
 import SceneKit
 import SwiftUI
 import UIKit
@@ -64,8 +64,10 @@ enum SkinModel {
             return pivot
         }
 
-        // The head and its hat.
-        player.addChildNode(part(base: (0, 0), layer: (32, 0), 8, 8, 8, grow: 0.5, center: SCNVector3(0, 12, 0)))
+        // The head and its hat. An old skin with its hat area filled solid (Notch's is black) has
+        // no hat, as the game decides (`doNotchTransparencyHack`): it would hide the whole head.
+        let hat: (Int, Int)? = legacy && !SkinModel.seeThrough(texture, unit: unit, 32, 0, 32, 16) ? nil : (32, 0)
+        player.addChildNode(part(base: (0, 0), layer: hat, 8, 8, 8, grow: 0.5, center: SCNVector3(0, 12, 0)))
         // The body and its jacket.
         player.addChildNode(part(
             base: (16, 16), layer: legacy ? nil : (16, 32), 8, 12, 4,
@@ -115,6 +117,39 @@ enum SkinModel {
             return [front, playerRight, back, playerLeft, top, bottom]
         }
         return [front, playerLeft, back, playerRight, top, bottom]
+    }
+
+    /// Whether the texture's area at `x, y` (`w` x `h` skin pixels) has a see-through pixel.
+    static func seeThrough(_ texture: CGImage, unit: Int, _ x: Int, _ y: Int, _ w: Int, _ h: Int) -> Bool {
+        let rect = CGRect(x: x * unit, y: y * unit, width: w * unit, height: h * unit)
+        guard let area = texture.cropping(to: rect) else {
+            return true
+        }
+        let width = area.width
+        let height = area.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        return pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return true
+            }
+            context.draw(area, in: CGRect(x: 0, y: 0, width: width, height: height))
+            var i = 3
+            while i < buffer.count {
+                if buffer[i] < 128 {
+                    return true
+                }
+                i += 4
+            }
+            return false
+        }
     }
 
     /// `image` mirrored left to right.
@@ -220,7 +255,11 @@ struct SkinSceneView: UIViewRepresentable {
         view.backgroundColor = UIColor.clear
         view.isOpaque = false
         view.antialiasingMode = .multisampling4X
-        view.rendersContinuously = false
+        // Drawn every frame (30 a second) while the launcher shows: drawing only on changes left
+        // it blank, as the model was placed before the view had a size and nothing changed after.
+        // The launcher goes away when the game starts, and this view with it.
+        view.rendersContinuously = true
+        view.preferredFramesPerSecond = 30
         view.allowsCameraControl = false
         view.isUserInteractionEnabled = false
         place(skin, in: context.coordinator)

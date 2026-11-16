@@ -118,7 +118,7 @@ enum SkinArt {
         return context.makeImage()
     }
 
-    /// The face and the hat: 8 x 8 pixels.
+    /// The face and the hat: 8 x 8 pixels. An old skin's solid hat area is no hat (SkinModel3D).
     static func head(_ skin: Skin) -> CGImage? {
         let texture = skin.image
         let unit = texture.width / 64
@@ -126,7 +126,10 @@ enum SkinArt {
             return nil
         }
         put(texture, unit, 8, 8, 8, 8, at: 0, 0, in: context)
-        put(texture, unit, 40, 8, 8, 8, at: 0, 0, in: context)
+        let legacy = texture.height == 32 * unit
+        if !legacy || SkinModel.seeThrough(texture, unit: unit, 32, 0, 32, 16) {
+            put(texture, unit, 40, 8, 8, 8, at: 0, 0, in: context)
+        }
         return context.makeImage()
     }
 
