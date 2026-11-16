@@ -42,7 +42,9 @@ fn main() {
         if let (Some(dir), Some(name)) = (clang_rt.parent(), name) {
             println!("cargo:rerun-if-changed={}", clang_rt.display());
             println!("cargo:rustc-link-search=native={}", dir.display());
-            println!("cargo:rustc-link-lib=static={name}");
+            // `-bundle`: handed to Apple's linker as it is. Rust can't read this archive itself
+            // ("Unsupported archive identifier": Xcode 26 ships it as a universal file).
+            println!("cargo:rustc-link-lib=static:-bundle={name}");
         }
     }
     for framework in ["SwiftUI", "UIKit", "Foundation", "UserNotifications"] {
