@@ -12,7 +12,7 @@ struct ExpiryCard: View {
     var body: some View {
         HStack(alignment: .center, spacing: 28) {
             if let expiry = Signing.expiry, let days = Signing.daysLeft {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(days)")
                             .font(.system(size: 48, weight: .semibold))
@@ -24,25 +24,25 @@ struct ExpiryCard: View {
                     }
                     DaysBlocks(block: 16)
                 }
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text(days == 0 ? "Ferrite has run out" : "Signed until \(Signing.format(expiry))")
-                        .font(.headline)
+                        .font(.body.weight(.medium))
                         .foregroundStyle(Theme.text)
                     if let team = Signing.team {
                         Text("Signed by \(team)")
                             .font(.subheadline)
                             .foregroundStyle(Theme.secondary)
                     }
-                    Text("A reminder comes a day before, and again on the day.")
+                    Text("A reminder comes a day before, and again on the day")
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
                 }
             } else {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Ferrite can't tell when it runs out")
-                        .font(.headline)
+                        .font(.body.weight(.medium))
                         .foregroundStyle(Theme.text)
-                    Text("This copy wasn't signed by a sideloading tool.")
+                    Text("This copy wasn't signed by a sideloading tool")
                         .font(.subheadline)
                         .foregroundStyle(Theme.secondary)
                 }
@@ -88,13 +88,13 @@ struct AppleIDCard: View {
         let signer = model.state.signer
         let status = signer?.status ?? "signed_out"
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Text("Apple ID")
-                    .font(.headline)
+                    .font(.body.weight(.medium))
                     .foregroundStyle(Theme.text)
                 Spacer()
                 if status == "signed_in" {
-                    Chip(text: "Signed in", symbol: "checkmark.circle.fill", color: Theme.good)
+                    Chip(text: "Signed in", symbol: "checkmark.circle", color: Theme.good)
                 }
             }
             switch status {
@@ -107,7 +107,7 @@ struct AppleIDCard: View {
                 Text("Apple sent a code to your devices. Type it here.")
                     .foregroundStyle(Theme.secondary)
                 if let message = signer?.message {
-                    Label(message, systemImage: "exclamationmark.circle.fill")
+                    Label(message, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
                         .foregroundStyle(Theme.bad)
                 }
@@ -120,50 +120,50 @@ struct AppleIDCard: View {
                     code.withCString { hzSignerCode($0) }
                     code = ""
                 } label: {
-                    Label("Submit code", systemImage: "checkmark.shield.fill")
-                        .font(.headline)
+                    Text("Submit code")
+                        .font(.body.weight(.medium))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 4)
                 }
                 .ferriteButton(prominent: true)
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Button {
                         "#resend".withCString { hzSignerCode($0) }
                     } label: {
-                        Label("Send again", systemImage: "arrow.clockwise")
+                        Text("Send again")
                     }
                     .ferriteButton(prominent: false)
                     if let to = signer?.sms_to {
                         Button {
                             "#sms".withCString { hzSignerCode($0) }
                         } label: {
-                            Label("Text \(to) instead", systemImage: "message.fill")
+                            Text("Text \(to) instead")
                         }
                         .ferriteButton(prominent: false)
                     }
                 }
             case "signed_in":
-                Label(signer?.email ?? "", systemImage: "envelope.fill")
+                Text(signer?.email ?? "")
                     .foregroundStyle(Theme.secondary)
                 if let team = signer?.team {
-                    Label("Team: \(team)", systemImage: "person.2.fill")
+                    Text("Team: \(team)")
                         .font(.footnote)
                         .foregroundStyle(Theme.secondary)
                 }
                 if let expires = signer?.checked_expires {
                     Label(
                         "Check: Apple would sign Ferrite again until \(Signing.format(Date(timeIntervalSince1970: expires))).",
-                        systemImage: "checkmark.seal.fill"
+                        systemImage: "checkmark.circle"
                     )
                     .foregroundStyle(Theme.good)
                 }
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Button {
                         feelTap()
                         model.send("signer_check")
                     } label: {
-                        Label("Check", systemImage: "checkmark.shield.fill")
-                            .font(.headline)
+                        Text("Check")
+                            .font(.body.weight(.medium))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
                     }
@@ -171,7 +171,7 @@ struct AppleIDCard: View {
                     Button {
                         model.send("signer_sign_out")
                     } label: {
-                        Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                        Text("Sign out")
                     }
                     .ferriteButton(prominent: false)
                 }
@@ -180,11 +180,11 @@ struct AppleIDCard: View {
                     .foregroundStyle(Theme.secondary)
             default:
                 if status == "failed", let message = signer?.message {
-                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                    Label(message, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
                         .foregroundStyle(Theme.bad)
                 }
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     TextField("Apple ID (email)", text: $email)
                         .textContentType(.username)
                         .keyboardType(.emailAddress)
@@ -200,13 +200,13 @@ struct AppleIDCard: View {
                     email.withCString { e in password.withCString { p in hzSignerSignIn(e, p) } }
                     password = ""
                 } label: {
-                    Label("Sign in", systemImage: "person.crop.circle.badge.checkmark")
-                        .font(.headline)
+                    Text("Sign in")
+                        .font(.body.weight(.medium))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 4)
                 }
                 .ferriteButton(prominent: true)
-                Label("Your password goes only to Apple and isn't saved.", systemImage: "lock")
+                Label("Your password goes only to Apple and isn't saved", systemImage: "lock")
                     .font(.footnote)
                     .foregroundStyle(Theme.muted)
             }
@@ -292,7 +292,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Text("The rest is in the game: Options, then Video Settings.")
+                Text("The rest is in the game: Options, then Video Settings")
                     .font(.footnote)
                     .foregroundStyle(Theme.muted)
                     .padding(.horizontal, 4)
@@ -332,8 +332,8 @@ struct AboutView: View {
         tabPage {
             HStack(spacing: 20) {
                 FerriteLogo(size: 88)
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("Ferrite")
                             .font(.system(size: 32, weight: .semibold))
                             .foregroundStyle(Theme.text)
@@ -351,7 +351,7 @@ struct AboutView: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
             .card()
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 CardHeading("Credits")
                 credit("Ferrite", "Made by razlua (@4rnz on Discord)")
                 credit("Horizon", "By Ludovic Marie and the Horizon contributors, MIT")
@@ -368,21 +368,21 @@ struct AboutView: View {
                 Text("Send the log to @4rnz on Discord, with what you did before it went wrong.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.secondary)
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Button {
                         feelTap(.light)
                         noLog = !shareLog()
                     } label: {
                         Label("Send logs", systemImage: "square.and.arrow.up")
-                            .font(.headline)
+                            .font(.body.weight(.medium))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
                     }
                     .ferriteButton(prominent: true)
                     if let url = URL(string: "https://github.com/razlua/horizon-ios") {
                         Link(destination: url) {
-                            Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
-                                .font(.headline)
+                            Text("GitHub")
+                                .font(.body.weight(.medium))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 4)
                         }
@@ -390,7 +390,7 @@ struct AboutView: View {
                     }
                 }
                 if noLog {
-                    Text("There's no log yet: play once first.")
+                    Text("There's no log yet: play once first")
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
                 }

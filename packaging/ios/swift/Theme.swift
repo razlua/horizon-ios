@@ -80,7 +80,7 @@ private struct FerriteButtonBody: View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         configuration.label
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.vertical, 12)
             .foregroundStyle(prominent ? Theme.accentInk : Theme.text)
             .background(prominent ? Theme.accent : Theme.raised, in: shape)
             .overlay {
@@ -166,7 +166,7 @@ struct Chip: View {
     var color: Color = Theme.secondary
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Image(systemName: symbol)
                 .font(.caption)
             Text(text)

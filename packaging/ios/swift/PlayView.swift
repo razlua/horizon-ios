@@ -29,7 +29,7 @@ struct PlayView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.opacity)
         }
-        .animation(.easeInOut(duration: 0.3), value: phase)
+        .animation(.easeOut(duration: 0.25), value: phase)
     }
 
     @ViewBuilder private var content: some View {
@@ -58,14 +58,14 @@ struct PlayView: View {
             VStack(spacing: 8) {
                 SkinFigure(uuid: account.uuid, height: 212)
                 Text(account.name)
-                    .font(.headline)
+                    .font(.body.weight(.medium))
                     .foregroundStyle(Theme.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Button {
                     changingSkin = true
                 } label: {
-                    Label("Change skin", systemImage: "tshirt")
+                    Text("Change skin")
                         .font(.subheadline.weight(.medium))
                 }
                 .ferriteButton(prominent: false)
@@ -73,7 +73,7 @@ struct PlayView: View {
             .frame(width: 196)
             .padding(.vertical, 16)
             .padding(.horizontal, 12)
-            .card(cornerRadius: 20)
+            .card()
 
             VStack(alignment: .leading, spacing: 12) {
                 header(subtitle: nil)
@@ -81,7 +81,7 @@ struct PlayView: View {
                     feelTap()
                     model.send("play:\(index)")
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         Image(systemName: "play.fill")
                         Text("Play as \(account.name)")
                             .lineLimit(1)
@@ -214,8 +214,8 @@ struct PlayView: View {
     @ViewBuilder private var expiryNote: some View {
         if let expiry = Signing.expiry, let days = Signing.daysLeft, days <= 2 {
             Label(
-                days == 0 ? "Ferrite has run out: sign it again to keep playing." : "Refresh before \(Signing.format(expiry)), or Ferrite won't open.",
-                systemImage: "clock.fill"
+                days == 0 ? "Ferrite has run out: sign it again to keep playing" : "Refresh before \(Signing.format(expiry)), or Ferrite won't open",
+                systemImage: "clock"
             )
             .font(.footnote.weight(.medium))
             .foregroundStyle(days <= 1 ? Theme.bad : Theme.accent)
@@ -265,16 +265,31 @@ struct PlayView: View {
             }
             .frame(maxWidth: 640)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
         }
     }
 
+    /// A card's title. Only a problem gets a symbol (a warning in its color); the rest is text.
     private func cardTitle(_ title: String, symbol: String, color: Color = Theme.secondary) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol).foregroundStyle(color)
+        HStack(spacing: 8) {
+            if color == Theme.bad {
+                Image(systemName: "exclamationmark.triangle").foregroundStyle(color)
+            }
+            Text(title).foregroundStyle(Theme.text)
+        }
+        .font(.title3.weight(.medium))
+    }
+
+    /// The symbols that say something on a button: Play's triangle and Back's chevron.
+    private static let meaningful: Set<String> = ["play.fill", "chevron.left"]
+
+    @ViewBuilder
+    private func buttonLabel(_ title: String, symbol: String) -> some View {
+        if PlayView.meaningful.contains(symbol) {
+            Label(title, systemImage: symbol)
+        } else {
             Text(title)
         }
-        .font(.title3.weight(.semibold))
     }
 
     private func primary(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
@@ -282,18 +297,18 @@ struct PlayView: View {
             feelTap()
             action()
         } label: {
-            Label(title, systemImage: symbol)
-                .font(.headline)
+            buttonLabel(title, symbol: symbol)
+                .font(.body.weight(.medium))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+                .padding(.vertical, 4)
         }
         .ferriteButton(prominent: true)
     }
 
     private func secondary(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.subheadline.weight(.semibold))
+            buttonLabel(title, symbol: symbol)
+                .font(.subheadline.weight(.medium))
                 .frame(maxWidth: .infinity)
         }
         .ferriteButton(prominent: false)
@@ -302,13 +317,13 @@ struct PlayView: View {
     private func waiting(_ text: String) -> some View {
         HStack(spacing: 12) {
             ProgressView().tint(Theme.accent)
-            Text(text).font(.headline)
+            Text(text).font(.body.weight(.medium))
         }
     }
 
     /// Back (when there are saved accounts) and Play offline.
     private var backOrOffline: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             if !accounts.isEmpty {
                 secondary("Back", symbol: "chevron.left") { model.send("back") }
             }
@@ -332,13 +347,12 @@ struct PlayView: View {
                     .contentTransition(.numericText())
                 Spacer()
                 Text("\(megabytes(done)) of \(megabytes(total)) MB")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(Theme.secondary)
             }
             ProgressView(value: fraction)
                 .tint(Theme.accent)
-                .scaleEffect(x: 1, y: 1.6, anchor: .center)
             Text(stage).font(.footnote).foregroundStyle(Theme.secondary).lineLimit(2)
         } else {
             waiting(stage.isEmpty ? "Starting the download..." : "\(stage)...")
@@ -352,7 +366,7 @@ struct PlayView: View {
     @ViewBuilder private var setupFailed: some View {
         cardTitle("The download stopped", symbol: "exclamationmark.triangle.fill", color: Theme.bad)
         Text(state.setup?.error ?? "").foregroundStyle(Theme.secondary)
-        Text("Try again goes on where it stopped.").font(.footnote).foregroundStyle(Theme.secondary)
+        Text("Try again goes on where it stopped").font(.footnote).foregroundStyle(Theme.secondary)
         primary("Try again", symbol: "arrow.clockwise") { model.send("retry_setup") }
     }
 
@@ -374,7 +388,7 @@ struct PlayView: View {
                 Button(role: .destructive) {
                     model.send("remove:\(index)")
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         HeadAvatar(uuid: other.uuid, size: 24)
                         Text("Remove \(other.name)")
                         Spacer()
@@ -391,12 +405,12 @@ struct PlayView: View {
         case "code":
             HStack(spacing: 12) {
                 MicrosoftLogo(size: 24)
-                Text("Sign in with Microsoft").font(.title3.weight(.semibold))
+                Text("Sign in with Microsoft").font(.title3.weight(.medium))
             }
             Text("Tap Open sign-in page and sign in with the Microsoft account that owns Minecraft: Java Edition, then come back here.")
                 .foregroundStyle(Theme.secondary)
             if let code = account?.code {
-                HStack(spacing: 14) {
+                HStack(spacing: 12) {
                     Text(code)
                         .font(.system(size: 42, weight: .semibold, design: .monospaced))
                         .textSelection(.enabled)
@@ -409,7 +423,7 @@ struct PlayView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
                     } label: {
                         Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.subheadline.weight(.medium))
                     }
                     .ferriteButton(prominent: false)
                 }
@@ -420,11 +434,11 @@ struct PlayView: View {
                 }
             }
             if let uri = account?.uri {
-                Text("Or open \(uri) on any device and enter the code.")
+                Text("Or open \(uri) on any device and enter the code")
                     .font(.footnote)
                     .foregroundStyle(Theme.secondary)
             }
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ProgressView().tint(Theme.accent)
                 Text("Waiting for you to sign in...").font(.footnote).foregroundStyle(Theme.secondary)
             }
@@ -447,7 +461,7 @@ struct PlayView: View {
                 .fieldStyle()
                 .onAppear { offlineName = account?.name ?? "" }
             if let problem = account?.problem {
-                Label(problem, systemImage: "exclamationmark.circle.fill")
+                Label(problem, systemImage: "exclamationmark.triangle")
                     .font(.footnote)
                     .foregroundStyle(Theme.bad)
             }

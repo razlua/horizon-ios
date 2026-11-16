@@ -257,7 +257,7 @@ struct SkinChanger: View {
                     Button {
                         choosing = true
                     } label: {
-                        Label(picked == nil ? "Choose a skin file" : "Choose another file", systemImage: "folder.fill")
+                        Text(picked == nil ? "Choose a skin file" : "Choose another file")
                             .frame(maxWidth: .infinity)
                     }
                     .ferriteButton(prominent: false)
@@ -265,8 +265,8 @@ struct SkinChanger: View {
                     Button {
                         upload()
                     } label: {
-                        Label("Upload", systemImage: "arrow.up.circle.fill")
-                            .font(.headline)
+                        Text("Upload")
+                            .font(.body.weight(.medium))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 2)
                     }
@@ -308,12 +308,12 @@ struct SkinChanger: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
-        .card(cornerRadius: 20)
+        .card()
     }
 
     @ViewBuilder private var statusLine: some View {
         if let problem {
-            Label(problem, systemImage: "exclamationmark.triangle.fill")
+            Label(problem, systemImage: "exclamationmark.triangle")
                 .font(.footnote)
                 .foregroundStyle(Theme.bad)
         } else if status == "working" {
@@ -322,11 +322,11 @@ struct SkinChanger: View {
                 Text("Uploading...").font(.footnote).foregroundStyle(Theme.secondary)
             }
         } else if status == "done" {
-            Label("Your new skin is on.", systemImage: "checkmark.circle.fill")
+            Label("Your new skin is on", systemImage: "checkmark.circle")
                 .font(.footnote)
                 .foregroundStyle(Theme.good)
         } else if status == "failed" {
-            Label(model.state.skin?.message ?? "The upload didn't work.", systemImage: "exclamationmark.triangle.fill")
+            Label(model.state.skin?.message ?? "The upload didn't work", systemImage: "exclamationmark.triangle")
                 .font(.footnote)
                 .foregroundStyle(Theme.bad)
         }
@@ -341,7 +341,7 @@ struct SkinChanger: View {
             }
         }
         guard let data = try? Data(contentsOf: url), let image = UIImage(data: data)?.cgImage else {
-            problem = "That file isn't a PNG image."
+            problem = "That file isn't a PNG image"
             return
         }
         guard image.width == 64, image.height == 64 || image.height == 32 else {
