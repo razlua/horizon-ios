@@ -396,7 +396,9 @@ impl Floods {
 static LOGGER: std::sync::OnceLock<Logger> = std::sync::OnceLock::new();
 
 fn ours(target: &str) -> bool {
-    target.starts_with("horizon")
+    // ferrite_signer: the iOS launcher's Apple ID sign-in and refresh, whose steps a player's
+    // log has to show.
+    target.starts_with("horizon") || target.starts_with("ferrite")
 }
 
 impl log::Log for Logger {
