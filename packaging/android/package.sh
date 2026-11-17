@@ -53,6 +53,11 @@ for pair in "$@"; do
 done
 mkdir -p "$work/assets"
 cp "$root/LICENSE" "$root/THIRD_PARTY_NOTICES.md" "$work/assets/"
+# The Chromebook build (HORIZON_CHROMEBOOK=1): the same game, with this file in its assets, which
+# switches it to light settings on its first start (crates/horizon-android).
+if [ "${HORIZON_CHROMEBOOK:-}" = "1" ]; then
+  echo "light settings on the first start" > "$work/assets/chromebook"
+fi
 (cd "$work" && zip -q -r "$work/base.apk" lib assets)
 
 "$tools/zipalign" -f -p 4 "$work/base.apk" "$work/aligned.apk"

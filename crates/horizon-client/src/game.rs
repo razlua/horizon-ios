@@ -17243,6 +17243,18 @@ impl ApplicationHandler for Game<'_> {
             }
             return;
         }
+        // A real keyboard or mouse (a Chromebook's): the touch buttons step aside until the next
+        // touch. The fingers' own clicks don't come this way.
+        if cfg!(target_os = "android")
+            && matches!(
+                event,
+                WindowEvent::KeyboardInput { .. }
+                    | WindowEvent::MouseInput { .. }
+                    | WindowEvent::MouseWheel { .. }
+            )
+        {
+            self.touch.hardware = true;
+        }
         // Android: the system's Back is Esc.
         if cfg!(target_os = "android")
             && let WindowEvent::KeyboardInput { event: key, .. } = &event
