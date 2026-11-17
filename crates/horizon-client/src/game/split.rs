@@ -435,7 +435,7 @@ impl<'a> Split<'a> {
         self.surfaces = vec![Surface {
             key: 1,
             placement: Placement::Free(None),
-            size: window.inner_size(),
+            size: horizon_client::gfx::surface_size(&window),
             window,
             compositor,
             focused: true,
@@ -509,7 +509,11 @@ impl<'a> Split<'a> {
         self.host.all_sections_changed();
         let id = window.id();
         self.host
-            .window_event(event_loop, id, WindowEvent::Resized(window.inner_size()));
+            .window_event(
+                event_loop,
+                id,
+                WindowEvent::Resized(horizon_client::gfx::surface_size(&window)),
+            );
         Ok(())
     }
 

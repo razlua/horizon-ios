@@ -4,6 +4,31 @@
 use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
 
+/// Whether an installed app opens links like `url` (`UIApplication.canOpenURL:`). Only for
+/// schemes the Info.plist lists in `LSApplicationQueriesSchemes`; false for the rest. Call it on
+/// the main thread.
+pub fn can_open(url: &str) -> bool {
+    let Ok(text) = std::ffi::CString::new(url) else {
+        return false;
+    };
+    // SAFETY: Foundation's and UIKit's documented methods with the argument types they take; a
+    // nil from any of them ends the call before it is used. `text` outlives the calls.
+    unsafe {
+        let string: *mut AnyObject =
+            msg_send![class!(NSString), stringWithUTF8String: text.as_ptr()];
+        if string.is_null() {
+            return false;
+        }
+        let link: *mut AnyObject = msg_send![class!(NSURL), URLWithString: string];
+        let app: *mut AnyObject = msg_send![class!(UIApplication), sharedApplication];
+        if link.is_null() || app.is_null() {
+            return false;
+        }
+        let yes: objc2::runtime::Bool = msg_send![app, canOpenURL: link];
+        yes.as_bool()
+    }
+}
+
 /// Opens `url` in the system's browser. Call it on the main thread. False when `url` is not one.
 pub fn open_url(url: &str) -> bool {
     let Ok(text) = std::ffi::CString::new(url) else {

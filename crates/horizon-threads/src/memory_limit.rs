@@ -108,9 +108,71 @@ pub fn pressure_of_commit(commit: u64, limit: u64) -> Pressure {
     }
 }
 
-/// How tight memory is under `limit`: what the game holds in RAM against it.
+/// How tight memory is under `limit`: what the game holds in RAM against it. iOS: the room the
+/// system says is left ([`pressure_of_headroom`]) decides, since that is what it ends apps by.
 pub fn pressure(limit: u64) -> Pressure {
+    #[cfg(target_os = "ios")]
+    if let (Some(available), Some(used)) = (available_bytes(), resident_bytes()) {
+        return pressure_of_headroom(available, used);
+    }
     resident_bytes().map_or(Pressure::Steady, |used| pressure_of_usage(used, limit))
+}
+
+const MIB: u64 = 1024 * 1024;
+/// Less room than this left before the system ends the app: hold less. Kept small so a phone
+/// keeps the render distance it can hold (600 MB held an iPhone 17 at 17 instead of 29); the
+/// world's slow start (`ram_limit`) and the urgent step keep chunk bursts from reaching zero.
+pub const HEADROOM_LOW: u64 = 200 * MIB;
+/// More room than this left: the game may hold more again.
+pub const HEADROOM_ROOMY: u64 = 300 * MIB;
+/// The room a step down aims to leave.
+const HEADROOM_AIM: u64 = 250 * MIB;
+/// Less than this left: the system is about to end the app, so a big step at once.
+const HEADROOM_URGENT: u64 = 100 * MIB;
+
+/// How tight memory is when the system says how much room is left (`available`) and the game
+/// holds `used`. A share of a fixed cap doesn't work where much of what the game holds (its game
+/// data, textures, sounds) stays at any render distance: on an iPhone that allows 3.3 GB the game
+/// held 2.3 GB at render distance 2, so a cap at 80% stepped down to 2 and never back up.
+pub fn pressure_of_headroom(available: u64, used: u64) -> Pressure {
+    if available < HEADROOM_LOW {
+        let shed = HEADROOM_AIM - available;
+        let keep = if used == 0 {
+            0.8
+        } else {
+            used.saturating_sub(shed) as f64 / used as f64
+        };
+        let keep = if available < HEADROOM_URGENT { 0.5 } else { keep };
+        Pressure::Over { keep: keep.clamp(0.5, 0.95) }
+    } else if available > HEADROOM_ROOMY {
+        Pressure::Room
+    } else {
+        Pressure::Steady
+    }
+}
+
+#[cfg(test)]
+mod headroom_tests {
+    use super::*;
+
+    #[test]
+    fn room_left_decides_and_a_big_fixed_share_still_climbs_back() {
+        let gb = |g: f64| (g * 1024.0) as u64 * MIB;
+        // The iPhone of the report: 3.3 GB allowed, 2.3 GB held at distance 2, 1 GB left.
+        assert_eq!(pressure_of_headroom(gb(1.05), gb(2.3)), Pressure::Room);
+        // An iPhone 17 at distance 29 with about 450 MB left: room, it keeps its distance.
+        assert_eq!(pressure_of_headroom(gb(0.45), gb(4.0)), Pressure::Room);
+        assert_eq!(pressure_of_headroom(gb(0.25), gb(4.2)), Pressure::Steady);
+        match pressure_of_headroom(gb(0.15), gb(4.3)) {
+            Pressure::Over { keep } => assert!(keep > 0.9 && keep <= 0.95, "{keep}"),
+            other => panic!("{other:?}"),
+        }
+        // Almost nothing left: a big step, though not below half.
+        match pressure_of_headroom(0, gb(1.0)) {
+            Pressure::Over { keep } => assert_eq!(keep, 0.5),
+            other => panic!("{other:?}"),
+        }
+    }
 }
 
 /// How long the game has been over the cap with nothing left to give up.
@@ -217,12 +279,67 @@ pub fn resident_bytes() -> Option<u64> {
     }
 }
 
+/// iOS: the memory the system counts against the app, in bytes: its physical footprint (the
+/// GPU's buffers and textures included), the number iOS ends an app for, not its resident size.
+#[cfg(target_os = "ios")]
+pub fn resident_bytes() -> Option<u64> {
+    // `rusage_info_v0` (<sys/resource.h>); the libc crate declares the call for macOS only.
+    #[repr(C)]
+    struct Usage {
+        uuid: [u8; 16],
+        user_time: u64,
+        system_time: u64,
+        pkg_idle_wkups: u64,
+        interrupt_wkups: u64,
+        pageins: u64,
+        wired_size: u64,
+        resident_size: u64,
+        phys_footprint: u64,
+        proc_start_abstime: u64,
+        proc_exit_abstime: u64,
+    }
+    unsafe extern "C" {
+        // <libproc.h>, iOS 7 and later.
+        fn proc_pid_rusage(pid: libc::c_int, flavor: libc::c_int, buffer: *mut Usage)
+        -> libc::c_int;
+    }
+    const RUSAGE_INFO_V0: libc::c_int = 0;
+    // SAFETY: all-zero is a valid value of this plain C struct, which is the layout the V0 flavor
+    // writes, and the call writes only into it.
+    unsafe {
+        let mut usage: Usage = std::mem::zeroed();
+        (proc_pid_rusage(libc::getpid(), RUSAGE_INFO_V0, &raw mut usage) == 0)
+            .then_some(usage.phys_footprint)
+    }
+}
+
+/// iOS: how much the app may hold before the system ends it, in bytes: what it holds now and
+/// what `os_proc_available_memory` says is left. None where the system doesn't say.
+#[cfg(target_os = "ios")]
+pub fn system_limit() -> Option<u64> {
+    available_bytes().map(|available| resident_bytes().unwrap_or(0) + available)
+}
+
+/// iOS: how much more the app may hold before the system ends it (`os_proc_available_memory`),
+/// in bytes. None where the system doesn't say.
+#[cfg(target_os = "ios")]
+pub fn available_bytes() -> Option<u64> {
+    unsafe extern "C" {
+        // <os/proc.h>, iOS 13 and later.
+        fn os_proc_available_memory() -> usize;
+    }
+    // SAFETY: takes nothing and returns a number.
+    let available = unsafe { os_proc_available_memory() } as u64;
+    (available > 0).then_some(available)
+}
+
 /// The memory this process holds in RAM, in bytes: not known on this system.
 #[cfg(not(any(
     windows,
     target_os = "linux",
     target_os = "android",
-    target_os = "macos"
+    target_os = "macos",
+    target_os = "ios"
 )))]
 pub fn resident_bytes() -> Option<u64> {
     None

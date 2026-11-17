@@ -1251,6 +1251,7 @@ impl Game<'_> {
     /// A mouse button let go: no scroller is held any more.
     pub(super) fn station_release(&mut self) {
         self.loom_release();
+        self.merchant_release();
         if let Some(s) = self.station.as_mut() {
             s.scrolling = false;
             if let Some(m) = s.merchant.as_mut() {

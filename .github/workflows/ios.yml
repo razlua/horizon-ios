@@ -8,6 +8,14 @@ on:
     # Text alone changes no build.
     paths-ignore: ["**.md", "docs/**", "LICENSE", "altstore-source.json", "tools/ios/release-notes.py", "tools/ios/altstore-version.py"]
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "The Mac to build on (macos-15, macos-14, macos-26, macos-15-intel): another one when GitHub has none of one kind free"
+        default: macos-15-intel
+      screenshots:
+        description: "Also build for the iOS Simulator, start the app there and save screenshots (the simulator job)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -23,12 +31,22 @@ env:
 
 jobs:
   build:
-    # Intel: GitHub's Apple Silicon machines sat queued for want of capacity, and the iOS SDK
-    # cross-compiles to arm64 phones from either.
-    runs-on: macos-15-intel
+    # Apple Silicon. The Intel machines (macos-15-intel) stopped taking jobs ("not acquired by
+    # Runner of type hosted") on 2026-11-12; the Apple Silicon ones had sat queued on 2026-11-10.
+    # The iOS SDK cross-compiles to arm64 phones from any of them: a manual run can pick another
+    # (`runner`), as D:/Horizon-iOS/tools/ios-build-retry.sh does when one is dropped.
+    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
+      # Xcode 26 (the iOS 26 SDK, Swift 6.2) when the image has it, for the launcher's Liquid
+      # Glass (packaging/ios/swift/Theme.swift); the image's default is Xcode 16. Without it the
+      # launcher builds with its material fallback.
+      - name: Xcode 26
+        run: |
+          x="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$x" ]; then sudo xcode-select -s "$x"; fi
+          xcodebuild -version
       - name: Rust with the iOS target
         run: |
           rustup toolchain install stable --profile minimal
@@ -51,22 +69,130 @@ jobs:
           lib="$(find "$RUNNER_TEMP/opus" -name libopus.a | head -1)"
           lipo -info "$lib"
           echo "HORIZON_OPUS_DIR=$(dirname "$lib")" >> "$GITHUB_ENV"
+      # The native mods built into the app (tools/ios/native-mods.txt; they start off): applied
+      # to this source with horizon-mixins at the launcher's own commit (MIXINS_REV), as the
+      # launcher's native build does. This job has a read-only token and no secrets: the mods'
+      # build scripts run here.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mixins
+          key: horizon-mixins-e8cd0aa38cffef49cb2e088ef716baa107148c02-${{ runner.os }}
+      - name: horizon-mixins
+        run: |
+          set -euo pipefail
+          if [ ! -x "$RUNNER_TEMP/mixins/bin/horizon-mixins" ]; then
+            cargo install --locked --git https://github.com/horizon-rust/horizon-mixins \
+              --rev e8cd0aa38cffef49cb2e088ef716baa107148c02 --root "$RUNNER_TEMP/mixins" horizon-mixins-cli
+          fi
+          "$RUNNER_TEMP/mixins/bin/horizon-mixins" --version
+      - name: Native mods
+        run: |
+          set -euo pipefail
+          python3 tools/ios/native-mods.py fetch "$RUNNER_TEMP/mods"
+          python3 tools/ios/native-mods.py apply "$RUNNER_TEMP/mods" "$RUNNER_TEMP/mixins/bin/horizon-mixins" "$RUNNER_TEMP/stage"
+          python3 tools/ios/native-mods.py notices "$RUNNER_TEMP/mods"
+      # The SwiftUI launcher, shown before the game starts: a static library the Rust build links
+      # (crates/horizon-threads/build.rs).
+      - name: Swift launcher
+        run: bash packaging/ios/swift/build.sh iphoneos arm64-apple-ios16.0
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ios
+          key: ios-mods
+      # The staged (modded) source builds into this checkout's target/, which the cache keeps.
+      # The release profile (thin LTO, one codegen unit) and mimalloc, as the desktop release is
+      # built: less CPU time for each frame, so less battery. The chip is the oldest iOS 16 runs on
+      # (A11) instead of Rust's default A7.
       - name: Build
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_TARGET_AARCH64_APPLE_IOS_RUSTFLAGS: -C target-cpu=apple-a11
         run: >
-          cargo build --profile fast --target aarch64-apple-ios
+          cd "$RUNNER_TEMP/stage" &&
+          cargo build --release --target aarch64-apple-ios
           -p horizon-client --bin horizon-client
-          --no-default-features --features audio,system-allocator
+          --no-default-features --features audio
       - name: Package
         env:
           HORIZON_IOS_BUILD: ${{ github.run_number }}
         run: |
           export HORIZON_IOS_VERSION="$(date -u +%Y.%-m.%-d)"
-          bash packaging/ios/package.sh target/aarch64-apple-ios/fast/horizon-client dist/Horizon-unsigned.ipa
+          bash packaging/ios/package.sh target/aarch64-apple-ios/release/horizon-client dist/Horizon-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: Horizon-ios-unsigned
           path: dist/Horizon-unsigned.ipa
           if-no-files-found: error
+
+  # A look at the app without a phone: the same source (without the native mods, voice chat
+  # without Opus) built for the iOS Simulator, started there with no game files, and screenshots
+  # of what it shows, with its log. Run by hand (`screenshots`). Intel, whose Simulator runs
+  # x86_64 apps: the Apple Silicon machines were often all taken, and the job was cancelled.
+  simulator:
+    if: ${{ inputs.screenshots }}
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      # Xcode 26 (the iOS 26 SDK, Swift 6.2) when the image has it, for the launcher's Liquid
+      # Glass (packaging/ios/swift/Theme.swift); the image's default is Xcode 16. Without it the
+      # launcher builds with its material fallback.
+      - name: Xcode 26
+        run: |
+          x="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$x" ]; then sudo xcode-select -s "$x"; fi
+          xcodebuild -version
+      - name: Rust with the Simulator target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add x86_64-apple-ios
+      - name: Swift launcher
+        run: bash packaging/ios/swift/build.sh iphonesimulator x86_64-apple-ios16.0-simulator
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ios-simulator
+      - name: Build
+        run: >
+          cargo build --profile fast --target x86_64-apple-ios
+          -p horizon-client --bin horizon-client
+          --no-default-features --features audio
+      - name: Package
+        run: |
+          bash packaging/ios/package.sh target/x86_64-apple-ios/fast/horizon-client dist/Horizon-simulator.ipa
+          cd dist && unzip -q Horizon-simulator.ipa
+      - name: Run in the Simulator
+        run: |
+          set -euo pipefail
+          mkdir -p shots
+          xcrun simctl list devices available | tee shots/devices.txt
+          udid="$(grep -m1 -E '^ +iPhone' shots/devices.txt | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          app=dist/Payload/Horizon.app
+          bundle="$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")"
+          xcrun simctl install "$udid" "$app"
+          xcrun simctl launch "$udid" "$bundle"
+          for t in 10 20 30; do
+            sleep 10
+            xcrun simctl io "$udid" screenshot "shots/after-${t}s.png" || true
+          done
+          # Each of the launcher's tabs (FERRITE_TAB, packaging/ios/swift/Launcher.swift).
+          # --terminate-running-process waits for the last one to end: a plain terminate could
+          # leave it closing while the next launched, and its screenshot came out black.
+          for tab in refresh settings about; do
+            SIMCTL_CHILD_FERRITE_TAB="$tab" xcrun simctl launch --terminate-running-process "$udid" "$bundle"
+            sleep 15
+            xcrun simctl io "$udid" screenshot "shots/tab-$tab.png" || true
+          done
+          # The Play tab with saved accounts and their skins (FERRITE_DEMO, Launcher.swift).
+          SIMCTL_CHILD_FERRITE_DEMO=1 xcrun simctl launch --terminate-running-process "$udid" "$bundle"
+          sleep 20
+          xcrun simctl io "$udid" screenshot "shots/tab-play-accounts.png" || true
+          data="$(xcrun simctl get_app_container "$udid" "$bundle" data || true)"
+          find "$data" -name '*.log' -exec cp {} shots/ \; || true
+          xcrun simctl spawn "$udid" log show --last 2m --predicate 'process == "horizon-client"' > shots/system.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-screenshots
+          path: shots/

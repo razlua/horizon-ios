@@ -1,4 +1,4 @@
-# Roadmap: Horizon for iOS
+# Roadmap: Ferrite
 
 This roadmap covers the iOS port only. Upstream Horizon's own roadmap is in
 [docs/upstream/ROADMAP.md](docs/upstream/ROADMAP.md). The game itself (world generation, mobs,
@@ -39,16 +39,19 @@ redstone, multiplayer and so on) comes from upstream.
       voicechat engine with Opus linked into the app. The microphone is never used.
 - [x] Improved transparency no longer crashes on iOS GPUs.
 - [x] An About the Project page in Options.
-- [x] Extra Settings (Horizon-iOS) on the main menu: Safe Area as an option (backgrounds still
+- [x] Extra Settings (Ferrite) on the main menu: Safe Area as an option (backgrounds still
       fill the screen), button opacity, touch look speed, and keeping the screen on.
 - [x] An AltStore and SideStore source, so new builds arrive as updates there.
 - [x] The start screen says when a newer build is out.
 - [x] Talking in Simple Voice Chat: the microphone, push to talk, mute, and the voice chat menu
       on Edit HUD buttons.
+- [x] Native mods: the registry's mods that work on this port's Horizon are built into the app,
+      off until each player turns them on, with Edit HUD buttons for their keys.
 
 ## Next
 
-Nothing is queued right now; everything from the last Next list is done. Suggestions are welcome.
+- Add/Improve performance and RAM limiting, Extra-Memory permission.
+- Launcher screen in SwiftUI
 
 ## In progress
 
@@ -67,6 +70,7 @@ Nothing is queued right now; everything from the last Next list is done. Suggest
 
 - The App Store or TestFlight. The app needs your own Minecraft files, and the game isn't ours to
   publish there.
-- The desktop launcher's pages. Native Rust mods, the mod browser and modpacks need a computer.
+- The desktop launcher's pages. Choosing other native mods, the mod browser and modpacks need a
+  computer: an iPhone can't compile or load new code.
 - Phone-friendly defaults. Horizon is already well optimized, so a lower render distance or
   graphics preset on first launch isn't needed.

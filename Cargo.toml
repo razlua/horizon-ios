@@ -5,6 +5,7 @@ members = [
     "crates/horizon-dualsense",
     "crates/horizon-narrator",
     "crates/horizon-threads",
+    "crates/ferrite-signer",
     "crates/horizon-hdr",
     "crates/horizon-world",
     "crates/horizon-client",

@@ -179,6 +179,10 @@ impl Game<'_> {
                 vc::ui::Draw::Text(text, at, rgb, shadow) => {
                     self.native_text(batch, &text, at, rgb, shadow)
                 }
+                // The game's own widget sprites (buttons, sliders, text fields).
+                vc::ui::Draw::Sprite(name, [x, y, w, h], tint) => {
+                    batch.sprite_scaled(&self.gui.atlas, &name, x, y, w, h, tint)
+                }
             }
         }
     }

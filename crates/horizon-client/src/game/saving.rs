@@ -274,6 +274,8 @@ impl Game<'_> {
             "Saving world...",
             progress,
         );
+        // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+        hud.into_safe_area([renderer.config.width, renderer.config.height]);
         renderer.render(&loading_frame(&hud))?;
         Ok(())
     }

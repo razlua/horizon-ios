@@ -1,4 +1,4 @@
-//! Horizon Voice Chat: a client for the Simple Voice Chat protocol (an
+//! Ferrite VC, Ferrite's voice chat: a client for the Simple Voice Chat protocol (an
 //! unofficial one, not affiliated with Simple Voice Chat or its author), speaking it so a Horizon player talks with players on the
 //! Java mod on any server that has the voice chat plugin or mod.
 //!
@@ -24,10 +24,10 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 pub const ID: &str = "voicechat";
-pub const NAME: &str = "Horizon Voice Chat";
+pub const NAME: &str = "Ferrite VC";
 pub const VERSION: &str = "1.0.0";
-pub const DESCRIPTION: &str = "Talk with players who use the Simple Voice Chat mod, on servers that have it (unofficial). \
-V opens the menu: controls, hotkeys and groups. Push to talk (Caps Lock) or voice activation.";
+pub const DESCRIPTION: &str = "Ferrite's voice chat: talk with players who use the Simple Voice Chat mod, on servers that have it (unofficial). \
+V opens the menu: voice, groups and keys. Push to talk (Caps Lock) or voice activation.";
 
 pub const KEY_PTT: &str = "push_to_talk";
 pub const KEY_WHISPER: &str = "whisper";
@@ -767,9 +767,25 @@ pub fn menu_draw(
 
 pub fn menu_click(at: [f32; 2]) {
     let mut v = voice();
-    if let Some(action) = v.menu.hit(at) {
-        v.menu_action(action);
+    let Some(action) = v.menu.hit(at) else {
+        return;
+    };
+    // A slider: the setting where it was tapped.
+    if let ui::Action::Slide(slider) = &action {
+        let slider = *slider;
+        let Some(fraction) = v.menu.fraction(&action, at) else {
+            return;
+        };
+        let value = ui::slider_value(slider, fraction);
+        match slider {
+            ui::Slider::Volume => v.settings.volume = value.max(0) as u32,
+            ui::Slider::Gain => v.settings.mic_gain = value.max(0) as u32,
+            ui::Slider::Threshold => v.settings.threshold = value,
+        }
+        v.save();
+        return;
     }
+    v.menu_action(action);
 }
 
 /// A key on the menu: `menu_key` (the open key) closes it unless a field
@@ -1209,9 +1225,14 @@ mod tests {
         menu_open(Some('v'));
         let measure = |t: &str| t.len() as f32 * 6.0;
         let keys = vec![("Push to talk".to_owned(), key_label(DEFAULT_PTT))];
-        let draws = menu_draw([480.0, 270.0], [0.0, 0.0], &measure, keys.clone());
         let has = |d: &[ui::Draw], want: &str| d.iter().any(|d| matches!(d, ui::Draw::Text(t, ..) if t == want));
-        assert!(has(&draws, "Caps Lock") && has(&draws, "Miners (password)") && has(&draws, "Alex, Me"));
+        // The Keys tab has the hotkeys; the Groups tab the groups and their members.
+        voice().menu.tab = ui::Tab::Keys;
+        let draws = menu_draw([480.0, 270.0], [0.0, 0.0], &measure, keys.clone());
+        assert!(has(&draws, "Caps Lock"));
+        voice().menu.tab = ui::Tab::Groups;
+        let draws = menu_draw([480.0, 270.0], [0.0, 0.0], &measure, keys.clone());
+        assert!(has(&draws, "Miners (password)") && has(&draws, "Alex, Me"));
         let join = voice().menu.hit_rect(&ui::Action::Join(0x62)).unwrap();
         tick(Some(world("groups.example.net")), &none);
         menu_click([join[0] + 1.0, join[1] + 1.0]);

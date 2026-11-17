@@ -100,7 +100,7 @@ fn active_pack<'a>(picked: &'a str, mods: &horizon_client::mod_list::ModList) ->
     if picked.strip_prefix("native-").is_some_and(|id| {
         mods.installed
             .iter()
-            .any(|m| m.id == id && m.native.is_some() && mods.disabled.contains(id))
+            .any(|m| m.id == id && m.native.is_some() && mods.native_off(id))
     }) {
         ""
     } else {

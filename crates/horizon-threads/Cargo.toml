@@ -18,6 +18,28 @@ libc = "0.2"
 objc2 = "0.6"
 # The keyboard's notifications take a block (ios_keyboard.rs); also already in the tree.
 block2 = "0.6"
+# Controllers (Xbox, PlayStation, MFi, Switch Pro), a hardware keyboard and a mouse through
+# Apple's GameController framework (ios_gamecontroller.rs). MIT.
+objc2-game-controller = { version = "0.3", default-features = false, features = [
+    "std",
+    "block2",
+    "GCController",
+    "GCControllerAxisInput",
+    "GCControllerButtonInput",
+    "GCControllerDirectionPad",
+    "GCControllerElement",
+    "GCDevice",
+    "GCDeviceCursor",
+    "GCExtendedGamepad",
+    "GCKeyCodes",
+    "GCKeyboard",
+    "GCKeyboardInput",
+    "GCMouse",
+    "GCMouseInput",
+    "GCPhysicalInputProfile",
+    # `GCKeyCode` is a `CFIndex`.
+    "objc2-core-foundation",
+] }
 
 # Android: the same calls through JNI (android_sys.rs); both already in the tree through winit
 # and cpal.

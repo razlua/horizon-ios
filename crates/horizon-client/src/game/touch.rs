@@ -90,17 +90,38 @@ pub(super) const ACTIONS: &[Action] = &[
     action("hotbar_9", "9", "Hotbar slot 9", Key::Keys(&["9"])),
     action("f1", "F1", "F1 Hide HUD", Key::Keys(&["f1"])),
     action("f2", "F2", "F2 Screenshot", Key::Keys(&["f2"])),
-    action("f3", "F3", "F3 Debug screen", Key::Keys(&["f3"])),
+    action("f3", "F3", "F3 Debug", Key::Keys(&["f3"])),
     action("f3_b", "F3+B", "F3+B Hitboxes", Key::Keys(&["f3", "b"])),
-    action("f3_g", "F3+G", "F3+G Chunk borders", Key::Keys(&["f3", "g"])),
-    action("f3_h", "F3+H", "F3+H Item tooltips", Key::Keys(&["f3", "h"])),
+    action("f3_g", "F3+G", "F3+G Chunks", Key::Keys(&["f3", "g"])),
+    action("f3_h", "F3+H", "F3+H Tooltips", Key::Keys(&["f3", "h"])),
     action("f3_n", "F3+N", "F3+N Spectator", Key::Keys(&["f3", "n"])),
-    action("f3_t", "F3+T", "F3+T Reload packs", Key::Keys(&["f3", "t"])),
-    action("f3_f4", "F3+F4", "F3+F4 Game modes", Key::Keys(&["f3", "f4"])),
+    action("f3_t", "F3+T", "F3+T Packs", Key::Keys(&["f3", "t"])),
+    action("f3_f4", "F3+F4", "F3+F4 Modes", Key::Keys(&["f3", "f4"])),
     // Simple Voice Chat (voice_chat.rs): its menu, push to talk while held, and mute.
-    action("voice_menu", "VC", "Voice chat menu", Key::Keys(&[super::voice_chat::TOUCH_MENU])),
-    action("voice_talk", "Talk", "Voice chat: talk (hold)", Key::Keys(&[super::voice_chat::TOUCH_TALK])),
-    action("voice_mute", "Mic", "Voice chat: mute / unmute", Key::Keys(&[super::voice_chat::TOUCH_MUTE])),
+    action("voice_menu", "VC", "VC menu", Key::Keys(&[super::voice_chat::TOUCH_MENU])),
+    action("voice_talk", "Talk", "VC talk (hold)", Key::Keys(&[super::voice_chat::TOUCH_TALK])),
+    action("voice_mute", "Mic", "VC mute", Key::Keys(&[super::voice_chat::TOUCH_MUTE])),
+    // Keyboard keys for native mods' keys (Options > Mods > a mod's keys): the ones the mods
+    // built into the iOS app use by default. A button holds its key while the finger stays.
+    action("key_b", "B", "Key B (mods)", Key::Keys(&["b"])),
+    action("key_c", "C", "Key C (mods)", Key::Keys(&["c"])),
+    action("key_e", "E", "Key E (mods)", Key::Keys(&["e"])),
+    action("key_g", "G", "Key G (mods)", Key::Keys(&["g"])),
+    action("key_h", "H", "Key H (mods)", Key::Keys(&["h"])),
+    action("key_i", "I", "Key I (mods)", Key::Keys(&["i"])),
+    action("key_j", "J", "Key J (mods)", Key::Keys(&["j"])),
+    action("key_k", "K", "Key K (mods)", Key::Keys(&["k"])),
+    action("key_m", "M", "Key M (mods)", Key::Keys(&["m"])),
+    action("key_n", "N", "Key N (mods)", Key::Keys(&["n"])),
+    action("key_o", "O", "Key O (mods)", Key::Keys(&["o"])),
+    action("key_p", "P", "Key P (mods)", Key::Keys(&["p"])),
+    action("key_r", "R", "Key R (mods)", Key::Keys(&["r"])),
+    action("key_u", "U", "Key U (mods)", Key::Keys(&["u"])),
+    action("key_v", "V", "Key V (mods)", Key::Keys(&["v"])),
+    action("key_x", "X", "Key X (mods)", Key::Keys(&["x"])),
+    action("key_y", "Y", "Key Y (mods)", Key::Keys(&["y"])),
+    action("key_z", "Z", "Key Z (mods)", Key::Keys(&["z"])),
+    action("key_tab", "Tab", "Key Tab (mods)", Key::Keys(&["tab"])),
 ];
 
 /// The action named `id`.
@@ -535,12 +556,20 @@ fn custom_layout_for(size: [u32; 2], insets: [f32; 4], custom: Option<&HudLayout
     Layout::with([size[0] as f32, size[1] as f32], scale, insets, custom)
 }
 
+/// A fling slows by this factor every second (iOS's normal deceleration, 0.998 a millisecond).
+const FLING_DECAY: f64 = 0.135;
+/// A fling stops below this many lines a second, and starts only above `FLING_START`.
+const FLING_STOP: f64 = 1.0;
+const FLING_START: f64 = 6.0;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Role {
     /// A screen's pointer, before it is known to be a tap, a scroll or a drag.
     Pending,
     Scroll,
     Drag,
+    /// A right button drag: a stack held still on a slot, then slid (one item a slot).
+    RightDrag,
     /// A second finger in a screen: a right click when it lifts.
     Second,
     Stick,
@@ -557,6 +586,12 @@ struct Finger {
     start: [f64; 2],
     last: [f64; 2],
     began: Instant,
+    /// It landed on an inventory slot while a stack was carried: it slides to split the stack
+    /// over the slots it crosses, and never scrolls.
+    on_slot: bool,
+    /// A scroll's speed in lines a second (smoothed), and when it last moved.
+    speed: f64,
+    moved_at: Instant,
 }
 
 /// The fingers down and what they hold.
@@ -583,6 +618,18 @@ pub(super) struct Controls {
     loaded: bool,
     /// Edit HUD, while it is open.
     editor: Option<super::touch_editor::Editor>,
+    /// Set by the game before a finger lands: it lands on an inventory slot with a stack carried.
+    pub(super) slot_under_next: bool,
+    /// A list still gliding after the finger let go: lines a second, and the last frame.
+    fling: Option<(f64, Instant)>,
+    /// A controller, a keyboard or a mouse drove the game last: the touch HUD steps aside until
+    /// a finger touches the glass again (ios_input.rs).
+    pub(super) hardware: bool,
+    /// The hardware keyboard's keys and the mouse's buttons the game last heard as held.
+    #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+    pub(super) hardware_keys: Vec<&'static str>,
+    #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+    pub(super) hardware_mouse: [bool; 3],
 }
 
 impl Controls {
@@ -635,6 +682,7 @@ impl Controls {
         for f in self.fingers.drain(..) {
             match f.role {
                 Role::Drag => out.push(Out::Mouse(MouseButton::Left, false)),
+                Role::RightDrag => out.push(Out::Mouse(MouseButton::Right, false)),
                 Role::Key(i) => {
                     if let Some(Key::Keys(keys)) = layout.keys.get(i).map(|k| k.key) {
                         out.push(Out::Keys(keys, false));
@@ -644,6 +692,22 @@ impl Controls {
             }
         }
         self.held = PadState::default();
+        self.fling = None;
+    }
+
+    /// Each frame: a list let go mid-swipe keeps gliding and slows down, as lists do on a phone.
+    pub(super) fn fling_frame(&mut self, now: Instant) -> Vec<Out> {
+        let Some((speed, last)) = self.fling else {
+            return Vec::new();
+        };
+        let dt = now.saturating_duration_since(last).as_secs_f64().min(0.1);
+        let speed = speed * FLING_DECAY.powf(dt);
+        if speed.abs() < FLING_STOP || self.world {
+            self.fling = None;
+            return Vec::new();
+        }
+        self.fling = Some((speed, now));
+        vec![Out::Wheel((speed * dt) as f32)]
     }
 
     /// One touch event. `world` is whether the game holds the pointer (the player is in the
@@ -664,11 +728,16 @@ impl Controls {
             self.world = world;
         }
         let known = self.fingers.iter().position(|f| f.id == id);
+        let slot_under = std::mem::take(&mut self.slot_under_next);
         match (phase, known) {
             (TouchPhase::Started, _) => {
+                // A finger on the glass stops a gliding list, as on a phone, and brings the
+                // touch HUD back after a controller, keyboard or mouse.
+                self.fling = None;
+                self.hardware = false;
                 // A finger the system never ended.
                 if let Some(i) = known {
-                    self.lift(i, at, false, layout, &mut out);
+                    self.lift(i, at, false, now, layout, &mut out);
                 }
                 let role = if inside(layout.escape, [at[0] as f32, at[1] as f32]) {
                     out.push(Out::Escape);
@@ -687,6 +756,9 @@ impl Controls {
                     start: at,
                     last: at,
                     began: now,
+                    on_slot: role == Role::Pending && slot_under,
+                    speed: 0.0,
+                    moved_at: now,
                 });
                 if let Role::Key(i) = role {
                     match layout.keys[i].key {
@@ -696,8 +768,8 @@ impl Controls {
                 }
             }
             (TouchPhase::Moved, Some(i)) => self.moved(i, at, now, layout, &mut out),
-            (TouchPhase::Ended, Some(i)) => self.lift(i, at, true, layout, &mut out),
-            (TouchPhase::Cancelled, Some(i)) => self.lift(i, at, false, layout, &mut out),
+            (TouchPhase::Ended, Some(i)) => self.lift(i, at, true, now, layout, &mut out),
+            (TouchPhase::Cancelled, Some(i)) => self.lift(i, at, false, now, layout, &mut out),
             _ => {}
         }
         self.hold(layout);
@@ -734,7 +806,21 @@ impl Controls {
                 if tx.hypot(ty) <= f64::from(layout.slop) {
                     return;
                 }
-                if tx.abs() > ty.abs() || now.duration_since(f.began) >= HOLD {
+                let held = now.duration_since(f.began) >= HOLD;
+                if f.on_slot {
+                    // A carried stack slid over slots: vanilla's drag that spreads it, evenly
+                    // with the left button, or one item a slot (the right) after holding still.
+                    let button = if held {
+                        self.fingers[i].role = Role::RightDrag;
+                        MouseButton::Right
+                    } else {
+                        self.fingers[i].role = Role::Drag;
+                        MouseButton::Left
+                    };
+                    out.push(Out::Cursor(f.start));
+                    out.push(Out::Mouse(button, true));
+                    out.push(Out::Cursor(at));
+                } else if tx.abs() > ty.abs() || held {
                     self.fingers[i].role = Role::Drag;
                     out.push(Out::Cursor(f.start));
                     out.push(Out::Mouse(MouseButton::Left, true));
@@ -744,8 +830,18 @@ impl Controls {
                     out.push(Out::Wheel(ty as f32 / layout.line));
                 }
             }
-            Role::Scroll => out.push(Out::Wheel(dy as f32 / layout.line)),
-            Role::Drag => out.push(Out::Cursor(at)),
+            Role::Scroll => {
+                let lines = dy / f64::from(layout.line);
+                // The speed for a fling: this move's, blended with the ones before.
+                let dt = now.saturating_duration_since(f.moved_at).as_secs_f64();
+                if dt > 0.0 {
+                    let speed = lines / dt.max(0.008);
+                    self.fingers[i].speed = f.speed * 0.4 + speed * 0.6;
+                }
+                self.fingers[i].moved_at = now;
+                out.push(Out::Wheel(lines as f32));
+            }
+            Role::Drag | Role::RightDrag => out.push(Out::Cursor(at)),
             Role::Look | Role::Key(_) => {
                 if dx != 0.0 || dy != 0.0 {
                     out.push(Out::Look(dx * LOOK_SCALE, dy * LOOK_SCALE));
@@ -755,7 +851,15 @@ impl Controls {
         }
     }
 
-    fn lift(&mut self, i: usize, at: [f64; 2], ended: bool, layout: &Layout, out: &mut Vec<Out>) {
+    fn lift(
+        &mut self,
+        i: usize,
+        at: [f64; 2],
+        ended: bool,
+        now: Instant,
+        layout: &Layout,
+        out: &mut Vec<Out>,
+    ) {
         let f = self.fingers.remove(i);
         match f.role {
             Role::Pending if ended => {
@@ -766,6 +870,17 @@ impl Controls {
             Role::Drag => {
                 out.push(Out::Cursor(at));
                 out.push(Out::Mouse(MouseButton::Left, false));
+            }
+            Role::RightDrag => {
+                out.push(Out::Cursor(at));
+                out.push(Out::Mouse(MouseButton::Right, false));
+            }
+            // A swipe let go while still moving glides on; one that stopped first doesn't.
+            Role::Scroll if ended => {
+                let still = now.saturating_duration_since(f.moved_at) > Duration::from_millis(80);
+                if !still && f.speed.abs() > FLING_START {
+                    self.fling = Some((f.speed, now));
+                }
             }
             // A right click where the first finger rests; that finger is no longer a tap.
             Role::Second if ended => {
@@ -816,14 +931,14 @@ impl Controls {
 
 impl Game<'_> {
     /// Whether the fingers play the world (the game holds the pointer) or work a screen.
-    fn touch_world(&self) -> bool {
+    pub(super) fn touch_world(&self) -> bool {
         self.captured && self.title.is_none() && self.screen == Screen::Playing
     }
 
     fn touch_size(&self) -> Option<[u32; 2]> {
         let window = self.window.as_ref()?;
         Some(self.renderer.as_ref().map_or_else(
-            || window.inner_size().into(),
+            || horizon_client::gfx::surface_size(window).into(),
             |r| [r.config.width, r.config.height],
         ))
     }
@@ -957,7 +1072,7 @@ impl Game<'_> {
             return;
         };
         let size = self.renderer.as_ref().map_or_else(
-            || window.inner_size().into(),
+            || horizon_client::gfx::surface_size(&window).into(),
             |r| [r.config.width, r.config.height],
         );
         let at = touch_pixels(&window, size, &touch);
@@ -991,11 +1106,41 @@ impl Game<'_> {
             let chat_line = self.chat_open() && gui.1 >= batch.height - 16.0;
             self.touch.keyboard_hidden =
                 !(chat_line || super::pad_menu::field_at(&self.pad_visible_targets(), gui));
+            // A finger landing on a slot with a stack carried slides to split it.
+            self.touch.slot_under_next =
+                self.carried.is_some() && self.slot_at(&batch, gui.0, gui.1).is_some();
         }
         let outs = self
             .touch
             .touch(touch.id, touch.phase, at, Instant::now(), world, &layout);
         self.last_input = Instant::now();
+        self.touch_outs(event_loop, id, outs, [inset_left, inset_top]);
+    }
+
+    /// Each frame: a list let go mid-swipe keeps gliding.
+    pub(super) fn touch_frame(&mut self, event_loop: &dyn EventLoopCtl) {
+        if !Controls::enabled() {
+            return;
+        }
+        let outs = self.touch.fling_frame(Instant::now());
+        if outs.is_empty() {
+            return;
+        }
+        let Some(id) = self.window.as_ref().map(|w| w.id()) else {
+            return;
+        };
+        self.touch_outs(event_loop, id, outs, [0.0, 0.0]);
+    }
+
+    /// Does what the fingers asked: pointer events (moved out of the safe area's `inset`), turns
+    /// of the view, Esc and keys.
+    fn touch_outs(
+        &mut self,
+        event_loop: &dyn EventLoopCtl,
+        id: WindowId,
+        outs: Vec<Out>,
+        [inset_left, inset_top]: [f32; 2],
+    ) {
         for out in outs {
             let out = match out {
                 Out::Cursor([x, y]) => {
@@ -1073,6 +1218,9 @@ impl Game<'_> {
             let now = Instant::now();
             self.focus_lost = Some(now.checked_sub(Duration::from_secs(1)).unwrap_or(now));
             self.pause_if_inactive();
+            // Off the screen, paused and saved: an end now isn't a crash.
+            #[cfg(target_os = "ios")]
+            super::crash_watch::clear();
         }
     }
 
@@ -1099,7 +1247,18 @@ impl Game<'_> {
             batch.fill(atlas, x - 1.0, y - 1.0, w + 2.0, h + 2.0, rgba(0, 0, 0, 120));
             batch.fill(atlas, x, y, w, h, fill);
             let tw = HudBatch::text_width(atlas, label);
-            batch.text(atlas, label, x + (w - tw) / 2.0, y + (h - 8.0) / 2.0, white, true);
+            let fit = ((w - 4.0) / tw).min(1.0);
+            if fit >= 1.0 {
+                batch.text(atlas, label, x + (w - tw) / 2.0, y + (h - 8.0) / 2.0, white, true);
+            } else {
+                // Drawn at its size, then shrunk about its corner into the plate.
+                let (lx, ly) = (x + (w - tw * fit) / 2.0, y + (h - 8.0 * fit) / 2.0);
+                let start = batch.vertices.len();
+                batch.text(atlas, label, 0.0, 0.0, white, true);
+                for v in &mut batch.vertices[start..] {
+                    v.pos = [lx + v.pos[0] * fit, ly + v.pos[1] * fit];
+                }
+            }
         };
         batch.fill(atlas, 0.0, 0.0, fsize[0] / s, fsize[1] / s, rgba(0, 0, 0, 150));
         let stick = layout.stick_rect(fsize);
@@ -1127,7 +1286,16 @@ impl Game<'_> {
             };
             plate(batch, b.rect(fsize), fill, label);
         }
-        for (tool, label, r) in super::touch_editor::toolbar(fsize) {
+        let bar = super::touch_editor::toolbar(fsize);
+        if let (Some(top), Some(bottom)) = (
+            bar.iter().map(|t| t.2[1]).reduce(f32::min),
+            bar.iter().map(|t| t.2[1] + t.2[3]).reduce(f32::max),
+        ) {
+            let pad = 4.0;
+            let (top, bottom) = (top / s - pad, bottom / s + pad + 12.0);
+            batch.fill(atlas, 0.0, top, fsize[0] / s, bottom - top, rgba(0, 0, 0, 200));
+        }
+        for (tool, label, r) in bar {
             let usable = match tool {
                 Tool::Remove => matches!(editor.selected, Some(Sel::Button(_))),
                 Tool::Smaller | Tool::Bigger => editor.selected.is_some(),
@@ -1136,9 +1304,9 @@ impl Game<'_> {
             let fill = if tool == Tool::Done {
                 rgba(60, 150, 70, 200)
             } else if !usable {
-                rgba(40, 40, 40, 160)
+                rgba(40, 40, 40, 240)
             } else {
-                rgba(70, 70, 70, 210)
+                rgba(70, 70, 70, 250)
             };
             let label = match tool {
                 Tool::Layout => format!("Layout {}", editor.active + 1),
@@ -1194,6 +1362,10 @@ impl Game<'_> {
         };
         if self.touch.editor.is_some() {
             return self.draw_touch_editor(batch);
+        }
+        // A controller, keyboard or mouse plays: the buttons step aside until the next touch.
+        if self.touch.hardware {
+            return;
         }
         let s = batch.scale;
         let atlas = &self.gui.atlas;
@@ -1387,6 +1559,123 @@ mod tests {
         let later = t0 + HOLD;
         let moved = c.touch(2, TouchPhase::Moved, [300.0, 800.0], later, false, &l);
         assert_eq!(moved[1], Out::Mouse(MouseButton::Left, true));
+    }
+
+    #[test]
+    fn a_carried_stack_slid_down_from_a_slot_spreads_instead_of_scrolling() {
+        let (l, t0) = (layout(), Instant::now());
+        let mut c = Controls::default();
+        c.slot_under_next = true;
+        c.touch(1, TouchPhase::Started, [300.0, 600.0], t0, false, &l);
+        // Straight down, quickly: a scroll anywhere else, the left button's even split here.
+        assert_eq!(
+            c.touch(1, TouchPhase::Moved, [300.0, 700.0], t0, false, &l),
+            [
+                Out::Cursor([300.0, 600.0]),
+                Out::Mouse(MouseButton::Left, true),
+                Out::Cursor([300.0, 700.0])
+            ]
+        );
+        assert_eq!(
+            c.touch(1, TouchPhase::Ended, [300.0, 760.0], t0, false, &l),
+            [Out::Cursor([300.0, 760.0]), Out::Mouse(MouseButton::Left, false)]
+        );
+        // The hint is for one finger only: the next swipe scrolls again.
+        c.touch(2, TouchPhase::Started, [300.0, 600.0], t0, false, &l);
+        let next = c.touch(2, TouchPhase::Moved, [300.0, 700.0], t0, false, &l);
+        assert!(matches!(next[0], Out::Wheel(_)));
+    }
+
+    #[test]
+    fn a_carried_stack_held_then_slid_puts_one_in_each_slot() {
+        let (l, t0) = (layout(), Instant::now());
+        let mut c = Controls::default();
+        c.slot_under_next = true;
+        c.touch(1, TouchPhase::Started, [300.0, 600.0], t0, false, &l);
+        let moved = c.touch(1, TouchPhase::Moved, [400.0, 600.0], t0 + HOLD, false, &l);
+        assert_eq!(moved[1], Out::Mouse(MouseButton::Right, true));
+        let lifted = c.touch(1, TouchPhase::Ended, [420.0, 600.0], t0 + HOLD, false, &l);
+        assert_eq!(lifted[1], Out::Mouse(MouseButton::Right, false));
+        // A screen closing mid-drag lets go of the right button too.
+        c.slot_under_next = true;
+        c.touch(2, TouchPhase::Started, [300.0, 600.0], t0, false, &l);
+        c.touch(2, TouchPhase::Moved, [400.0, 600.0], t0 + HOLD, false, &l);
+        let closed = c.touch(2, TouchPhase::Moved, [410.0, 600.0], t0 + HOLD, true, &l);
+        assert_eq!(closed[0], Out::Mouse(MouseButton::Right, false));
+    }
+
+    #[test]
+    fn a_tap_on_a_slot_with_a_stack_is_still_a_click() {
+        let (l, t0) = (layout(), Instant::now());
+        let mut c = Controls::default();
+        c.slot_under_next = true;
+        c.touch(1, TouchPhase::Started, [300.0, 600.0], t0, false, &l);
+        assert_eq!(
+            c.touch(1, TouchPhase::Ended, [300.0, 600.0], t0, false, &l),
+            [
+                Out::Cursor([300.0, 600.0]),
+                Out::Mouse(MouseButton::Left, true),
+                Out::Mouse(MouseButton::Left, false)
+            ]
+        );
+    }
+
+    fn wheel_total(outs: &[Out]) -> f32 {
+        outs.iter()
+            .map(|o| if let Out::Wheel(lines) = o { *lines } else { 0.0 })
+            .sum()
+    }
+
+    #[test]
+    fn a_flicked_list_glides_then_stops_and_a_finger_stops_it() {
+        let (l, t0) = (layout(), Instant::now());
+        let ms = |n: u64| t0 + Duration::from_millis(n);
+        let mut c = Controls::default();
+        c.touch(1, TouchPhase::Started, [300.0, 600.0], t0, false, &l);
+        for step in 1..=5u64 {
+            let y = 600.0 + 40.0 * step as f64;
+            c.touch(1, TouchPhase::Moved, [300.0, y], ms(16 * step), false, &l);
+        }
+        c.touch(1, TouchPhase::Ended, [300.0, 800.0], ms(80), false, &l);
+        let first = wheel_total(&c.fling_frame(ms(96)));
+        assert!(first > 0.0, "it glides on in the swipe's direction");
+        let mut later = 0.0;
+        let mut frame = 96;
+        let mut stopped = false;
+        while frame < 6000 {
+            frame += 16;
+            let outs = c.fling_frame(ms(frame));
+            if outs.is_empty() {
+                stopped = true;
+                break;
+            }
+            later = wheel_total(&outs);
+        }
+        assert!(stopped, "it slows down and stops");
+        assert!(later < first, "each frame moves less than the one before");
+        // A new finger stops a glide at once.
+        c.touch(2, TouchPhase::Started, [300.0, 600.0], t0, false, &l);
+        for step in 1..=5u64 {
+            let y = 600.0 + 40.0 * step as f64;
+            c.touch(2, TouchPhase::Moved, [300.0, y], ms(16 * step), false, &l);
+        }
+        c.touch(2, TouchPhase::Ended, [300.0, 800.0], ms(80), false, &l);
+        c.touch(3, TouchPhase::Started, [300.0, 600.0], ms(90), false, &l);
+        assert!(c.fling_frame(ms(110)).is_empty());
+    }
+
+    #[test]
+    fn a_swipe_that_stopped_before_lifting_does_not_glide() {
+        let (l, t0) = (layout(), Instant::now());
+        let ms = |n: u64| t0 + Duration::from_millis(n);
+        let mut c = Controls::default();
+        c.touch(1, TouchPhase::Started, [300.0, 600.0], t0, false, &l);
+        for step in 1..=5u64 {
+            let y = 600.0 + 40.0 * step as f64;
+            c.touch(1, TouchPhase::Moved, [300.0, y], ms(16 * step), false, &l);
+        }
+        c.touch(1, TouchPhase::Ended, [300.0, 800.0], ms(400), false, &l);
+        assert!(c.fling_frame(ms(416)).is_empty());
     }
 
     #[test]

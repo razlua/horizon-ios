@@ -5850,6 +5850,8 @@ impl Game<'_> {
         // Options.broadcastOptions: a changed render distance or Chat option
         // is sent again.
         self.tick_ram_limit();
+        #[cfg(target_os = "ios")]
+        self.crash_watch_tick();
         let info = self
             .settings
             .client_information(client_view_distance(self.render_distance_in_use()));

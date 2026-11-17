@@ -22,6 +22,8 @@ if [ -n "${HORIZON_IOS_BUILD:-}" ]; then
 fi
 printf 'APPL????' > "$app/PkgInfo"
 cp "$root/LICENSE" "$root/THIRD_PARTY_NOTICES.md" "$app/"
+# The native mods built in: each one's version, license and source.
+if [ -f "$root/NATIVE_MODS.md" ]; then cp "$root/NATIVE_MODS.md" "$app/"; fi
 icon="$root/packaging/icons/hicolor/512x512/apps/horizon.png"
 sips -z 120 120 "$icon" --out "$app/AppIcon60x60@2x.png" >/dev/null
 sips -z 180 180 "$icon" --out "$app/AppIcon60x60@3x.png" >/dev/null

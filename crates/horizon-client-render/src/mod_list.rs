@@ -15,6 +15,12 @@ pub const DIR: &str = "horizon-mods";
 /// Where the launcher installs native mods (`<id>.hnmod`), beside [`DIR`]. They run only in a
 /// game the launcher built with them.
 pub const NATIVE_DIR: &str = "horizon-native-mods";
+/// iOS: every native mod the app is built with (the all-mods build) starts off, and runs only
+/// once the player turns it on (`mod.<id>:true`); elsewhere a native mod is built in because the
+/// player chose it, so it starts on.
+pub const NATIVE_STARTS_OFF: bool = cfg!(target_os = "ios");
+/// The native mods that start on all the same: the app's own (Simple Voice Chat).
+pub const STARTS_ON: &[&str] = &["voicechat"];
 /// Why a native mod installed in [`NATIVE_DIR`] doesn't run in this game.
 pub const NOT_BUILT: &str = "Installed, not built into this game: build the game with it in the launcher (Settings > Native mods), then play the instance that build is in.";
 
@@ -118,11 +124,17 @@ impl ModList {
         }
         let _ = fs::write(path, self.serialize());
     }
+    /// Whether native mod `id` is off: turned off, or never turned on where native mods start
+    /// off ([`NATIVE_STARTS_OFF`]).
+    pub fn native_off(&self, id: &str) -> bool {
+        self.disabled.contains(id)
+            || (NATIVE_STARTS_OFF && !STARTS_ON.contains(&id) && !self.enabled.contains(id))
+    }
     pub fn is_on(&self, i: usize) -> bool {
         self.installed.get(i).is_some_and(|m| {
             m.dev
                 || if m.native.is_some() {
-                    !self.disabled.contains(&m.id)
+                    !self.native_off(&m.id)
                 } else {
                     self.enabled.contains(&m.id)
                 }
@@ -136,7 +148,8 @@ impl ModList {
             return;
         };
         if m.native.is_some() {
-            if self.disabled.remove(&m.id) {
+            if self.native_off(&m.id) {
+                self.disabled.remove(&m.id);
                 self.enabled.insert(m.id.clone());
             } else {
                 self.enabled.remove(&m.id);
@@ -151,6 +164,16 @@ impl ModList {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_mods_start_off_only_where_the_build_says() {
+        let mut list = ModList::parse("mod.picked:true\nmod.voicechat:false\n");
+        assert!(!list.native_off("picked"));
+        assert!(list.native_off("voicechat"));
+        assert_eq!(list.native_off("other"), NATIVE_STARTS_OFF);
+        list.disabled.clear();
+        assert!(!list.native_off("voicechat"));
+    }
 
     #[test]
     fn round_trips_and_ignores_the_rest() {

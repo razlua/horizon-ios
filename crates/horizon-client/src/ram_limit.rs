@@ -20,8 +20,36 @@ const MIB: u64 = 1024 * 1024;
 pub const LOWEST_DISTANCE: i32 = 2;
 /// A step down waits this long for the last one to free its memory.
 const STEP_DOWN_EVERY: Duration = Duration::from_secs(3);
-/// A step back up waits this long after any change, so the game doesn't go up and down.
-const STEP_UP_EVERY: Duration = Duration::from_secs(30);
+/// A step back up waits this long after any change, so the game doesn't go up and down. A phone
+/// climbs sooner: its worlds start low ([`PHONE_START_DISTANCE`]).
+const STEP_UP_EVERY: Duration = if PHONE {
+    Duration::from_secs(3)
+} else {
+    Duration::from_secs(30)
+};
+
+/// The distance a step up goes to from `cap` toward `chosen`: one more on a computer; on a phone
+/// a third of the way there (at least one), so a world started at 8 reaches 29 in seven
+/// steps (about 21 s) instead of 21. One step at a time took over two minutes to see far chunks.
+fn step_up(cap: i32, chosen: i32) -> i32 {
+    if PHONE { phone_step_up(cap, chosen) } else { cap + 1 }
+}
+
+fn phone_step_up(cap: i32, chosen: i32) -> i32 {
+    // A third of the way, rounded up: 8, 15, 20, 23, 25, 27, 28, 29.
+    cap + ((chosen - cap + 2) / 3).max(1)
+}
+/// Under this share of what it holds, a step down doesn't wait for the last one to free its
+/// memory: the system is about to end the game.
+const URGENT_KEEP: f64 = 0.6;
+/// The game runs on a phone, whose system ends an app over its memory with no warning.
+const PHONE: bool = cfg!(target_os = "ios");
+/// How often the window's game looks at the memory, in ticks: once a second, a phone four times.
+pub const LOOK_EVERY_TICKS: u64 = if PHONE { 5 } else { 20 };
+/// The render distance a phone's world starts at, climbing from there while there's room. All
+/// of a world's chunks at 32 load within seconds, faster than one look steps down: on an iPhone
+/// that allows 3.3 GB, with 2.3 GB held at any distance, that ended the game.
+pub const PHONE_START_DISTANCE: i32 = 8;
 
 /// What a [`Governor`] step changed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,12 +67,24 @@ pub struct Governor {
     cap: Option<i32>,
     far_off: bool,
     changed: Option<Instant>,
+    /// A phone's world started low already (`start_low`).
+    started: bool,
 }
 
 impl Governor {
     /// The render distance to use when the player chose `chosen`.
     pub fn distance(&self, chosen: i32) -> i32 {
         self.cap.map_or(chosen, |cap| cap.min(chosen))
+    }
+
+    /// A phone's world starts at `start` when the player chose more, once per game: the
+    /// distance in use climbs from there while there is room. True when it capped.
+    pub fn start_low(&mut self, chosen: i32, start: i32) -> bool {
+        if std::mem::replace(&mut self.started, true) || chosen <= start {
+            return false;
+        }
+        self.cap = Some(start.max(LOWEST_DISTANCE));
+        true
     }
 
     /// Whether far terrain is off for memory.
@@ -78,7 +118,7 @@ impl Governor {
         };
         let step = match pressure {
             Pressure::Over { keep } => {
-                if !waited(STEP_DOWN_EVERY) {
+                if !waited(STEP_DOWN_EVERY) && !(PHONE && keep <= URGENT_KEEP) {
                     return None;
                 }
                 if has_far && !self.far_off {
@@ -98,7 +138,7 @@ impl Governor {
             }
             Pressure::Room if waited(STEP_UP_EVERY) => match self.cap {
                 Some(cap) => {
-                    let next = cap + 1;
+                    let next = step_up(cap, chosen);
                     self.cap = (next < chosen).then_some(next);
                     Some(Step::Raised(next.min(chosen)))
                 }
@@ -166,7 +206,28 @@ pub fn start(home: &Path, side: &'static str) {
             Err(_) => log::warn!("{HARD_ENV}={value} is not a number of MiB: no hard limit set"),
         }
     }
+    // iOS: there is no launcher, and the system ends an app that holds more than it allows,
+    // with no warning and no log. The limit is a share of that, so the render distance steps
+    // down well before.
+    #[cfg(target_os = "ios")]
+    if memory_limit::get().is_none()
+        && let Some(system) = memory_limit::system_limit()
+    {
+        let mb = phone_limit_mb(system / MIB);
+        log::info!("Horizon iOS: the system allows {} MiB; the RAM limit is {mb} MiB", system / MIB);
+        set(Some(mb));
+    }
 }
+
+/// The RAM limit on a phone that allows `system_mb`: just under it. The render distance in use
+/// follows the room iOS says is left (`memory_limit::pressure_of_headroom`), well before this;
+/// the limit is only where a game that can't get under it ends with a report, instead of being
+/// ended by iOS with none.
+pub fn phone_limit_mb(system_mb: u64) -> u64 {
+    system_mb.saturating_sub(PHONE_RESERVE_MB).max(system_mb / 2)
+}
+/// What the limit leaves below what the phone allows.
+const PHONE_RESERVE_MB: u64 = 192;
 
 fn set(mb: Option<u64>) {
     memory_limit::set(mb.map(|mb| mb.saturating_mul(MIB)), exceeded);
@@ -185,9 +246,13 @@ fn set_hard(mb: Option<u64>) {
 }
 
 fn exceeded(used: u64, limit: u64) {
+    let fix = if cfg!(target_os = "ios") {
+        "Lower the render distance, or close other apps."
+    } else {
+        "Raise the limit in the launcher's Launch panel."
+    };
     let message = format!(
-        "The game can't run under its RAM limit: it holds {} MiB and the limit is {} MiB. Raise \
-         the limit in the launcher's Launch panel.",
+        "The game can't run under its RAM limit: it holds {} MiB and the limit is {} MiB. {fix}",
         used / MIB,
         limit / MIB
     );
@@ -285,6 +350,31 @@ pub fn run(command: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_phone_world_starts_low_once_and_little_room_steps_down_at_once() {
+        let mut g = Governor::default();
+        assert!(g.start_low(32, PHONE_START_DISTANCE));
+        assert_eq!(g.distance(32), PHONE_START_DISTANCE);
+        // Once per game, and never above the player's choice.
+        assert!(!g.start_low(32, PHONE_START_DISTANCE));
+        assert!(!Governor::default().start_low(6, PHONE_START_DISTANCE));
+        // Two steps down in a row: the second waits, unless (on a phone) almost nothing is left.
+        let mut g = Governor::default();
+        let at = Instant::now();
+        assert!(g.step(at, OVER, 32, false).is_some());
+        assert_eq!(g.step(at, OVER, 32, false), None);
+        let urgent = g.step(at, Pressure::Over { keep: 0.5 }, 32, false);
+        assert_eq!(urgent.is_some(), PHONE);
+    }
+
+    #[test]
+    fn a_phone_limit_sits_just_under_what_the_system_allows() {
+        // The iPhone of the report allowed 3376 MiB, and the game held 2.3 GB at distance 2.
+        assert_eq!(phone_limit_mb(3376), 3184);
+        assert!(phone_limit_mb(3376) > 2400);
+        assert_eq!(phone_limit_mb(200), 100);
+    }
+
     const FAR_OVER: Pressure = Pressure::Over { keep: 0.125 };
     const OVER: Pressure = Pressure::Over { keep: 0.8 };
 
@@ -311,6 +401,21 @@ mod tests {
         assert!(distances.len() < 6, "gets there fast: {distances:?}");
         assert!(g.at_lowest(32, true));
         assert_eq!(g.distance(32), LOWEST_DISTANCE);
+    }
+
+    #[test]
+    fn a_phone_climbs_from_8_to_29_in_a_few_steps_and_never_past_it() {
+        let mut d = PHONE_START_DISTANCE;
+        let mut steps = Vec::new();
+        while d < 29 {
+            d = phone_step_up(d, 29).min(29);
+            steps.push(d);
+        }
+        assert!(steps.len() <= 7, "{steps:?}");
+        assert!(steps.windows(2).all(|w| w[1] > w[0]), "{steps:?}");
+        assert_eq!(steps.last(), Some(&29));
+        // Close to the setting: one at a time.
+        assert_eq!(phone_step_up(27, 29), 28);
     }
 
     #[test]

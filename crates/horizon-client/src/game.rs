@@ -339,6 +339,12 @@ mod touch_editor;
 mod voice_chat;
 #[cfg(any(target_os = "ios", target_os = "android"))]
 mod ios_account;
+#[cfg(target_os = "ios")]
+mod crash_watch;
+#[cfg(target_os = "ios")]
+mod ios_input;
+#[cfg(target_os = "ios")]
+mod ios_instances;
 #[cfg(any(target_os = "ios", target_os = "android"))]
 pub mod ios_boot;
 mod ios_setup;
@@ -8165,7 +8171,7 @@ impl Game<'_> {
         }
         let Some(window) = &self.window else { return };
         let size = self.renderer.as_ref().map_or_else(
-            || window.inner_size().into(),
+            || horizon_client::gfx::surface_size(window).into(),
             |r| [r.config.width, r.config.height],
         );
         let [vx, vy] = self.view_at.map(f64::from);
@@ -12171,6 +12177,15 @@ impl Game<'_> {
             Action::IosExtras => {
                 self.open_options_at(true, horizon_client::options_ui::Page::IosExtras)
             }
+            // The title screen holds no world, and settings are saved as they change: the
+            // process ends, as the app switcher would end it.
+            Action::IosClose => {
+                log::info!("Horizon iOS: closed from the main menu");
+                #[cfg(target_os = "ios")]
+                crash_watch::clear();
+                log::logger().flush();
+                std::process::exit(0);
+            }
             Action::Accessibility => {
                 self.open_options_at(true, horizon_client::options_ui::Page::Accessibility)
             }
@@ -15625,7 +15640,11 @@ impl Game<'_> {
                         upgrade,
                         self.cursor,
                     );
-                    return renderer.render(&loading_frame(&hud));
+                    // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                    hud.into_safe_area([renderer.config.width, renderer.config.height]);
+                    // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                hud.into_safe_area([renderer.config.width, renderer.config.height]);
+                return renderer.render(&loading_frame(&hud));
                 }
                 return Ok(false);
             }
@@ -15664,6 +15683,8 @@ impl Game<'_> {
                     Some(&status),
                     progress,
                 );
+                // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                hud.into_safe_area([renderer.config.width, renderer.config.height]);
                 return renderer.render(&loading_frame(&hud));
             }
             return Ok(false);
@@ -15680,6 +15701,8 @@ impl Game<'_> {
                     loader.progress.line(),
                     loader.progress.fraction(),
                 );
+                // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                hud.into_safe_area([renderer.config.width, renderer.config.height]);
                 return renderer.render(&loading_frame(&hud));
             }
             return Ok(false);
@@ -15696,6 +15719,8 @@ impl Game<'_> {
                     reload.progress.fraction(),
                     self.settings.file.bool("darkMojangStudiosBackground"),
                 );
+                // iOS's Safe Area: laid out inside it, moved in and stretched to the screen.
+                hud.into_safe_area([renderer.config.width, renderer.config.height]);
                 return renderer.render(&loading_frame(&hud));
             }
             return Ok(false);
@@ -17862,7 +17887,7 @@ impl Game<'_> {
                         let size = self
                             .window
                             .as_ref()
-                            .map(|w| w.inner_size())
+                            .map(|w| horizon_client::gfx::surface_size(w))
                             .unwrap_or_default();
                         let batch = HudBatch::new([size.width, size.height]);
                         title.scroll_worlds(d, self.cursor, (batch.width, batch.height));
@@ -18841,6 +18866,9 @@ impl Game<'_> {
             return;
         }
         horizon_client::spans::time("pads", || self.poll_pads(event_loop));
+        self.touch_frame(event_loop);
+        #[cfg(target_os = "ios")]
+        self.ios_input_frame(event_loop);
         self.pause_if_inactive();
         if self.options.frames.is_some() && self.started.elapsed() > self.options.timeout {
             self.error = Some("frame-limited run timed out".into());
@@ -21250,7 +21278,7 @@ impl Loading {
                 return;
             };
             let size = self.renderer.as_ref().map_or_else(
-                || window.inner_size().into(),
+                || horizon_client::gfx::surface_size(&window).into(),
                 |r| [r.config.width, r.config.height],
             );
             let outs = self.touch.touch(
@@ -21625,7 +21653,7 @@ fn missing_resources(root: &std::path::Path) -> Option<String> {
             "Horizon's game files are missing: no horizon-resources.json in {}\n\
              This copy of the app has no resources.zip inside it. Install Horizon.ipa, the large \
              file (about 450 MB) that tools/ios/make-ipa.sh writes with your own game files, \
-             not Horizon-unsigned.ipa. Or copy the resources folder into On My iPhone > Horizon \
+             not Horizon-unsigned.ipa. Or copy the resources folder into On My iPhone > Ferrite \
              > resources with the Files app.",
             shown.display()
         ));

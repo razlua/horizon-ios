@@ -2991,23 +2991,26 @@ impl OptionsUi {
                     list: false,
                     row: 0,
                 });
-                // Each setting with a line on what it does under it.
+                // Each setting with a line on what it does under it, in two columns: a phone's
+                // screen is short.
                 let items = crate::ios_extras::ITEMS;
-                let first =
-                    (33.0 + 8.0f32).min(h - 33.0 - ui::FOOT_LIFT - items.len() as f32 * 36.0);
+                let rows = items.len().div_ceil(2);
+                let first = (33.0 + 8.0f32).min(h - 33.0 - ui::FOOT_LIFT - rows as f32 * 36.0);
+                const COLUMN: f32 = 190.0;
                 for (i, item) in items.into_iter().enumerate() {
-                    let y = first + i as f32 * 36.0;
+                    let x = cx - COLUMN - 3.0 + (i % 2) as f32 * (COLUMN + 6.0);
+                    let y = first + (i / 2) as f32 * 36.0;
                     out.push(button(
-                        cx - 155.0,
+                        x,
                         y,
-                        310.0,
+                        COLUMN,
                         Text::literal(crate::ios_extras::label(item)),
                         Act::IosExtra(item),
                     ));
                     out.push(Widget {
-                        x: 0.0,
+                        x,
                         y: y + 22.0,
-                        w,
+                        w: COLUMN,
                         h: 9.0,
                         kind: WKind::Text {
                             text: Text::literal(crate::ios_extras::help(item)),

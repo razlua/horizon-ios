@@ -19,6 +19,22 @@ use horizon_client::{
 
 /// The merchant screen is 100 px wider than the 176-px menus it shares an origin with.
 const SHIFT: f32 = -50.0;
+/// Speed Trade's button, right of the result slot (170, 37), inside the 276-px panel.
+const SPEED_BUTTON: [f32; 4] = [191.0, 36.0, 22.0, 18.0];
+/// A finger that moves this far on the offer list scrolls it instead of tapping an offer.
+const GRAB_SLOP: f32 = 4.0;
+
+/// A finger on the offer list (a touch screen): where it landed, the scroll then, the offer row
+/// under it (none on the scroller), and whether it has moved. A drag scrolls the list as a
+/// phone's lists scroll; a tap picks the offer when the finger lifts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Grab {
+    y: f32,
+    scroll: usize,
+    row: Option<usize>,
+    scroller: bool,
+    moved: bool,
+}
 const GREY: u32 = 0xFF40_4040;
 
 pub(super) struct MerchantState {
@@ -35,6 +51,14 @@ pub(super) struct MerchantState {
     /// close) and its custom name.
     pub(super) mob: Option<u32>,
     pub(super) name: Option<String>,
+    /// A finger on the offer list (`Grab`).
+    pub(super) grab: Option<Grab>,
+    /// Speed Trade is trading: its button is held, or toggled on.
+    pub(super) speed: bool,
+    /// When Speed Trade trades next.
+    pub(super) speed_next: Option<std::time::Instant>,
+    /// A finger's swipe so far, in rows not yet scrolled: it comes in fractions of a row.
+    pub(super) wheel: f32,
 }
 impl MerchantState {
     /// `Merchant.showProgressBar`: villagers only.
@@ -311,6 +335,10 @@ impl Game<'_> {
             focused: None,
             mob: Some(id),
             name,
+            grab: None,
+            speed: false,
+            speed_next: None,
+            wheel: 0.0,
         });
         Ok(true)
     }
@@ -366,6 +394,10 @@ impl Game<'_> {
             focused: None,
             mob: None,
             name: None,
+            grab: None,
+            speed: false,
+            speed_next: None,
+            wheel: 0.0,
         });
     }
     /// A server's trading window (no mob here: the server keeps it).
@@ -381,6 +413,10 @@ impl Game<'_> {
             focused: None,
             mob: None,
             name,
+            grab: None,
+            speed: false,
+            speed_next: None,
+            wheel: 0.0,
         });
     }
     fn open_merchant_state(&mut self, state: MerchantState) {
@@ -503,9 +539,36 @@ impl Game<'_> {
     /// Clicks on the offer list; true when one was hit. A press on the
     /// scroller holds it (`MerchantScreen.mouseClicked`).
     pub(super) fn merchant_click(&mut self, local: (f32, f32)) -> bool {
+        // Speed Trade's button: trades the selected offer at once, and again while held.
+        if horizon_client::ios_extras::speed_trade() && on_speed_button(local) {
+            // A finger held still is no press (touch.rs), so on a touch screen it's a tap to
+            // start and a tap to stop.
+            let toggle = horizon_client::ios_extras::speed_trade_toggle() || self.touch.used;
+            let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
+                return false;
+            };
+            let start = !(toggle && m.speed);
+            m.speed = start;
+            m.speed_next = start.then(|| {
+                std::time::Instant::now() + speed_interval(horizon_client::ios_extras::speed_trade_rate())
+            });
+            self.audio
+                .play("minecraft:ui.button.click", None, 0.25, 1.0);
+            if start {
+                self.speed_trade_once();
+            }
+            return true;
+        }
+        let fingers = self.touch.used;
         let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
             return false;
         };
+        // A finger on the list or its scroller: a drag scrolls, a tap picks on release.
+        if fingers && let Some(grab) = finger_grab(local, m.scroll, m.session.offers.len()) {
+            m.grab = Some(grab);
+            m.dragging = false;
+            return true;
+        }
         m.dragging = on_scroller(local, m.session.offers.len());
         if m.dragging {
             return true;
@@ -576,23 +639,114 @@ impl Game<'_> {
         };
         let (_, oy) = self.inventory_origin(&HudBatch::new(size));
         let y = self.cursor.1 - oy;
-        if let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut())
-            && m.dragging
-        {
+        let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
+            return;
+        };
+        if let Some(mut grab) = m.grab {
+            let offers = m.session.offers.len();
+            if (y - grab.y).abs() > GRAB_SLOP {
+                grab.moved = true;
+            }
+            if grab.moved && offers > 7 {
+                m.scroll = if grab.scroller {
+                    drag_scroll(y, offers)
+                } else {
+                    finger_scroll(grab.scroll, grab.y - y, offers)
+                };
+            }
+            m.grab = Some(grab);
+        } else if m.dragging {
             m.scroll = drag_scroll(y, m.session.offers.len());
         }
     }
+    /// The mouse button or the finger let go on the trading screen: a held Speed Trade stops,
+    /// and a finger that tapped an offer without moving picks it (`MerchantScreen.mouseClicked`).
+    pub(super) fn merchant_release(&mut self) {
+        let toggle = horizon_client::ios_extras::speed_trade_toggle() || self.touch.used;
+        let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
+            return;
+        };
+        if !toggle {
+            m.speed = false;
+        }
+        let Some(grab) = m.grab.take() else {
+            return;
+        };
+        let Some(row) = grab.row.filter(|_| !grab.moved) else {
+            return;
+        };
+        let index = row + m.scroll;
+        if index >= m.session.offers.len() {
+            return;
+        }
+        m.focused = Some(row);
+        self.audio
+            .play("minecraft:ui.button.click", None, 0.25, 1.0);
+        self.try_move_items(index);
+    }
+    /// Speed Trade, once a frame while it trades: one round when its time has come.
+    fn merchant_speed_tick(&mut self) {
+        let now = std::time::Instant::now();
+        let enabled = horizon_client::ios_extras::speed_trade();
+        let rate = horizon_client::ios_extras::speed_trade_rate();
+        let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
+            return;
+        };
+        if !m.speed {
+            return;
+        }
+        if !enabled {
+            m.speed = false;
+            return;
+        }
+        if m.speed_next.is_some_and(|at| now < at) {
+            return;
+        }
+        m.speed_next = Some(now + speed_interval(rate));
+        self.speed_trade_once();
+    }
+    /// One round of Speed Trade on the selected offer: its payment from the inventory into the
+    /// payment slots (`MerchantMenu.tryMoveItems`, as pressing the offer does), then a
+    /// shift-click on the result, which trades as many times as the payment allows into the
+    /// inventory. An offer out of stock stops it.
+    fn speed_trade_once(&mut self) {
+        let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
+            return;
+        };
+        let index = m.session.selection_hint;
+        if m.session.offers.get(index).is_none_or(MerchantOffer::out_of_stock) {
+            m.speed = false;
+            return;
+        }
+        self.try_move_items(index);
+        let take = horizon_client::menu::Input::QuickMove;
+        if self.remote.is_some() {
+            self.remote_menu_ops(&[(Some(RESULT), 0, take)]);
+        } else {
+            self.menu_click(Some(RESULT), 0, take);
+        }
+    }
     pub(super) fn merchant_scroll(&mut self, d: f32) {
+        let fingers = self.touch.used;
         let Some(m) = self.station.as_mut().and_then(|s| s.merchant.as_mut()) else {
             return;
         };
         if m.session.offers.len() > 7 {
             let max = m.session.offers.len() - 7;
-            m.scroll = scrolled(m.scroll, max, d);
+            if fingers {
+                // A swipe comes in fractions of a row, which vanilla's (int) cast drops (down
+                // never moved; up jumped a row each time): whole rows as they add up.
+                let (rows, rest) = swipe_rows(m.wheel, d);
+                m.wheel = rest;
+                m.scroll = scrolled(m.scroll, max, rows);
+            } else {
+                m.scroll = scrolled(m.scroll, max, d);
+            }
         }
     }
     /// `MerchantScreen` rendering.
     pub(super) fn draw_merchant(&mut self, batch: &mut HudBatch) -> bool {
+        self.merchant_speed_tick();
         let (ox, oy) = self.inventory_origin(batch);
         let local = (self.cursor.0 - ox, self.cursor.1 - oy);
         let Some(m) = self.station.as_ref().and_then(|s| s.merchant.as_ref()) else {
@@ -840,6 +994,33 @@ impl Game<'_> {
         {
             tooltip = self.slot_mut(slot).clone();
         }
+        // Speed Trade's button, right of the result: yellow while it trades.
+        let speed_hover = horizon_client::ios_extras::speed_trade() && on_speed_button(local);
+        if horizon_client::ios_extras::speed_trade() {
+            let trading = self
+                .station
+                .as_ref()
+                .and_then(|s| s.merchant.as_ref())
+                .is_some_and(|m| m.speed);
+            let [x, y, w, h] = SPEED_BUTTON;
+            let sprite = if trading || speed_hover {
+                "gui/sprites/widget/button_highlighted"
+            } else {
+                "gui/sprites/widget/button"
+            };
+            let atlas = &self.gui.atlas;
+            batch.sprite_scaled(atlas, sprite, ox + x, oy + y, w, h, u32::MAX);
+            let label = ">>";
+            let color = if trading { 0xFFFF_D21A } else { u32::MAX };
+            batch.text(
+                atlas,
+                label,
+                ox + x + (w - HudBatch::text_width(atlas, label)) / 2.0,
+                oy + y + (h - 8.0) / 2.0,
+                color,
+                true,
+            );
+        }
         // An out-of-stock trade: "the villager needs to restock" over the
         // result (isHovering(186, 35, 22, 21), canRestock).
         let deprecated = progress
@@ -853,6 +1034,18 @@ impl Game<'_> {
             if let Some(stack) = tooltip.filter(|s| self.tooltip_with_carried(s)) {
                 self.draw_stack_tooltip(batch, &stack, self.cursor.0, self.cursor.1);
             }
+        } else if speed_hover {
+            let hold = if horizon_client::ios_extras::speed_trade_toggle() || self.touch.used {
+                "Tap to start or stop trading the selected offer."
+            } else {
+                "Hold to keep trading the selected offer."
+            };
+            let lines: Vec<(String, u32)> = vec![
+                ("Speed Trade".to_owned(), 0xFFFF_D21A),
+                (hold.to_owned(), 0xFFA0_A0A0),
+                ("Settings: Extra Settings (Ferrite).".to_owned(), 0xFFA0_A0A0),
+            ];
+            self.draw_tooltip_lines(batch, &lines, self.cursor.0, self.cursor.1);
         } else if deprecated {
             let text = horizon_client::lang::get_or(
                 "merchant.deprecated",
@@ -866,6 +1059,49 @@ impl Game<'_> {
         }
         true
     }
+}
+
+/// A swipe's `d` rows added to what was left over: the whole rows to scroll, and the rest.
+fn swipe_rows(left: f32, d: f32) -> (f32, f32) {
+    let total = left + d;
+    let rows = total.trunc();
+    (rows, total - rows)
+}
+
+/// Whether `local` (GUI origin relative) is on Speed Trade's button.
+fn on_speed_button(local: (f32, f32)) -> bool {
+    let [x, y, w, h] = SPEED_BUTTON;
+    local.0 >= x && local.0 < x + w && local.1 >= y && local.1 < y + h
+}
+
+/// The time between two of Speed Trade's rounds at `rate` a second.
+fn speed_interval(rate: u32) -> std::time::Duration {
+    std::time::Duration::from_millis(1000 / u64::from(rate.max(1)))
+}
+
+/// A finger landing at `local` on the offer list or its scroller (a wider strip than the
+/// mouse's, for a thumb): where it landed, and the offer row under it, if any.
+fn finger_grab(local: (f32, f32), scroll: usize, offers: usize) -> Option<Grab> {
+    let (x, y) = local;
+    if !(x >= 5.0 + SHIFT && x < 106.0 + SHIFT && (18.0..158.0).contains(&y)) {
+        return None;
+    }
+    let scroller = x >= 93.0 + SHIFT;
+    let row = ((y - 18.0) / 20.0) as usize;
+    Some(Grab {
+        y,
+        scroll,
+        row: (!scroller && row < 7 && row + scroll < offers).then_some(row),
+        scroller: scroller && offers > 7,
+        moved: false,
+    })
+}
+
+/// The first shown offer for a finger dragged `dy` GUI px up from where it landed with the
+/// list at `start`: a row (20 px) per row, clamped to the list.
+fn finger_scroll(start: usize, dy: f32, offers: usize) -> usize {
+    let max = offers.saturating_sub(7) as i32;
+    (start as i32 + (dy / 20.0).round() as i32).clamp(0, max) as usize
 }
 
 /// Whether a press at `local` (GUI origin relative) lands on the offer list's
@@ -900,6 +1136,58 @@ mod tests {
     /// clamped, so the list moves by as many rows as the event's delta and a
     /// fractional delta still moves one row (the truncation is after the
     /// subtraction). Horizon moved exactly one row per event.
+    #[test]
+    fn a_finger_drags_the_list_and_a_tap_picks_the_row_under_it() {
+        // On an offer row: that row, at the scroll it landed with.
+        let grab = finger_grab((SHIFT + 20.0, 18.0 + 20.0 * 2.0 + 5.0), 3, 12).unwrap();
+        assert_eq!(grab.row, Some(2));
+        assert!(!grab.scroller);
+        // On the scroller's (wider) strip: the scroller, no row.
+        let grab = finger_grab((SHIFT + 102.0, 60.0), 0, 12).unwrap();
+        assert_eq!((grab.row, grab.scroller), (None, true));
+        // Off the list: nothing.
+        assert_eq!(finger_grab((SHIFT + 120.0, 60.0), 0, 12), None);
+        assert_eq!(finger_grab((SHIFT + 20.0, 10.0), 0, 12), None);
+        // A row past the last offer picks nothing.
+        assert_eq!(finger_grab((SHIFT + 20.0, 18.0 + 20.0 * 6.0), 0, 5).unwrap().row, None);
+        // Dragged up two rows: two offers further, clamped at both ends.
+        assert_eq!(finger_scroll(1, 40.0, 12), 3);
+        assert_eq!(finger_scroll(1, -40.0, 12), 0);
+        assert_eq!(finger_scroll(4, 400.0, 12), 5);
+        assert_eq!(finger_scroll(2, 8.0, 12), 2, "under half a row stays");
+    }
+
+    #[test]
+    fn a_swipe_s_fractions_add_up_to_whole_rows_both_ways() {
+        let (mut left, mut moved) = (0.0, 0.0);
+        for _ in 0..7 {
+            let (rows, rest) = swipe_rows(left, 0.3);
+            moved += rows;
+            left = rest;
+        }
+        assert_eq!(moved, 2.0, "2.1 rows of swipe: 2 rows, 0.1 left over");
+        let (mut left, mut moved) = (0.0, 0.0);
+        for _ in 0..7 {
+            let (rows, rest) = swipe_rows(left, -0.3);
+            moved += rows;
+            left = rest;
+        }
+        assert_eq!(moved, -2.0);
+        assert_eq!(scrolled(0, 5, -1.0), 1, "a whole row down moves the list");
+    }
+
+    #[test]
+    fn speed_trade_s_button_sits_right_of_the_result_inside_the_panel() {
+        let [x, y, w, h] = SPEED_BUTTON;
+        // Right of the result slot (170..186), left of the panel's edge (226).
+        assert!(x > 186.0 && x + w < 226.0);
+        assert!(on_speed_button((x + 1.0, y + 1.0)));
+        assert!(!on_speed_button((186.0, 40.0)));
+        assert!(!on_speed_button((x + 1.0, y + h + 1.0)));
+        assert_eq!(speed_interval(20), std::time::Duration::from_millis(50));
+        assert_eq!(speed_interval(0), std::time::Duration::from_secs(1));
+    }
+
     #[test]
     fn the_offers_scroll_by_the_wheel_delta() {
         assert_eq!(scrolled(3, 5, 1.0), 2, "one notch down");

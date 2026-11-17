@@ -8175,7 +8175,7 @@ impl Game<'_> {
     /// turned off does nothing (check this first in each hook) until the
     /// launcher's next build leaves it out.
     pub(super) fn native_on(&self, mod_id: &str) -> bool {
-        !self.settings.mods.disabled.contains(mod_id)
+        !self.settings.mods.native_off(mod_id)
     }
     /// Sets a block in the current authoritative level through `Level.setBlock`.
     /// Returns false for another dimension, an invalid state, or no change.
@@ -8796,7 +8796,7 @@ impl Game<'_> {
     /// The window's width and height in physical pixels, independent of GUI
     /// scale; none on a server or when no window exists. API 165.
     pub(super) fn native_physical_window_size(&self) -> Option<[u32; 2]> {
-        let size = self.window.as_ref()?.inner_size();
+        let size = horizon_client::gfx::surface_size(self.window.as_ref()?);
         Some([size.width, size.height])
     }
     /// Where the mouse is, in GUI pixels. API 20.

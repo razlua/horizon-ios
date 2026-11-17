@@ -32,6 +32,169 @@ pub enum Action {
     GetUpdate,
 }
 
+/// What the SwiftUI launcher (packaging/ios/swift) sent: one of this screen's actions, or the
+/// offline name typed in its text field, to play with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LauncherAction {
+    Screen(Action),
+    OfflineName(String),
+    /// A setting from the launcher's Settings tab: `set:<key>=<value>`.
+    Setting { key: String, value: String },
+    /// The Refresh tab's Check: what a new signature would be.
+    SignerCheck,
+    /// The Refresh tab's Sign out of the Apple ID.
+    SignerSignOut,
+    /// The Refresh tab's Test connection: reach the iPhone's installer (LocalDevVPN, pairing file).
+    SignerTest,
+    /// The Refresh tab's Refresh now: sign Ferrite again and install it over itself.
+    SignerRefresh,
+    /// More, then Close Ferrite: the app ends (the launcher shows before any world opens).
+    Close,
+    /// The Play tab's card about the last run ending while playing, dismissed.
+    CrashDismiss,
+    /// Profiles: choose one (empty: Default), make one (chosen too), delete one.
+    Instance(String),
+    InstanceNew(String),
+    InstanceDelete(String),
+    /// The skin changer's Upload: the PNG the launcher saved (`.skin-upload.png` in the game
+    /// folder) as the skin of the saved account at `index`, on the slim or the classic model.
+    SkinUpload { index: usize, slim: bool },
+}
+
+/// The width and height of a PNG, from its header. None for anything else.
+pub fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    const SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+    if bytes.len() < 24 || &bytes[..8] != SIGNATURE || &bytes[12..16] != b"IHDR" {
+        return None;
+    }
+    let number = |at: usize| u32::from_be_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
+    Some((number(16), number(20)))
+}
+
+/// Whether a PNG of this size is a Minecraft skin: 64 x 64, or the old 64 x 32.
+pub fn is_skin_size(size: (u32, u32)) -> bool {
+    matches!(size, (64, 64) | (64, 32))
+}
+
+/// The launcher's action text (`play:0`, `add_account`, `offline_name:Steve`, ...). None for one
+/// this build doesn't know.
+pub fn parse_launcher_action(text: &str) -> Option<LauncherAction> {
+    let (word, arg) = match text.split_once(':') {
+        Some((word, arg)) => (word, Some(arg)),
+        None => (text, None),
+    };
+    let index = || arg?.parse::<usize>().ok();
+    let action = match word {
+        "open_link" => Action::OpenLink,
+        "retry" => Action::Retry,
+        "offline" => Action::Offline,
+        "play" => Action::Play(index()?),
+        "add_account" => Action::AddAccount,
+        "remove_mode" => Action::RemoveMode,
+        "remove" => Action::Remove(index()?),
+        "back" => Action::Back,
+        "retry_setup" => Action::RetrySetup,
+        "get_update" => Action::GetUpdate,
+        "offline_name" => return Some(LauncherAction::OfflineName(arg?.to_owned())),
+        "signer_check" => return Some(LauncherAction::SignerCheck),
+        "signer_sign_out" => return Some(LauncherAction::SignerSignOut),
+        "signer_test" => return Some(LauncherAction::SignerTest),
+        "signer_refresh" => return Some(LauncherAction::SignerRefresh),
+        "close" => return Some(LauncherAction::Close),
+        "crash_dismiss" => return Some(LauncherAction::CrashDismiss),
+        "instance" => return Some(LauncherAction::Instance(arg.unwrap_or("").to_owned())),
+        "instance_new" => return Some(LauncherAction::InstanceNew(arg?.to_owned())),
+        "instance_delete" => return Some(LauncherAction::InstanceDelete(arg?.to_owned())),
+        "skin_upload" => {
+            let (index, model) = arg?.split_once(':')?;
+            let slim = match model {
+                "slim" => true,
+                "classic" => false,
+                _ => return None,
+            };
+            return Some(LauncherAction::SkinUpload {
+                index: index.parse().ok()?,
+                slim,
+            });
+        }
+        "set" => {
+            let (key, value) = arg?.split_once('=')?;
+            return Some(LauncherAction::Setting {
+                key: key.to_owned(),
+                value: value.to_owned(),
+            });
+        }
+        _ => return None,
+    };
+    Some(LauncherAction::Screen(action))
+}
+
+#[cfg(test)]
+mod launcher_tests {
+    use super::*;
+
+    #[test]
+    fn the_launcher_s_actions_are_the_screen_s() {
+        let screen = |a| Some(LauncherAction::Screen(a));
+        assert_eq!(parse_launcher_action("play:2"), screen(Action::Play(2)));
+        assert_eq!(parse_launcher_action("remove:0"), screen(Action::Remove(0)));
+        assert_eq!(parse_launcher_action("add_account"), screen(Action::AddAccount));
+        assert_eq!(parse_launcher_action("get_update"), screen(Action::GetUpdate));
+        assert_eq!(
+            parse_launcher_action("offline_name:Steve_1"),
+            Some(LauncherAction::OfflineName("Steve_1".into()))
+        );
+        assert_eq!(
+            parse_launcher_action("set:render_distance=16"),
+            Some(LauncherAction::Setting { key: "render_distance".into(), value: "16".into() })
+        );
+        assert_eq!(parse_launcher_action("set:render_distance"), None);
+        assert_eq!(parse_launcher_action("signer_check"), Some(LauncherAction::SignerCheck));
+        assert_eq!(parse_launcher_action("signer_test"), Some(LauncherAction::SignerTest));
+        assert_eq!(parse_launcher_action("signer_refresh"), Some(LauncherAction::SignerRefresh));
+        assert_eq!(parse_launcher_action("close"), Some(LauncherAction::Close));
+        assert_eq!(parse_launcher_action("crash_dismiss"), Some(LauncherAction::CrashDismiss));
+        assert_eq!(parse_launcher_action("instance:PvP"), Some(LauncherAction::Instance("PvP".into())));
+        assert_eq!(parse_launcher_action("instance:"), Some(LauncherAction::Instance(String::new())));
+        assert_eq!(parse_launcher_action("instance_new:Survival 2"), Some(LauncherAction::InstanceNew("Survival 2".into())));
+        assert_eq!(parse_launcher_action("instance_delete"), None);
+        assert_eq!(parse_launcher_action("play"), None);
+        assert_eq!(parse_launcher_action("play:x"), None);
+        assert_eq!(parse_launcher_action("fly"), None);
+    }
+
+    #[test]
+    fn a_skin_upload_names_the_account_and_the_model() {
+        assert_eq!(
+            parse_launcher_action("skin_upload:1:slim"),
+            Some(LauncherAction::SkinUpload { index: 1, slim: true })
+        );
+        assert_eq!(
+            parse_launcher_action("skin_upload:0:classic"),
+            Some(LauncherAction::SkinUpload { index: 0, slim: false })
+        );
+        assert_eq!(parse_launcher_action("skin_upload:0:wide"), None);
+        assert_eq!(parse_launcher_action("skin_upload:x:slim"), None);
+        assert_eq!(parse_launcher_action("skin_upload:2"), None);
+    }
+
+    #[test]
+    fn a_skin_is_a_png_of_64_by_64_or_64_by_32() {
+        let png = |w: u32, h: u32| {
+            let mut bytes = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR".to_vec();
+            bytes.extend_from_slice(&w.to_be_bytes());
+            bytes.extend_from_slice(&h.to_be_bytes());
+            bytes.extend_from_slice(&[8, 6, 0, 0, 0]);
+            bytes
+        };
+        assert_eq!(png_size(&png(64, 64)), Some((64, 64)));
+        assert!(is_skin_size(png_size(&png(64, 32)).unwrap()));
+        assert!(!is_skin_size(png_size(&png(128, 128)).unwrap()));
+        assert_eq!(png_size(b"GIF89a not a png at all......"), None);
+        assert_eq!(png_size(&[0x89, b'P']), None);
+    }
+}
+
 /// How a button looks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Look {

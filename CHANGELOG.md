@@ -1,8 +1,9 @@
-# Changelog: Horizon for iOS
+# Changelog
 
-The iOS port's changes, newest first. **Unreleased** is what changed since the latest release; it
-becomes the next release's notes. Upstream Horizon's own release notes are at
-[horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/releases).
+Ferrite's changes, newest first. **Unreleased** is what changed since the latest release and
+becomes the next release's notes. Android builds are listed on the
+[releases page](https://github.com/razlua/horizon-ios/releases). Upstream Horizon's own notes are
+at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/releases).
 
 ## Unreleased
 
@@ -31,126 +32,163 @@ becomes the next release's notes. Upstream Horizon's own release notes are at
 
 ### Added
 
-- **Native mods for everyone (in progress).** The app is being built with the native mods from
-  Horizon's registry that work on iOS, so players can use them without a computer. They all
-  start off: turn on the ones you want in *Options → Mods*, and the rest do nothing. Simple Voice
-  Chat stays on as before.
+- **Launcher.** Ferrite opens on a native launcher with four tabs. Play has your player in 3D
+  (drag to turn it), your accounts, a skin changer with a 3D preview, Microsoft sign-in and the
+  download. Refresh shows when the app's signature runs out, with a reminder a day before and on
+  the day. Settings has render distance, max frame rate, Battery mode and Extra Settings. About has
+  the credits and Send logs.
+- **Refresh now, inside Ferrite.** Sign in with your Apple ID on the Refresh tab and Ferrite signs
+  itself again for 7 days and installs over itself, worlds and sign-ins kept, with no computer and
+  no SideStore. It needs LocalDevVPN (free, App Store) on and a pairing file made once on a
+  computer. It also asks Apple for the increased memory limit, for higher render distances.
+  Experimental: please send the log if it fails.
+- **Speed Trade.** A >> button next to a trade's result keeps making the selected trade until you
+  stop it or the villager runs out. Speed (4, 10 or 20 a second) and Hold or Tap are in Extra
+  Settings. Works in single player and on servers.
+- **Controllers, keyboards and mice on iPhone and iPad.** Xbox, PlayStation, MFi and Switch Pro
+  controllers work through Apple's GameController framework, with Horizon's own controller
+  support on top: menus, the right button pictures, your bindings. A hardware keyboard plays as on
+  a computer (WASD, E, F3, chat, mod keys), and a mouse turns the view and attacks and uses in the
+  world. The touch buttons step aside while one of them plays and come back at the next touch.
+  Experimental: please say how it feels.
+- **Profiles.** The Play tab's profile menu keeps several sets of settings, for example one for PvP
+  and one for survival: each has its own options, keybinds, video settings, servers list and
+  offline name, and Settings changes the chosen one. Worlds, packs, mods and sign-ins stay shared.
+  A new profile starts as a copy of your settings, and Default is everything as before.
+- **Close.** Beside Extra Settings on the main menu, and Close Ferrite in the launcher's More menu:
+  Ferrite ends without the app switcher.
+- **Crash catcher.** If Ferrite closes by itself while you play (usually iOS ending it for memory,
+  which leaves nothing in the log), the next start says so on the Play tab, with the render
+  distance and memory left at the time and a guess at why. Send report shares it with the end of
+  that run's log.
+- **Feather.** The AltStore / SideStore source works in Feather too.
+- **Inventory by finger.** Hold a stack and slide across slots to split it evenly, as a mouse
+  drag does on PC. Hold still on the first slot before sliding to put one item in each. Lists
+  (creative tabs, recipe book, JEI, packs) keep gliding after a quick swipe and slow down, and a
+  touch stops them.
+- **Ferrite VC.** The voice chat has a new name and a new menu with Voice, Groups and Keys tabs,
+  drawn with the game's own buttons, sliders and text fields.
+
+### Fixed
+
+- The villager trading list scrolls when you drag it. A tap still picks a trade.
+- The render distance no longer drops to 2 and stays there, and it no longer drops early: the
+  memory guard steps down only when less than 200 MB is left, so an iPhone 17 keeps 29 instead of
+  dropping to 17.
+- Far chunks show up much sooner. A world still starts at render distance 8, but it now climbs a
+  third of the way to your setting every 3 seconds (8 to 29 in about 20 seconds) instead of one
+  step every 6 seconds (over 2 minutes).
+- Big render distances no longer crash right after a world opens. A world starts at 8 and climbs
+  to your setting while there's memory for it.
+- The first download shows each step, its size and each retry, instead of "..." until a whole
+  megabyte had arrived.
 
 ### Changed
 
-- **Release notes are changelogs:** each release lists what changed since the one before, from
-  this file.
-- **README:** a Performance section with screenshots from an iPhone 17 at render distance 29.
-- **Build:** the voice chat engine moved to `crates/voicechat-engine`, out of the folder
-  horizon-mixins keeps for mods' own crates.
+- **The app is now called Ferrite**, with a new yellow icon. It installs over the old app with
+  your worlds, sign-ins and settings, and updates come through the same source.
+
+## 2026.11.13
+
+### Added
+
+- **One-tap updates with SideStore or AltStore.** When a newer version is out, the start screen
+  offers Update with SideStore (or AltStore) if one is installed. Without either, the button opens
+  the download page.
+
+### Fixed
+
+- High render distances no longer crash the app. The game lowers the distance it uses while
+  memory is tight and raises it again when there's room. Your setting stays as you chose it.
+
+### Changed
+
+- Less CPU time per frame: the app is built fully optimized, with Horizon's faster memory
+  allocator.
+- Culling and caches are on by default: hidden entities, particles and inner leaf faces aren't
+  drawn, and chests, signs and similar blocks keep their models while still. Each can be turned
+  off in Video Settings.
+
+## 2026.11.12-2
+
+### Added
+
+- **59 native mods** from Horizon's registry are built in, all off until you turn them on in
+  *Options → Mods* ([NATIVE_MODS.md](NATIVE_MODS.md)).
+- **Modrinth resource packs.** The Resource Packs screen's Add button searches Modrinth and
+  installs a pack with a tap.
+- **Key buttons for mods** in Edit HUD (B, C, E, G and more, plus Tab).
+
+### Fixed
+
+- The picture was stretched sideways by about 14%. It now draws at the screen's own size.
+- Edit HUD's tools sit above the buttons and always take a tap.
+- The keyboard didn't open for search boxes in Options opened from the main menu.
+- Loading screens covered only part of the screen with Safe Area on.
+- Open Pack Folder and the other folder buttons open the Files app.
+- Long button names in Edit HUD's Add list fit their tiles.
+
+### Changed
+
+- Release notes are now taken from this changelog.
+- The README has a Performance section with iPhone 17 screenshots.
 
 ## 2026.11.12
 
 ### Added
 
-- **Talking in voice chat.** Simple Voice Chat now sends your voice too. Edit HUD has three new
-  buttons: **VC** opens the voice chat menu (mute, push to talk or voice activation, volumes,
-  microphone gain, groups), **Talk** sends your voice while held, and **Mic** mutes. The
-  microphone opens only once you first talk, closes when muted, and iOS asks for permission the
-  first time. The voice chat also has its row and settings page in *Options → Mods*, its status
-  in the top left corner, and `/vc`.
-- **Update notice.** The start screen says when a newer version is out, with a button to the
-  release page.
-- **Extra Settings (Horizon-iOS)**, a main menu button under Options and Edit HUD. Safe Area keeps
-  the HUD, menus and buttons clear of the Dynamic Island and the home bar, while the menus'
-  backgrounds (darkening, list bands, separators) still reach the screen's edges. Also Button
-  Opacity, Touch Look Speed and Keep Screen On, kept in `ios-settings.txt`.
-- **Chat above the keyboard.** While you type, the chat moves up so the keyboard doesn't hide it.
-- **AltStore and SideStore source.** Add `altstore-source.json`'s address in AltStore Classic or
-  SideStore to install Horizon there and get new builds as updates. Each build now has its own
-  version (the build date) and build number.
+- **Talking in voice chat**, with VC, Talk and Mic buttons in Edit HUD. The microphone opens only
+  when you first talk.
+- **Update notice** on the start screen when a newer version is out.
+- **Extra Settings** on the main menu: Safe Area, button opacity, touch look speed and keep screen
+  on.
+- **Chat above the keyboard** while you type.
+- **AltStore and SideStore source**, so new builds arrive as updates.
 
 ## 2026.11.11-2
 
 ### Added
 
-- **No computer needed.** The 30 MB app downloads the game files itself after a Microsoft sign-in:
-  your Minecraft 26.3 from Mojang (about 520 MB), checked against Mojang's checksums, and
-  Horizon's tables from this repository's `tables-6475f62` release (no Minecraft files in it),
-  checked against the SHA-256 in the app. A progress bar shows the download, the screen stays on,
-  and an interrupted download goes on where it stopped. The result is the same as a computer's
-  preparation, file for file (all 28,166 files compared).
-- **Offline name.** **Play offline** on the start screen lets you choose your name (3 to 16
-  letters, numbers or _) for single player and offline-mode servers.
-- **About the Project** in Options, under Mods and right of Credits & Attribution: who makes the
-  port (@4rnz on Discord, razlua on GitHub) and where to report bugs.
-- **Esc resizes** in Edit HUD: Smaller and Bigger work on it as on the other buttons.
-- **Done higher.** Settings screens' bottom rows (Done, Cancel) sit a little higher on iPhone.
+- **No computer needed.** The app downloads the game files itself after a Microsoft sign-in
+  (about 520 MB from Mojang, checked against Mojang's checksums) and resumes an interrupted
+  download.
+- **Offline name** for single player and offline-mode servers.
+- **About the Project** in Options, with who makes the port and where to report bugs.
+- The Esc button can be resized in Edit HUD.
 
 ## 2026.11.11
 
+### Added
+
+- **Voice chat, listening.** On servers with Simple Voice Chat you hear the players who use it.
+- **Several Microsoft accounts**, listed on the start screen.
+- **Chat buttons:** Tab, Paste and Enter.
+- **Clipboard** shared with other apps.
+- **Edit HUD:** a movable move-stick area and Esc button, and three saved layouts.
+
 ### Removed
 
-- **Fainter and Bolder** in Edit HUD: they took up the edit screen.
-- **Safe areas:** the game draws edge to edge again.
+- Fainter and Bolder in Edit HUD.
+- Safe areas (the game draws edge to edge again).
+
+## First release (2026-11-10)
+
+Based on upstream Horizon `6475f62`.
 
 ### Added
 
-- **Simple Voice Chat, listening.** On servers with Simple Voice Chat you hear the players who
-  use it, from where they stand. The engine is Horizon's voicechat native mod's (an unofficial
-  client), built into the app with Opus 1.5.2 linked in. The microphone is never opened.
-- **Accounts.** Several Microsoft accounts. The start screen lists them before the game: tap one
-  to play as it, **Add account**, **Remove an account**, or **Play offline**. An account saved by
-  an earlier build carries over.
-- **Chat buttons.** Over chat, at the top right: **Tab** (completes commands and names),
-  **Paste** and **Enter** (sends). Tapping chat's line brings the keyboard back.
-- **Clipboard.** Copy and paste go through the iPhone's clipboard (`UIPasteboard`), so they work
-  with other apps.
-- **Unpacking progress.** A progress bar on the start screen while the first launch unpacks.
-- **Edit HUD extras.** The move stick's area can be moved and resized, and the Esc button
-  moved. **Layout** switches between three saved layouts. The toolbar moved below the top row of
-  buttons, and buttons over it can be dragged off.
-
-## Before the first release (2026-11-10)
-
-These are part of the first release, 2026.11.11. Every build is based on upstream Horizon `6475f62`.
-
-### Added
-
-- **Hotbar slot buttons** 1 to 9 in Edit HUD: a tap selects that slot.
-- **120 Hz** on ProMotion screens: the app asks iOS for the screen's highest frame rate (it stayed
-  at 60 without asking).
-- **Edit HUD**, on iOS in Quit Game's place on the main menu. You can move, add, remove and
-  resize the touch buttons, and Reset brings back the defaults. Your layout is kept in
-  `touch-controls.json`.
-- **Key buttons**: F1, F2, F3, F3+B, F3+G, F3+H, F3+N, F3+T, F3+F4 and `/`.
-- **More controller-action buttons**: sprint, swap hands, pick block, advancements and the
-  player list.
-- **An Esc button** at the top centre, in the world and in every screen. It replaces the old
-  pause button.
-- **The start screen**: it unpacks your game files on the first launch and signs you in with
-  Microsoft (Safari opens with your code filled in). Later launches sign you in by themselves,
-  and **Play offline** skips it.
-- **Touch controls**: a floating move stick, action buttons, look by dragging, and tap, scroll,
-  drag and right-click in menus.
-- **Pausing and saving** when the app leaves the screen.
-- **Diagnostics in the log**: what the app holds at startup, and how touches are scaled.
+- Touch controls: a floating move stick, action buttons, look by dragging, and tap, scroll, drag
+  and right-click in menus.
+- Edit HUD, with hotbar slot, key and controller-action buttons.
+- An Esc button at the top centre.
+- A start screen that unpacks the game files and signs you in with Microsoft.
+- 120 Hz on ProMotion screens.
+- Pausing and saving when you leave the app.
 
 ### Fixed
 
-- **Chat did not send.** The iPhone keyboard's return key now sends the message (and runs
-  commands, confirms signs and screens) as Enter does.
-- **The controller's on-screen keyboard** opened over chat beside the iPhone's; it is off on iOS.
-- Servers behind a DNS redirect (an SRV record, as most hosted servers use) refused the
-  connection: an iOS app can't read `/etc/resolv.conf`, so the redirect was never looked up. It
-  is now asked of the system's resolver.
-- **Crash with improved transparency.** Turning it on ended the game on iOS GPUs, which can't
-  blend the texture format it uses. On those GPUs the option now does nothing.
-- **Black screen.** The renderer looked for Vulkan and OpenGL instead of Metal.
-- **Zoomed-in screen.** The window was created at a desktop size, larger than the screen.
-- **Taps landing in the wrong place.** Touches and the screen used different scales, so the
-  action and menu buttons missed.
-- **Keyboard stuck open.** The iPhone keyboard never closed. Return now confirms and closes it,
-  and so does a tap outside the text box.
-- **Missing game files.** The app now says plainly when it was installed without its game
-  files.
-
-### Build
-
-- **Intel runners.** The iOS workflow runs on GitHub's Intel macOS runners, because the Apple
-  Silicon ones stayed queued.
+- Chat didn't send from the iPhone keyboard.
+- Servers behind an SRV record refused the connection.
+- Improved transparency crashed on iPhone GPUs.
+- A black screen, a zoomed-in screen and taps landing in the wrong place.
+- The keyboard stayed open.
