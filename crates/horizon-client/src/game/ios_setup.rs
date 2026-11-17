@@ -290,14 +290,62 @@ pub fn run(resources: &Path, work: &Path, progress: &Progress) -> Result<(), Str
     }
     std::fs::write(staging.join(".setup-from"), TABLES_SHA256).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_dir_all(resources);
-    std::fs::rename(&staging, resources).map_err(|e| format!("{}: {e}", resources.display()))?;
+    move_dir(&staging, resources).map_err(|e| format!("{}: {e}", resources.display()))?;
     let _ = std::fs::remove_dir_all(work);
+    Ok(())
+}
+
+/// `from` moved to `to`: renamed where both are on one drive, else copied and removed (Android
+/// downloads into the app's own storage and keeps the game folder on shared storage, which a
+/// rename can't cross: "Cross-device link").
+fn move_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    match std::fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::CrossesDevices || e.raw_os_error() == Some(18) => {
+            log::info!("Horizon setup: copying the game files across drives");
+            if let Err(e) = copy_dir(from, to) {
+                let _ = std::fs::remove_dir_all(to);
+                return Err(e);
+            }
+            let _ = std::fs::remove_dir_all(from);
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// `from` copied into `to`, folders and all.
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_folder_moves_whole_and_leaves_nothing_behind() {
+        let root = std::env::temp_dir().join(format!("ferrite-move-{}", std::process::id()));
+        let (from, to) = (root.join("a"), root.join("b"));
+        std::fs::create_dir_all(from.join("x/y")).unwrap();
+        std::fs::write(from.join("x/y/z.txt"), "hi").unwrap();
+        move_dir(&from, &to).unwrap();
+        assert_eq!(std::fs::read_to_string(to.join("x/y/z.txt")).unwrap(), "hi");
+        assert!(!from.exists());
+        copy_dir(&to, &from).unwrap();
+        assert_eq!(std::fs::read_to_string(from.join("x/y/z.txt")).unwrap(), "hi");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn paths_from_the_lists_stay_in_the_folder() {
