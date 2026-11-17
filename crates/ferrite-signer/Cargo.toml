@@ -17,6 +17,9 @@ ureq = { version = "2", default-features = false, features = ["tls"] }
 # brings idevice without its TCP connection. Same version and TLS as isideload's. MIT.
 idevice = { version = "=0.1.68", default-features = false, features = ["ring", "tcp", "afc", "installation_proxy", "heartbeat"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+# The TLS engine for isideload's reqwest, which is built without one (`rustls-no-provider`):
+# ring, as idevice uses. Installed when the worker starts.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 # isideload logs through tracing: with no subscriber, its events go to the game's log.
 tracing = { version = "0.1", features = ["log"] }
 log = "0.4"

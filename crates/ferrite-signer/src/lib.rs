@@ -51,6 +51,8 @@ const MACHINE_NAME: &str = "Ferrite";
 const CODE_WAIT: Duration = Duration::from_secs(300);
 /// Where LocalDevVPN puts the iPhone itself.
 const DEVICE_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 7, 0, 1));
+/// How long a step of Apple's sign-in gets before it counts as stuck.
+const STEP_WAIT: Duration = Duration::from_secs(90);
 /// How long the iPhone's installer gets to answer.
 const CONNECT_WAIT: Duration = Duration::from_secs(10);
 /// What Test connection and Refresh now say without a pairing file.
@@ -207,9 +209,13 @@ fn send(command: Command) {
             .send(command)
             .is_ok()
     });
-    // No worker to run it: nothing is queued, so nothing is busy.
+    // No worker to run it (it never started, or it stopped): nothing is queued, so nothing is
+    // busy, and the screen says so instead of waiting.
     if !sent {
         BUSY.store(false, Relaxed);
+        set_status(Status::Failed(
+            "Ferrite's signer stopped. Close Ferrite, open it again and send the log.".into(),
+        ));
     }
 }
 
@@ -317,6 +323,9 @@ fn worker(commands: Receiver<Command>, codes: tokio::sync::mpsc::UnboundedReceiv
         Ok(runtime) => runtime,
         Err(e) => return set_status(Status::Failed(short(&e))),
     };
+    // reqwest (in isideload) is built without a TLS engine and panics on its first request
+    // without one: ring, installed for the whole app (an Err means one is already there).
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let _ = isideload::init();
     let codes = std::sync::Arc::new(tokio::sync::Mutex::new(codes));
     let mut session: Option<(DeveloperSession, String)> = None;
@@ -719,6 +728,7 @@ async fn sign_in(
             if params.unknown {
                 return Ok(TwoFactorCallbackResponse::SendToDevices);
             }
+            log::info!("Ferrite signer: Apple wants a 2FA code");
             let first_number = params.numbers.first().cloned();
             set_status(Status::NeedsCode {
                 last_error: params.last_error.clone(),
@@ -739,15 +749,27 @@ async fn sign_in(
             })
         }
     };
-    let mut account = AppleAccount::builder(email)
-        .login(&password, ask_code)
+    // Each step has a limit, so a stuck one says where instead of spinning for good. The login
+    // holds the 2FA code's wait (CODE_WAIT) too.
+    let stuck = |what: &str| format!("Apple didn't answer while {what}. Check your internet and try again.");
+    log::info!("Ferrite signer: signing in to Apple");
+    let login = AppleAccount::builder(email).login(&password, ask_code);
+    let mut account = tokio::time::timeout(CODE_WAIT + Duration::from_secs(120), login)
         .await
+        .map_err(|_| stuck("signing in"))?
         .map_err(|e| short(&e))?;
     drop(password);
-    let mut dev = DeveloperSession::from_account(&mut account)
+    log::info!("Ferrite signer: signed in; opening the developer account");
+    set_status(Status::Working("Opening your developer account...".into()));
+    let mut dev = tokio::time::timeout(STEP_WAIT, DeveloperSession::from_account(&mut account))
         .await
+        .map_err(|_| stuck("opening your developer account"))?
         .map_err(|e| short(&e))?;
-    let teams = dev.list_teams().await.map_err(|e| short(&e))?;
+    log::info!("Ferrite signer: listing the teams");
+    let teams = tokio::time::timeout(STEP_WAIT, dev.list_teams())
+        .await
+        .map_err(|_| stuck("listing your teams"))?
+        .map_err(|e| short(&e))?;
     let team = teams
         .into_iter()
         .next()

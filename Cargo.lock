@@ -1605,6 +1605,7 @@ dependencies = [
  "isideload",
  "log",
  "plist",
+ "rustls",
  "serde_json",
  "tokio",
  "tracing",
