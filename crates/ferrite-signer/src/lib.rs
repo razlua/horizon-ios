@@ -28,6 +28,8 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime};
 
+use idevice::IdeviceService;
+use idevice::heartbeat::HeartbeatClient;
 use idevice::pairing_file::PairingFile;
 use idevice::provider::TcpProvider;
 use isideload::auth::apple_account::{
@@ -340,11 +342,14 @@ fn worker(commands: Receiver<Command>, codes: tokio::sync::mpsc::UnboundedReceiv
                 };
                 change(|s| s.refresh_note = None);
                 step("Reaching your iPhone", 0.02);
+                // The heartbeat too: without it the refresh's services would close.
                 let reached = runtime.block_on(async {
-                    match provider(&pairing) {
-                        Ok(provider) => reach(&provider).await,
-                        Err(e) => Err(e),
-                    }
+                    let provider = match provider(&pairing) {
+                        Ok(provider) => provider,
+                        Err(e) => return Err(e),
+                    };
+                    let _heartbeat = start_heartbeat(&provider).await?;
+                    reach(&provider).await
                 });
                 match reached {
                     Ok(device) => {
@@ -401,6 +406,8 @@ fn run_install(
         Err(e) => finish(true, false, e),
     }
     let _ = std::fs::remove_dir_all(work);
+    // Where isideload unpacked an update's .ipa.
+    let _ = std::fs::remove_dir_all(std::env::temp_dir().join("update.ipa_extracted"));
 }
 
 /// The connection to the iPhone's installer, with the player's pairing file.
@@ -527,7 +534,62 @@ async fn sign_and_install(
 ) -> Result<(), String> {
     step("Reaching your iPhone", 0.02);
     let provider = provider(pairing)?;
-    let device = reach(&provider).await?;
+    // Over the network iOS closes the installer's connections unless a heartbeat answers it:
+    // it runs beside the whole refresh.
+    let heartbeat = start_heartbeat(&provider).await?;
+    tokio::select! {
+        done = install_with(dev, email, bundle_id, source, work, &provider) => done,
+        () = keep_alive(heartbeat) => {
+            Err("Lost the connection to your iPhone. Is LocalDevVPN still on?".into())
+        }
+    }
+}
+
+/// The iPhone's heartbeat service, started: other services answer only while it runs.
+async fn start_heartbeat(provider: &TcpProvider) -> Result<HeartbeatClient, String> {
+    tokio::time::timeout(CONNECT_WAIT, HeartbeatClient::connect(provider))
+        .await
+        .map_err(|_| "No answer from your iPhone. Turn LocalDevVPN on and try again.".to_owned())?
+        .map_err(|e| {
+            format!(
+                "Your iPhone didn't let Ferrite in ({}). Is LocalDevVPN on, and is the pairing file this iPhone's?",
+                short(&e)
+            )
+        })
+}
+
+/// Answers the iPhone's heartbeat (its "Marco" with "Polo") until it stops, then waits forever:
+/// the refresh beside it decides when it's done.
+async fn keep_alive(mut heartbeat: HeartbeatClient) {
+    let mut interval = 15;
+    loop {
+        match heartbeat.get_marco(interval + 10).await {
+            Ok(next) => {
+                interval = next.max(1);
+                if let Err(e) = heartbeat.send_polo().await {
+                    log::warn!("Ferrite signer: the heartbeat's answer failed: {e}");
+                    break;
+                }
+            }
+            Err(e) => {
+                log::warn!("Ferrite signer: the iPhone's heartbeat stopped: {e}");
+                break;
+            }
+        }
+    }
+    std::future::pending::<()>().await;
+}
+
+/// The refresh or update itself, with the heartbeat running.
+async fn install_with(
+    dev: &mut DeveloperSession,
+    email: &str,
+    bundle_id: &str,
+    source: Source,
+    work: &Path,
+    provider: &TcpProvider,
+) -> Result<(), String> {
+    let device = reach(provider).await?;
     change(|s| s.device = Some(device.name.clone()));
     let team = first_team(dev).await?;
 
@@ -613,7 +675,7 @@ async fn sign_and_install(
         },
         0.55,
     );
-    isideload::sideload::install::install_app(&provider, &app_dir, |percent| {
+    isideload::sideload::install::install_app(provider, &app_dir, |percent| {
         change(|s| s.progress = Some(0.55 + percent.min(100) as f32 / 100.0 * 0.45));
     })
     .await
