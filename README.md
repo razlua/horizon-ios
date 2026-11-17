@@ -144,18 +144,45 @@ sideloaded apps at once.
 
 ### Refreshing inside Ferrite (experimental)
 
-Ferrite can sign itself again and install over itself from its Refresh tab, keeping your worlds.
-It needs three things, the same as SideStore:
+Ferrite can sign itself again for 7 more days and install over itself from its Refresh tab, with
+no computer and no SideStore. New versions install the same way, from Update in Ferrite on the
+Play tab. Your worlds, settings and sign-ins stay.
 
-1. A pairing file for your iPhone, made once on a computer with
-   [jitterbugpair](https://github.com/osy/Jitterbug/releases). Put it in *Files → On My iPhone →
-   Ferrite → pairing*.
-2. LocalDevVPN, free on the App Store, turned on while you refresh.
-3. Your Apple ID, signed in on the Refresh tab. Your password goes only to Apple.
+It needs three things:
 
-Tap Test connection, then Refresh now. Ferrite closes while it installs and opens again with 7 new
-days. With this set up, a new version installs the same way: Update in Ferrite on the Play tab. It never removes another app's certificate, so if your Apple ID already has as many as
-Apple allows, it says so instead.
+- A pairing file for your iPhone, made once on a computer (below)
+- LocalDevVPN, free on the App Store, turned on while Ferrite refreshes
+- Your Apple ID, signed in on the Refresh tab. The password goes only to Apple and isn't saved,
+  so you sign in again after reopening Ferrite
+
+#### Making the pairing file
+
+iOS lets only a trusted computer use its app installer. The pairing file is that trust, saved as
+a file, so Ferrite can use the installer without the computer. SideStore needs the same file: if
+you set up SideStore, you can use the one you already have.
+
+1. On Windows, install iTunes first (it brings the driver for the iPhone). Mac and Linux need
+   nothing extra.
+2. Download jitterbugpair for your computer from
+   [Jitterbug's releases](https://github.com/osy/Jitterbug/releases).
+3. Plug in your iPhone, unlock it, and tap Trust when it asks.
+4. Run jitterbugpair. It saves a file named after your iPhone, ending in `.mobiledevicepairing`.
+5. Send that file to your iPhone (AirDrop, iCloud Drive or a message to yourself) and put it in
+   *Files → On My iPhone → Ferrite → pairing*. Ferrite makes that folder the first time it opens.
+
+The file stops working if you reset Location & Privacy in Settings, and sometimes after a major
+iOS update. Make a new one the same way.
+
+#### Refreshing
+
+1. Turn LocalDevVPN on.
+2. In Ferrite's Refresh tab, sign in with the Apple ID you sideloaded Ferrite with.
+3. Tap Test connection. Your iPhone's name shows when everything is in place.
+4. Tap Refresh now. Ferrite closes while it installs and opens again with 7 new days.
+
+If something is missing, the card says what. Ferrite never removes another app's certificate,
+so if your Apple ID already has as many as Apple allows, it says so instead of removing one. If
+Refresh now fails, send `home/logs/latest.log` to @4rnz on Discord.
 
 ## Installing on Android and ChromeOS
 
