@@ -342,6 +342,8 @@ mod ios_account;
 #[cfg(target_os = "ios")]
 mod crash_watch;
 #[cfg(target_os = "ios")]
+mod ios_input;
+#[cfg(target_os = "ios")]
 pub mod ios_boot;
 mod ios_setup;
 #[cfg(target_os = "ios")]
@@ -18829,6 +18831,8 @@ impl Game<'_> {
         }
         horizon_client::spans::time("pads", || self.poll_pads(event_loop));
         self.touch_frame(event_loop);
+        #[cfg(target_os = "ios")]
+        self.ios_input_frame(event_loop);
         self.pause_if_inactive();
         if self.options.frames.is_some() && self.started.elapsed() > self.options.timeout {
             self.error = Some("frame-limited run timed out".into());

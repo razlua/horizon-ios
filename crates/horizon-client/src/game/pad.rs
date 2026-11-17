@@ -76,7 +76,8 @@ pub(in crate::game) enum PadEvent {
 }
 
 /// A build without the `controllers` feature (the server build, which must not need libudev): no
-/// hardware pads, only `horizon-ctl pad`'s virtual one.
+/// gilrs pads, only `horizon-ctl pad`'s virtual one. On iOS, the controller played with last
+/// through Apple's GameController framework (horizon_threads::ios_gamecontroller).
 #[cfg(not(feature = "controllers"))]
 mod hardware {
     use super::{super::Game, Pads};
@@ -85,6 +86,18 @@ mod hardware {
 
     impl Pads {
         pub(super) fn read(&mut self) -> PadState {
+            #[cfg(target_os = "ios")]
+            if let Some((pad, maker, _)) = horizon_threads::ios_gamecontroller::pad() {
+                use horizon_client::gamepad::GlyphStyle;
+                use horizon_threads::ios_gamecontroller::Maker;
+                self.style = match maker {
+                    Maker::Xbox => GlyphStyle::Xbox,
+                    Maker::PlayStation => GlyphStyle::PlayStation,
+                    Maker::Nintendo => GlyphStyle::Nintendo,
+                    Maker::Other => GlyphStyle::Auto,
+                };
+                return ios_state(&pad);
+            }
             PadState::default()
         }
         pub(in crate::game) fn release_hardware(&mut self) {}
@@ -122,8 +135,41 @@ mod hardware {
         pub(in crate::game) fn pad_close_output(&mut self) {}
         pub(super) fn pad_vibrate(&mut self, _: Rumble, _: Pulse) {}
         pub(super) fn pad_devices_status(&self) -> Value {
+            #[cfg(target_os = "ios")]
+            if let Some((_, _, name)) = horizon_threads::ios_gamecontroller::pad() {
+                return json!({ "backend": "GameController", "controllers": [name] });
+            }
             json!({ "backend": false, "controllers": [] })
         }
+    }
+
+    /// A GameController pad's state as the game's.
+    #[cfg(target_os = "ios")]
+    pub(super) fn ios_state(pad: &horizon_threads::ios_gamecontroller::Pad) -> PadState {
+        use horizon_client::gamepad::Button;
+        let mut state = PadState::default();
+        for (button, down) in [
+            (Button::South, pad.south),
+            (Button::East, pad.east),
+            (Button::West, pad.west),
+            (Button::North, pad.north),
+            (Button::LeftBumper, pad.left_bumper),
+            (Button::RightBumper, pad.right_bumper),
+            (Button::Select, pad.select),
+            (Button::Start, pad.start),
+            (Button::LeftStick, pad.left_stick_click),
+            (Button::RightStick, pad.right_stick_click),
+            (Button::DPadUp, pad.up),
+            (Button::DPadDown, pad.down),
+            (Button::DPadLeft, pad.left),
+            (Button::DPadRight, pad.right),
+        ] {
+            state.set(button, down);
+        }
+        state.left = pad.left_stick;
+        state.right = pad.right_stick;
+        state.triggers = pad.triggers;
+        state
     }
 }
 

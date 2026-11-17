@@ -22,6 +22,12 @@ at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/relea
 - **Speed Trade.** A >> button next to a trade's result keeps making the selected trade until you
   stop it or the villager runs out. Speed (4, 10 or 20 a second) and Hold or Tap are in Extra
   Settings. Works in single player and on servers.
+- **Controllers, keyboards and mice on iPhone and iPad.** Xbox, PlayStation, MFi and Switch Pro
+  controllers work through Apple's GameController framework, with Horizon's own controller
+  support on top: menus, the right button pictures, your bindings. A hardware keyboard plays as on
+  a computer (WASD, E, F3, chat, mod keys), and a mouse turns the view and attacks and uses in the
+  world. The touch buttons step aside while one of them plays and come back at the next touch.
+  Experimental: please say how it feels.
 - **Close.** Beside Extra Settings on the main menu, and Close Ferrite in the launcher's More menu:
   Ferrite ends without the app switcher.
 - **Crash catcher.** If Ferrite closes by itself while you play (usually iOS ending it for memory,

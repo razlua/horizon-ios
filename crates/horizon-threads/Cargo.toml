@@ -18,6 +18,28 @@ libc = "0.2"
 objc2 = "0.6"
 # The keyboard's notifications take a block (ios_keyboard.rs); also already in the tree.
 block2 = "0.6"
+# Controllers (Xbox, PlayStation, MFi, Switch Pro), a hardware keyboard and a mouse through
+# Apple's GameController framework (ios_gamecontroller.rs). MIT.
+objc2-game-controller = { version = "0.3", default-features = false, features = [
+    "std",
+    "block2",
+    "GCController",
+    "GCControllerAxisInput",
+    "GCControllerButtonInput",
+    "GCControllerDirectionPad",
+    "GCControllerElement",
+    "GCDevice",
+    "GCDeviceCursor",
+    "GCExtendedGamepad",
+    "GCKeyCodes",
+    "GCKeyboard",
+    "GCKeyboardInput",
+    "GCMouse",
+    "GCMouseInput",
+    "GCPhysicalInputProfile",
+    # `GCKeyCode` is a `CFIndex`.
+    "objc2-core-foundation",
+] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Console", "Win32_System_IO", "Win32_System_Memory", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }

@@ -197,9 +197,13 @@ That app has your game files inside, so don't share it.
 
 ## Controls
 
-Every control is on screen, and Edit HUD on the main menu moves, adds and resizes them. On
-Android and ChromeOS a keyboard and mouse work as on a computer: click into the world to capture
-the mouse, and Esc or the system's Back gesture lets it go.
+Every control is on screen, and Edit HUD on the main menu moves, adds and resizes them.
+
+On iPhone and iPad, Xbox, PlayStation, MFi and Switch Pro controllers work, with menus and the
+right button pictures, and so do a hardware keyboard (as on a computer) and a mouse (look,
+attack and use in the world). The touch buttons hide while you use one and come back at the next
+touch. On Android and ChromeOS a keyboard and mouse work as on a computer: click into the world
+to capture the mouse, and Esc or the system's Back gesture lets it go.
 
 ## Where things are
 
@@ -237,7 +241,8 @@ Built with assistance from Claude (Anthropic's AI). It isn't vibecoded.
 
 ## Known issues
 
-- Paired game controllers aren't read yet.
+- Controllers, keyboards and mice are new and lightly tested. The mouse isn't locked to the game
+  on iPad yet, so its pointer still moves over the screen while you look around.
 - There's no narrator (text-to-speech).
 - In voice chat, the phone's speaker can be heard through the microphone. Headphones, or push to
   talk, avoid the echo.

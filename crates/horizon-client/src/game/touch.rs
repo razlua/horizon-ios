@@ -622,6 +622,12 @@ pub(super) struct Controls {
     pub(super) slot_under_next: bool,
     /// A list still gliding after the finger let go: lines a second, and the last frame.
     fling: Option<(f64, Instant)>,
+    /// A controller, a keyboard or a mouse drove the game last: the touch HUD steps aside until
+    /// a finger touches the glass again (ios_input.rs).
+    pub(super) hardware: bool,
+    /// The hardware keyboard's keys and the mouse's buttons the game last heard as held.
+    pub(super) hardware_keys: Vec<&'static str>,
+    pub(super) hardware_mouse: [bool; 3],
 }
 
 impl Controls {
@@ -723,8 +729,10 @@ impl Controls {
         let slot_under = std::mem::take(&mut self.slot_under_next);
         match (phase, known) {
             (TouchPhase::Started, _) => {
-                // A finger on the glass stops a gliding list, as on a phone.
+                // A finger on the glass stops a gliding list, as on a phone, and brings the
+                // touch HUD back after a controller, keyboard or mouse.
                 self.fling = None;
+                self.hardware = false;
                 // A finger the system never ended.
                 if let Some(i) = known {
                     self.lift(i, at, false, now, layout, &mut out);
@@ -921,7 +929,7 @@ impl Controls {
 
 impl Game<'_> {
     /// Whether the fingers play the world (the game holds the pointer) or work a screen.
-    fn touch_world(&self) -> bool {
+    pub(super) fn touch_world(&self) -> bool {
         self.captured && self.title.is_none() && self.screen == Screen::Playing
     }
 
@@ -1352,6 +1360,10 @@ impl Game<'_> {
         };
         if self.touch.editor.is_some() {
             return self.draw_touch_editor(batch);
+        }
+        // A controller, keyboard or mouse plays: the buttons step aside until the next touch.
+        if self.touch.hardware {
+            return;
         }
         let s = batch.scale;
         let atlas = &self.gui.atlas;
