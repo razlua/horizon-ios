@@ -11,10 +11,14 @@ at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/relea
 
 - **Launcher.** Ferrite opens on a native launcher with four tabs. Play has your player in 3D
   (drag to turn it), your accounts, a skin changer with a 3D preview, Microsoft sign-in and the
-  download. Refresh shows when the app's
-  signature runs out, with a reminder a day before and on the day, and lets you sign in with your
-  Apple ID to check it. Settings has render distance, max frame rate, Battery mode and Extra Settings.
-  About has the credits and Send logs.
+  download. Refresh shows when the app's signature runs out, with a reminder a day before and on
+  the day. Settings has render distance, max frame rate, Battery mode and Extra Settings. About has
+  the credits and Send logs.
+- **Refresh now, inside Ferrite.** Sign in with your Apple ID on the Refresh tab and Ferrite signs
+  itself again for 7 days and installs over itself, worlds and sign-ins kept, with no computer and
+  no SideStore. It needs LocalDevVPN (free, App Store) on and a pairing file made once on a
+  computer. It also asks Apple for the increased memory limit, for higher render distances.
+  Experimental: please send the log if it fails.
 - **Speed Trade.** A >> button next to a trade's result keeps making the selected trade until you
   stop it or the villager runs out. Speed (4, 10 or 20 a second) and Hold or Tap are in Extra
   Settings. Works in single player and on servers.

@@ -62,10 +62,99 @@ struct RefreshView: View {
             PageTitle(title: "Refresh")
             ExpiryCard()
             AppleIDCard(model: model)
-            Text("Sign in and Check work now. Refresh now, signing and installing Ferrite again over itself, comes in the next builds and also needs a pairing file and LocalDevVPN. Until then, refresh with Sideloadly, AltStore or SideStore.")
-                .font(.footnote)
-                .foregroundStyle(Theme.muted)
-                .padding(.horizontal, 4)
+            RefreshNowCard(model: model)
+        }
+    }
+}
+
+/// Refresh now: Ferrite signs itself again and installs over itself (crates/ferrite-signer).
+/// What it needs, each ticked off, then Test connection and Refresh now, and its progress.
+struct RefreshNowCard: View {
+    @ObservedObject var model: LauncherModel
+
+    var body: some View {
+        let signer = model.state.signer
+        let status = signer?.status ?? "signed_out"
+        let busy = status == "working" && signer?.progress != nil
+        let pairing = model.state.pairing ?? false
+        let signedIn = status == "signed_in"
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Refresh now")
+                .font(.body.weight(.medium))
+                .foregroundStyle(Theme.text)
+            Text("Ferrite signs itself again for 7 days and installs over itself. Your worlds and sign-ins stay. It closes while it installs and opens again with the new days.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                need(
+                    done: pairing,
+                    "A pairing file in Files, On My iPhone, Ferrite, pairing",
+                    detail: "Made once on a computer with jitterbugpair (free)"
+                )
+                need(
+                    done: signer?.device != nil,
+                    "LocalDevVPN on",
+                    detail: signer?.device.map { "Connected to \($0)" } ?? "Free on the App Store. Turn it on, then Test connection"
+                )
+                need(done: signedIn || busy, "Your Apple ID signed in", detail: nil)
+            }
+            if busy, let progress = signer?.progress {
+                VStack(alignment: .leading, spacing: 8) {
+                    ProgressView(value: progress)
+                        .tint(Theme.accent)
+                    Text(signer?.message ?? "")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondary)
+                }
+            } else if let note = signer?.refresh_note {
+                let worked = signer?.refresh_ok == true
+                Label(note, systemImage: worked ? "checkmark.circle" : "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(worked ? Theme.good : Theme.bad)
+            }
+            HStack(spacing: 8) {
+                Button {
+                    feelTap(.light)
+                    model.send("signer_test")
+                } label: {
+                    Text("Test connection")
+                        .font(.body.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                }
+                .ferriteButton(prominent: false)
+                .disabled(busy)
+                Button {
+                    feelTap()
+                    model.send("signer_refresh")
+                } label: {
+                    Text("Refresh now")
+                        .font(.body.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                }
+                .ferriteButton(prominent: true)
+                .disabled(!signedIn || busy)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    /// One thing Refresh now needs, ticked when it's there.
+    private func need(done: Bool, _ title: String, detail: String?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: done ? "checkmark.circle" : "circle")
+                .foregroundStyle(done ? Theme.good : Theme.muted)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.text)
+                if let detail {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.muted)
+                }
+            }
         }
     }
 }
@@ -98,6 +187,12 @@ struct AppleIDCard: View {
                 }
             }
             switch status {
+            case "working" where signer?.progress != nil:
+                // Test connection or Refresh now: the card below shows it.
+                if let email = signer?.email {
+                    Text(email)
+                        .foregroundStyle(Theme.secondary)
+                }
             case "signing_in", "working":
                 HStack(spacing: 12) {
                     ProgressView().tint(Theme.accent)

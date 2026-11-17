@@ -12,28 +12,47 @@
 //! Safety rules kept for the player's other sideloaded apps: no certificate is ever revoked
 //! (`MaxCertsBehavior::Error`), and Ferrite is signed under the exact bundle ID it is installed
 //! with, so iOS updates the same app instead of installing a second one without its worlds.
+//!
+//! Refresh now: with LocalDevVPN on, the iPhone's own installer answers at 10.7.0.1, and the
+//! player's pairing file (made once on a computer) lets Ferrite in. Ferrite registers the iPhone
+//! with the Apple ID, gets a new 7-day profile (asking for the increased memory limit too),
+//! copies its own app, signs the copy and installs it over itself. iOS closes Ferrite while it
+//! installs; it opens again with 7 new days, its worlds and sign-ins kept.
 #![cfg(target_os = "ios")]
 
 use std::ffi::{CStr, c_char};
+use std::net::{IpAddr, Ipv4Addr};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime};
 
+use idevice::pairing_file::PairingFile;
+use idevice::provider::TcpProvider;
 use isideload::auth::apple_account::{
     AppleAccount, TwoFactorCallbackParams, TwoFactorCallbackResponse,
 };
-use isideload::dev::app_ids::AppIdsApi;
+use isideload::dev::app_ids::{AppId, AppIdsApi};
 use isideload::dev::developer_session::DeveloperSession;
+use isideload::dev::devices::DevicesApi;
 use isideload::dev::teams::{DeveloperTeam, TeamsApi};
+use isideload::sideload::application::{Application, SpecialApp};
 use isideload::sideload::builder::MaxCertsBehavior;
 use isideload::sideload::cert_identity::CertificateIdentity;
+use isideload::util::device::IdeviceInfo;
 use isideload::util::storage::new_storage;
 
 /// The name Ferrite's signing certificate carries in the Apple ID's developer account.
 const MACHINE_NAME: &str = "Ferrite";
 /// How long the 2FA code is waited for.
 const CODE_WAIT: Duration = Duration::from_secs(300);
+/// Where LocalDevVPN puts the iPhone itself.
+const DEVICE_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 7, 0, 1));
+/// How long the iPhone's installer gets to answer.
+const CONNECT_WAIT: Duration = Duration::from_secs(10);
+/// What Test connection and Refresh now say without a pairing file.
+const NO_PAIRING: &str = "No pairing file yet. Put it in Files, On My iPhone, Ferrite, pairing.";
 
 /// Where the signing stands, as the Refresh tab shows it.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -57,6 +76,12 @@ struct State {
     team: Option<String>,
     /// The last check: the bundle ID and when a new signature would run out (Unix seconds).
     checked: Option<(String, u64)>,
+    /// How far a refresh is, 0 to 1, while it runs.
+    progress: Option<f32>,
+    /// The iPhone's name, once Ferrite reached its installer.
+    device: Option<String>,
+    /// How the last Test connection or Refresh now ended: worked, and what to say.
+    refresh_note: Option<(bool, String)>,
 }
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
@@ -65,6 +90,8 @@ static VERSION: AtomicU64 = AtomicU64::new(1);
 enum Command {
     SignIn { email: String, password: String },
     Check { bundle_id: String },
+    Test { pairing: Option<PathBuf> },
+    Refresh { bundle_id: String, app: PathBuf, work: PathBuf, pairing: Option<PathBuf> },
     SignOut,
 }
 
@@ -114,7 +141,29 @@ pub fn state_json() -> serde_json::Value {
         },
         "checked_bundle_id": state.checked.as_ref().map(|c| c.0.clone()),
         "checked_expires": state.checked.as_ref().map(|c| c.1),
+        "progress": state.progress,
+        "device": state.device,
+        "refresh_ok": state.refresh_note.as_ref().map(|n| n.0),
+        "refresh_note": state.refresh_note.as_ref().map(|n| n.1.clone()),
     })
+}
+
+/// A Test connection or Refresh now ended: the Apple ID stays as it was, the note says how.
+fn finish(signed_in: bool, ok: bool, note: String) {
+    change(|s| {
+        s.progress = None;
+        s.refresh_note = Some((ok, note));
+        s.status = if signed_in { Status::SignedIn } else { Status::SignedOut };
+    });
+}
+
+/// A refresh's step: what it's doing, and how far it is.
+fn step(what: &str, progress: f32) {
+    log::info!("Ferrite signer: {what}");
+    change(|s| {
+        s.status = Status::Working(what.to_owned());
+        s.progress = Some(progress);
+    });
 }
 
 /// The worker thread and its channels, started the first time they're needed.
@@ -153,6 +202,25 @@ fn send(command: Command) {
 pub fn check(bundle_id: &str) {
     send(Command::Check {
         bundle_id: bundle_id.to_owned(),
+    });
+}
+
+/// Tries to reach the iPhone's installer with the pairing file at `pairing` (LocalDevVPN on):
+/// the iPhone's name shows when it works. Needs no Apple ID.
+pub fn test_connection(pairing: Option<&Path>) {
+    send(Command::Test {
+        pairing: pairing.map(Path::to_owned),
+    });
+}
+
+/// Signs the app at `app` (the running one's bundle) again under `bundle_id` and installs it
+/// over itself, with `work` as the folder for the signed copy. Needs the Apple ID signed in.
+pub fn refresh(bundle_id: &str, app: &Path, work: &Path, pairing: Option<&Path>) {
+    send(Command::Refresh {
+        bundle_id: bundle_id.to_owned(),
+        app: app.to_owned(),
+        work: work.to_owned(),
+        pairing: pairing.map(Path::to_owned),
     });
 }
 
@@ -252,12 +320,202 @@ fn worker(commands: Receiver<Command>, codes: tokio::sync::mpsc::UnboundedReceiv
                     Err(e) => set_status(Status::Failed(e)),
                 }
             }
+            Command::Test { pairing } => {
+                let signed_in = session.is_some();
+                let Some(pairing) = pairing else {
+                    finish(signed_in, false, NO_PAIRING.into());
+                    continue;
+                };
+                change(|s| s.refresh_note = None);
+                step("Reaching your iPhone", 0.02);
+                let reached = runtime.block_on(async {
+                    match provider(&pairing) {
+                        Ok(provider) => reach(&provider).await,
+                        Err(e) => Err(e),
+                    }
+                });
+                match reached {
+                    Ok(device) => {
+                        log::info!("Ferrite signer: reached {}", device.name);
+                        let note = format!("Connected to {}", device.name);
+                        change(|s| s.device = Some(device.name));
+                        finish(signed_in, true, note);
+                    }
+                    Err(e) => finish(signed_in, false, e),
+                }
+            }
+            Command::Refresh { bundle_id, app, work, pairing } => {
+                let Some((dev, email)) = session.as_mut() else {
+                    finish(false, false, "Sign in with your Apple ID first.".into());
+                    continue;
+                };
+                let Some(pairing) = pairing else {
+                    finish(true, false, NO_PAIRING.into());
+                    continue;
+                };
+                change(|s| s.refresh_note = None);
+                let done = runtime.block_on(refresh_app(dev, email, &bundle_id, &app, &work, &pairing));
+                match done {
+                    Ok(()) => {
+                        log::info!("Ferrite signer: refreshed and installed");
+                        finish(
+                            true,
+                            true,
+                            "Installed. If Ferrite is still open, close it and open it again.".into(),
+                        );
+                    }
+                    Err(e) => finish(true, false, e),
+                }
+                let _ = std::fs::remove_dir_all(&work);
+            }
             Command::SignOut => {
                 session = None;
                 change(|s| *s = State::default());
             }
         }
     }
+}
+
+/// The connection to the iPhone's installer, with the player's pairing file.
+fn provider(pairing: &Path) -> Result<TcpProvider, String> {
+    let pairing_file = PairingFile::read_from_file(pairing)
+        .map_err(|e| format!("The pairing file can't be read ({})", short(&e)))?;
+    Ok(TcpProvider {
+        addr: DEVICE_ADDR,
+        scope_id: None,
+        pairing_file,
+        label: "Ferrite".into(),
+    })
+}
+
+/// The iPhone's name and UDID from its installer: proof the connection works.
+async fn reach(provider: &TcpProvider) -> Result<IdeviceInfo, String> {
+    tokio::time::timeout(CONNECT_WAIT, IdeviceInfo::from_device(provider))
+        .await
+        .map_err(|_| "No answer from your iPhone. Turn LocalDevVPN on and try again.".to_owned())?
+        .map_err(|e| {
+            format!(
+                "Your iPhone didn't let Ferrite in ({}). Is LocalDevVPN on, and is the pairing file this iPhone's?",
+                short(&e)
+            )
+        })
+}
+
+/// The team's App ID for `bundle_id`, added if this Apple ID doesn't have it yet.
+async fn app_id_for(
+    dev: &mut DeveloperSession,
+    team: &DeveloperTeam,
+    bundle_id: &str,
+) -> Result<AppId, String> {
+    let listed = dev.list_app_ids(team, None).await.map_err(|e| short(&e))?;
+    match listed.app_ids.into_iter().find(|a| a.identifier == bundle_id) {
+        Some(app_id) => Ok(app_id),
+        None => dev
+            .add_app_id(team, "Ferrite", bundle_id, None)
+            .await
+            .map_err(|e| short(&e)),
+    }
+}
+
+/// The Apple ID's team (a free Apple ID has one: its Personal Team).
+async fn first_team(dev: &mut DeveloperSession) -> Result<DeveloperTeam, String> {
+    dev.list_teams()
+        .await
+        .map_err(|e| short(&e))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "This Apple ID has no developer team.".to_owned())
+}
+
+/// `from` copied into `to`, folders and all.
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
+/// Refresh now: reach the iPhone, register it, get a new profile, sign a copy of the app and
+/// install it over itself.
+async fn refresh_app(
+    dev: &mut DeveloperSession,
+    email: &str,
+    bundle_id: &str,
+    app: &Path,
+    work: &Path,
+    pairing: &Path,
+) -> Result<(), String> {
+    step("Reaching your iPhone", 0.02);
+    let provider = provider(pairing)?;
+    let device = reach(&provider).await?;
+    change(|s| s.device = Some(device.name.clone()));
+    let team = first_team(dev).await?;
+
+    step("Making sure Apple knows this iPhone", 0.05);
+    dev.ensure_device_registered(&team, &device.name, &device.udid, None)
+        .await
+        .map_err(|e| short(&e))?;
+
+    step("Getting Ferrite's certificate", 0.08);
+    let storage = new_storage();
+    let certificate =
+        CertificateIdentity::retrieve(MACHINE_NAME, email, dev, &team, &storage, &MaxCertsBehavior::Error)
+            .await
+            .map_err(|e| short(&e))?;
+
+    step("Getting a new 7-day profile", 0.12);
+    let app_id = app_id_for(dev, &team, bundle_id).await?;
+    // More memory for higher render distances, where Apple allows it; Ferrite works without.
+    if let Err(e) = dev.add_increased_memory_limit(&team, &app_id).await {
+        log::warn!("Ferrite signer: no increased memory limit: {e}");
+    }
+    let profile = dev
+        .download_team_provisioning_profile(&team, &app_id, None)
+        .await
+        .map_err(|e| short(&e))?;
+
+    step("Copying Ferrite", 0.16);
+    let name = app.file_name().map_or_else(|| "Ferrite.app".into(), |n| n.to_os_string());
+    let copy = work.join(name);
+    let _ = std::fs::remove_dir_all(work);
+    copy_dir(app, &copy).map_err(|e| format!("Ferrite couldn't be copied ({e}). Is the iPhone full?"))?;
+    // The new profile, and no old signature: the signer writes a new one.
+    let profile_bytes: &[u8] = profile.encoded_profile.as_ref();
+    std::fs::write(copy.join("embedded.mobileprovision"), profile_bytes)
+        .map_err(|e| format!("The profile couldn't be saved ({e})"))?;
+    let _ = std::fs::remove_dir_all(copy.join("_CodeSignature"));
+
+    step("Signing", 0.3);
+    let mut signed = Application::new(copy.clone()).map_err(|e| short(&e))?;
+    let special: Option<SpecialApp> = None;
+    isideload::sideload::sign::sign(
+        &mut signed,
+        &certificate,
+        &profile,
+        &special,
+        &team,
+        Some(|done: f32| async move {
+            // The signer counts from 0.3 to 1: here, 0.3 to 0.55.
+            change(|s| s.progress = Some(0.3 + (done - 0.3).max(0.0) / 0.7 * 0.25));
+        }),
+    )
+    .await
+    .map_err(|e| short(&e))?;
+
+    step("Installing: Ferrite closes now and opens again with 7 new days", 0.55);
+    isideload::sideload::install::install_app(&provider, &copy, |percent| {
+        change(|s| s.progress = Some(0.55 + percent.min(100) as f32 / 100.0 * 0.45));
+    })
+    .await
+    .map_err(|e| short(&e))?;
+    Ok(())
 }
 
 /// Signs the Apple ID in, asking the launcher for the 2FA code when Apple wants one, and picks

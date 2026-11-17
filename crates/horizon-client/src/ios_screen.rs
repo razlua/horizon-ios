@@ -44,6 +44,10 @@ pub enum LauncherAction {
     SignerCheck,
     /// The Refresh tab's Sign out of the Apple ID.
     SignerSignOut,
+    /// The Refresh tab's Test connection: reach the iPhone's installer (LocalDevVPN, pairing file).
+    SignerTest,
+    /// The Refresh tab's Refresh now: sign Ferrite again and install it over itself.
+    SignerRefresh,
     /// The skin changer's Upload: the PNG the launcher saved (`.skin-upload.png` in the game
     /// folder) as the skin of the saved account at `index`, on the slim or the classic model.
     SkinUpload { index: usize, slim: bool },
@@ -86,6 +90,8 @@ pub fn parse_launcher_action(text: &str) -> Option<LauncherAction> {
         "offline_name" => return Some(LauncherAction::OfflineName(arg?.to_owned())),
         "signer_check" => return Some(LauncherAction::SignerCheck),
         "signer_sign_out" => return Some(LauncherAction::SignerSignOut),
+        "signer_test" => return Some(LauncherAction::SignerTest),
+        "signer_refresh" => return Some(LauncherAction::SignerRefresh),
         "skin_upload" => {
             let (index, model) = arg?.split_once(':')?;
             let slim = match model {
@@ -131,6 +137,8 @@ mod launcher_tests {
         );
         assert_eq!(parse_launcher_action("set:render_distance"), None);
         assert_eq!(parse_launcher_action("signer_check"), Some(LauncherAction::SignerCheck));
+        assert_eq!(parse_launcher_action("signer_test"), Some(LauncherAction::SignerTest));
+        assert_eq!(parse_launcher_action("signer_refresh"), Some(LauncherAction::SignerRefresh));
         assert_eq!(parse_launcher_action("play"), None);
         assert_eq!(parse_launcher_action("play:x"), None);
         assert_eq!(parse_launcher_action("fly"), None);

@@ -13,6 +13,8 @@ struct LauncherState: Decodable {
     var settings: SettingsState?
     var signer: SignerState?
     var skin: SkinUploadState?
+    /// A pairing file is in Files > Ferrite > pairing (Refresh now needs one).
+    var pairing: Bool?
 }
 
 /// A saved Microsoft account: its Minecraft name and uuid (without dashes), for its skin.
@@ -37,6 +39,13 @@ struct SignerState: Decodable {
     var sms_to: String?
     var checked_bundle_id: String?
     var checked_expires: Double?
+    /// How far Refresh now is, 0 to 1, while it runs.
+    var progress: Double?
+    /// The iPhone's name, once Ferrite reached its installer.
+    var device: String?
+    /// How the last Test connection or Refresh now ended.
+    var refresh_ok: Bool?
+    var refresh_note: String?
 }
 
 /// The game's settings the Settings tab changes.

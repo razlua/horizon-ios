@@ -136,6 +136,21 @@ Wi-Fi.
 With a free Apple ID the app has to be signed again every 7 days, and you can have at most 3
 sideloaded apps at once.
 
+### Refreshing inside Ferrite (experimental)
+
+Ferrite can sign itself again and install over itself from its Refresh tab, keeping your worlds.
+It needs three things, the same as SideStore:
+
+1. A pairing file for your iPhone, made once on a computer with
+   [jitterbugpair](https://github.com/osy/Jitterbug/releases). Put it in *Files → On My iPhone →
+   Ferrite → pairing*.
+2. LocalDevVPN, free on the App Store, turned on while you refresh.
+3. Your Apple ID, signed in on the Refresh tab. Your password goes only to Apple.
+
+Tap Test connection, then Refresh now. Ferrite closes while it installs and opens again with 7 new
+days. It never removes another app's certificate, so if your Apple ID already has as many as
+Apple allows, it says so instead.
+
 ## Installing on Android and ChromeOS
 
 1. Download `Horizon.apk` from the newest "Android APK" release on the

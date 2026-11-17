@@ -1601,6 +1601,7 @@ dependencies = [
 name = "ferrite-signer"
 version = "0.1.0"
 dependencies = [
+ "idevice",
  "isideload",
  "log",
  "plist",

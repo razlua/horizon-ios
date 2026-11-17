@@ -232,6 +232,25 @@ fn launcher_settings() -> serde_json::Value {
     })
 }
 
+/// The pairing file Refresh now uses: the first `.mobiledevicepairing` or `.plist` in the game
+/// folder's `pairing` (Files > Ferrite > pairing), which is made here so the player can find it.
+fn pairing_file() -> Option<std::path::PathBuf> {
+    let dir = std::env::current_dir().ok()?.join("pairing");
+    let _ = std::fs::create_dir_all(&dir);
+    let mut files: Vec<_> = std::fs::read_dir(&dir)
+        .ok()?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|path| {
+            matches!(
+                path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref(),
+                Some("mobiledevicepairing" | "plist")
+            )
+        })
+        .collect();
+    files.sort();
+    files.into_iter().next()
+}
+
 /// Starts a thread for a sign-in.
 fn spawn(name: &str, job: impl FnOnce() + Send + 'static) {
     if let Err(e) = std::thread::Builder::new().name(name.into()).spawn(job) {
@@ -850,6 +869,7 @@ impl Boot {
             "update": update,
             "settings": launcher_settings(),
             "signer": ferrite_signer::state_json(),
+            "pairing": pairing_file().is_some(),
         })
         .to_string()
     }
@@ -960,6 +980,20 @@ impl Boot {
                     }
                 }
                 Some(LauncherAction::SignerSignOut) => ferrite_signer::sign_out(),
+                // Refresh now (crates/ferrite-signer): LocalDevVPN, the pairing file from the
+                // game folder's `pairing`, and the app's own bundle, signed again over itself.
+                Some(LauncherAction::SignerTest) => ferrite_signer::test_connection(pairing_file().as_deref()),
+                Some(LauncherAction::SignerRefresh) => {
+                    let bundle_id = horizon_threads::ios_bundle::info("CFBundleIdentifier");
+                    let app = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|p| p.to_path_buf()));
+                    match (bundle_id, app) {
+                        (Some(bundle_id), Some(app)) => {
+                            let work = std::env::temp_dir().join("ferrite-refresh");
+                            ferrite_signer::refresh(&bundle_id, &app, &work, pairing_file().as_deref());
+                        }
+                        _ => log::warn!("Horizon iOS: Refresh now needs the bundle ID and the app's folder"),
+                    }
+                }
                 Some(LauncherAction::SkinUpload { index, slim }) => self.upload_skin(index, slim),
                 None => log::warn!("Horizon iOS: the launcher sent an unknown action {text:?}"),
             }
