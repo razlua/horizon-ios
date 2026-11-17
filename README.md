@@ -154,7 +154,7 @@ It needs three things, the same as SideStore:
 3. Your Apple ID, signed in on the Refresh tab. Your password goes only to Apple.
 
 Tap Test connection, then Refresh now. Ferrite closes while it installs and opens again with 7 new
-days. It never removes another app's certificate, so if your Apple ID already has as many as
+days. With this set up, a new version installs the same way: Update in Ferrite on the Play tab. It never removes another app's certificate, so if your Apple ID already has as many as
 Apple allows, it says so instead.
 
 ## Installing on Android and ChromeOS

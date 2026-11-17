@@ -92,6 +92,7 @@ enum Command {
     Check { bundle_id: String },
     Test { pairing: Option<PathBuf> },
     Refresh { bundle_id: String, app: PathBuf, work: PathBuf, pairing: Option<PathBuf> },
+    Update { url: String, bundle_id: String, work: PathBuf, pairing: Option<PathBuf> },
     SignOut,
 }
 
@@ -224,6 +225,17 @@ pub fn refresh(bundle_id: &str, app: &Path, work: &Path, pairing: Option<&Path>)
     });
 }
 
+/// Downloads the release at `url` (its `.ipa`), signs it under `bundle_id` (the running app's)
+/// and installs it over this app, as SideStore updates an app. Needs what Refresh now needs.
+pub fn update(url: &str, bundle_id: &str, work: &Path, pairing: Option<&Path>) {
+    send(Command::Update {
+        url: url.to_owned(),
+        bundle_id: bundle_id.to_owned(),
+        work: work.to_owned(),
+        pairing: pairing.map(Path::to_owned),
+    });
+}
+
 /// Forgets the Apple session (the certificate's key stays in the Keychain for next time).
 pub fn sign_out() {
     send(Command::SignOut);
@@ -345,28 +357,14 @@ fn worker(commands: Receiver<Command>, codes: tokio::sync::mpsc::UnboundedReceiv
                 }
             }
             Command::Refresh { bundle_id, app, work, pairing } => {
-                let Some((dev, email)) = session.as_mut() else {
-                    finish(false, false, "Sign in with your Apple ID first.".into());
-                    continue;
-                };
-                let Some(pairing) = pairing else {
-                    finish(true, false, NO_PAIRING.into());
-                    continue;
-                };
-                change(|s| s.refresh_note = None);
-                let done = runtime.block_on(refresh_app(dev, email, &bundle_id, &app, &work, &pairing));
-                match done {
-                    Ok(()) => {
-                        log::info!("Ferrite signer: refreshed and installed");
-                        finish(
-                            true,
-                            true,
-                            "Installed. If Ferrite is still open, close it and open it again.".into(),
-                        );
-                    }
-                    Err(e) => finish(true, false, e),
-                }
-                let _ = std::fs::remove_dir_all(&work);
+                let source = Source::Running(app);
+                let note = "Installed. If Ferrite is still open, close it and open it again.";
+                run_install(&runtime, session.as_mut(), &bundle_id, source, &work, pairing, note);
+            }
+            Command::Update { url, bundle_id, work, pairing } => {
+                let source = Source::Download(url);
+                let note = "Updated. If Ferrite is still open, close it and open it again.";
+                run_install(&runtime, session.as_mut(), &bundle_id, source, &work, pairing, note);
             }
             Command::SignOut => {
                 session = None;
@@ -374,6 +372,35 @@ fn worker(commands: Receiver<Command>, codes: tokio::sync::mpsc::UnboundedReceiv
             }
         }
     }
+}
+
+/// Refresh now or an update, from the worker: the Apple ID and pairing file there, then
+/// `sign_and_install`, and the card's note.
+fn run_install(
+    runtime: &tokio::runtime::Runtime,
+    session: Option<&mut (DeveloperSession, String)>,
+    bundle_id: &str,
+    source: Source,
+    work: &Path,
+    pairing: Option<PathBuf>,
+    done_note: &str,
+) {
+    let Some((dev, email)) = session else {
+        return finish(false, false, "Sign in with your Apple ID first.".into());
+    };
+    let Some(pairing) = pairing else {
+        return finish(true, false, NO_PAIRING.into());
+    };
+    change(|s| s.refresh_note = None);
+    let done = runtime.block_on(sign_and_install(dev, email, bundle_id, source, work, &pairing));
+    match done {
+        Ok(()) => {
+            log::info!("Ferrite signer: installed");
+            finish(true, true, done_note.to_owned());
+        }
+        Err(e) => finish(true, false, e),
+    }
+    let _ = std::fs::remove_dir_all(work);
 }
 
 /// The connection to the iPhone's installer, with the player's pairing file.
@@ -442,13 +469,59 @@ fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Refresh now: reach the iPhone, register it, get a new profile, sign a copy of the app and
-/// install it over itself.
-async fn refresh_app(
+/// What Refresh now signs (the running app's own bundle) or an update installs (a release's
+/// `.ipa`, downloaded).
+enum Source {
+    Running(PathBuf),
+    Download(String),
+}
+
+/// A release's `.ipa` saved at `to`, the download's progress shown (0.16 to 0.28).
+fn download(url: &str, to: &Path) -> Result<(), String> {
+    use std::io::{Read, Write};
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(15))
+        .timeout_read(Duration::from_secs(60))
+        .build();
+    let response = agent
+        .get(url)
+        .call()
+        .map_err(|e| format!("The update couldn't be downloaded ({e})"))?;
+    let total = response
+        .header("Content-Length")
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|t| *t > 0);
+    let mut reader = response.into_reader();
+    let mut file =
+        std::fs::File::create(to).map_err(|e| format!("The update couldn't be saved ({e})"))?;
+    let mut buffer = vec![0u8; 1 << 16];
+    let mut done = 0u64;
+    loop {
+        let read = reader
+            .read(&mut buffer)
+            .map_err(|e| format!("The download stopped ({e})"))?;
+        if read == 0 {
+            break;
+        }
+        file.write_all(&buffer[..read])
+            .map_err(|e| format!("The update couldn't be saved ({e}). Is the iPhone full?"))?;
+        done += read as u64;
+        if let Some(total) = total {
+            let part = (done as f32 / total as f32).min(1.0);
+            change(|s| s.progress = Some(0.16 + part * 0.12));
+        }
+    }
+    Ok(())
+}
+
+/// Refresh now (`Source::Running`) or an update (`Source::Download`): reach the iPhone, register
+/// it, get a new profile, sign the app under the installed one's bundle ID and install it over
+/// the installed one.
+async fn sign_and_install(
     dev: &mut DeveloperSession,
     email: &str,
     bundle_id: &str,
-    app: &Path,
+    source: Source,
     work: &Path,
     pairing: &Path,
 ) -> Result<(), String> {
@@ -481,19 +554,42 @@ async fn refresh_app(
         .await
         .map_err(|e| short(&e))?;
 
-    step("Copying Ferrite", 0.16);
-    let name = app.file_name().map_or_else(|| "Ferrite.app".into(), |n| n.to_os_string());
-    let copy = work.join(name);
     let _ = std::fs::remove_dir_all(work);
-    copy_dir(app, &copy).map_err(|e| format!("Ferrite couldn't be copied ({e}). Is the iPhone full?"))?;
-    // The new profile, and no old signature: the signer writes a new one.
-    let profile_bytes: &[u8] = profile.encoded_profile.as_ref();
-    std::fs::write(copy.join("embedded.mobileprovision"), profile_bytes)
-        .map_err(|e| format!("The profile couldn't be saved ({e})"))?;
-    let _ = std::fs::remove_dir_all(copy.join("_CodeSignature"));
+    std::fs::create_dir_all(work).map_err(|e| format!("No room to work in ({e})"))?;
+    let updating = matches!(source, Source::Download(_));
+    let path = match source {
+        Source::Running(app) => {
+            step("Copying Ferrite", 0.16);
+            let name = app.file_name().map_or_else(|| "Ferrite.app".into(), |n| n.to_os_string());
+            let copy = work.join(name);
+            copy_dir(&app, &copy)
+                .map_err(|e| format!("Ferrite couldn't be copied ({e}). Is the iPhone full?"))?;
+            copy
+        }
+        Source::Download(url) => {
+            step("Downloading the update", 0.16);
+            let ipa = work.join("update.ipa");
+            let (from, to) = (url.clone(), ipa.clone());
+            tokio::task::spawn_blocking(move || download(&from, &to))
+                .await
+                .map_err(|e| e.to_string())??;
+            ipa
+        }
+    };
 
     step("Signing", 0.3);
-    let mut signed = Application::new(copy.clone()).map_err(|e| short(&e))?;
+    // An `.ipa` is unpacked; a folder is the app itself.
+    let mut signed = Application::new(path).map_err(|e| short(&e))?;
+    // The installed app's own bundle ID (a release's has the original one): iOS updates the
+    // installed app, worlds and sign-ins kept, instead of installing a second one.
+    signed.bundle.set_bundle_identifier(bundle_id);
+    signed.bundle.write_info().map_err(|e| short(&e))?;
+    let app_dir = signed.bundle.bundle_dir.clone();
+    // The new profile, and no old signature: the signer writes a new one.
+    let profile_bytes: &[u8] = profile.encoded_profile.as_ref();
+    std::fs::write(app_dir.join("embedded.mobileprovision"), profile_bytes)
+        .map_err(|e| format!("The profile couldn't be saved ({e})"))?;
+    let _ = std::fs::remove_dir_all(app_dir.join("_CodeSignature"));
     let special: Option<SpecialApp> = None;
     isideload::sideload::sign::sign(
         &mut signed,
@@ -509,8 +605,15 @@ async fn refresh_app(
     .await
     .map_err(|e| short(&e))?;
 
-    step("Installing: Ferrite closes now and opens again with 7 new days", 0.55);
-    isideload::sideload::install::install_app(&provider, &copy, |percent| {
+    step(
+        if updating {
+            "Installing the update: Ferrite closes now and opens again updated"
+        } else {
+            "Installing: Ferrite closes now and opens again with 7 new days"
+        },
+        0.55,
+    );
+    isideload::sideload::install::install_app(&provider, &app_dir, |percent| {
         change(|s| s.progress = Some(0.55 + percent.min(100) as f32 / 100.0 * 0.45));
     })
     .await

@@ -19,6 +19,9 @@ at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/relea
   no SideStore. It needs LocalDevVPN (free, App Store) on and a pairing file made once on a
   computer. It also asks Apple for the increased memory limit, for higher render distances.
   Experimental: please send the log if it fails.
+- **Update in Ferrite.** With Refresh now set up, a new version's line on the Play tab says
+  Update in Ferrite: it downloads the release, signs it and installs it over itself, as SideStore
+  does, worlds and sign-ins kept.
 - **Speed Trade.** A >> button next to a trade's result keeps making the selected trade until you
   stop it or the villager runs out. Speed (4, 10 or 20 a second) and Hold or Tap are in Extra
   Settings. Works in single player and on servers.

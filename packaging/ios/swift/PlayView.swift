@@ -342,14 +342,32 @@ struct PlayView: View {
         }
     }
 
+    /// A newer release: Update in Ferrite when Refresh now is set up (pairing file and Apple ID),
+    /// which signs and installs it over this app as SideStore would; else SideStore or AltStore,
+    /// or the download page. While Ferrite updates (or refreshes) itself, its progress.
     @ViewBuilder private var updateBanner: some View {
-        if let update = state.update {
+        let signer = state.signer
+        let busy = signer?.status == "working" && signer?.progress != nil
+        if busy, let progress = signer?.progress {
+            HStack(spacing: 8) {
+                ProgressView(value: progress)
+                    .tint(Theme.accent)
+                    .frame(width: 80)
+                Text(signer?.message ?? "")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondary)
+                    .lineLimit(1)
+            }
+        } else if let update = state.update {
+            let inFerrite = (state.pairing ?? false) && signer?.status == "signed_in"
             Button {
                 feelTap(.light)
-                model.send("get_update")
+                model.send(inFerrite ? "self_update" : "get_update")
             } label: {
                 Label(
-                    update.installer.map { "Update to \(update.version) with \($0)" } ?? "Get version \(update.version)",
+                    inFerrite
+                        ? "Update to \(update.version) in Ferrite"
+                        : (update.installer.map { "Update to \(update.version) with \($0)" } ?? "Get version \(update.version)"),
                     systemImage: "arrow.down.circle"
                 )
                 .font(.footnote.weight(.medium))

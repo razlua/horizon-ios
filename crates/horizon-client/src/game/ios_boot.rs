@@ -1010,6 +1010,19 @@ impl Boot {
                         _ => log::warn!("Horizon iOS: Refresh now needs the bundle ID and the app's folder"),
                     }
                 }
+                // Update in Ferrite: the newer release's .ipa, signed and installed over this app
+                // as Refresh now does it.
+                Some(LauncherAction::SelfUpdate) => {
+                    let ipa = self.state.lock().unwrap_or_else(|e| e.into_inner()).newer.clone().map(|n| n.ipa);
+                    let bundle_id = horizon_threads::ios_bundle::info("CFBundleIdentifier");
+                    match (ipa, bundle_id) {
+                        (Some(ipa), Some(bundle_id)) => {
+                            let work = std::env::temp_dir().join("ferrite-refresh");
+                            ferrite_signer::update(&ipa, &bundle_id, &work, pairing_file().as_deref());
+                        }
+                        _ => log::warn!("Horizon iOS: Update in Ferrite needs a newer release and the bundle ID"),
+                    }
+                }
                 Some(LauncherAction::SkinUpload { index, slim }) => self.upload_skin(index, slim),
                 // Profiles (ios_instances.rs): the launcher hears the change with the next state.
                 Some(LauncherAction::Instance(name)) => {

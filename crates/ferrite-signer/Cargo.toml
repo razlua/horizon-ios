@@ -11,6 +11,8 @@ description = "Ferrite (iOS): signs Ferrite again with the player's Apple ID, so
 # Apple ID sign-in (SRP, 2FA, anisette), certificates, App IDs and profiles, code signing. MIT.
 # `install`: idevice, which talks to the phone's installer (the refresh itself).
 isideload = { version = "=0.3.17", default-features = false, features = ["install", "keyring-storage", "tokio-mt"] }
+# Updates: the release's .ipa, downloaded as the game's update check reads the source.
+ureq = { version = "2", default-features = false, features = ["tls"] }
 # The iPhone's own installer over LocalDevVPN (10.7.0.1) with the player's pairing file: isideload
 # brings idevice without its TCP connection. Same version and TLS as isideload's. MIT.
 idevice = { version = "=0.1.68", default-features = false, features = ["ring", "tcp", "afc", "installation_proxy"] }
