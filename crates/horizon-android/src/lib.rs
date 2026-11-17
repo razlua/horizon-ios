@@ -28,6 +28,12 @@ fn android_main(app: AndroidApp) {
         // The Chromebook build (horizon-chrome.apk) carries an asset that says so.
         if app.asset_manager().open(c"chromebook").is_some() {
             chromebook_settings(shared);
+            // Frames over 50 ms go to the log with what they spent their time in, so a lag
+            // spike can be traced from the log a player sends.
+            // SAFETY: still before the game starts any thread that reads the environment.
+            unsafe {
+                std::env::set_var("HORIZON_SPIKES", "50");
+            }
         }
     }
     horizon_client::entry::android_main(app);

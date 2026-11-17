@@ -17243,6 +17243,24 @@ impl ApplicationHandler for Game<'_> {
             }
             return;
         }
+        // Android: the first keys from a keyboard, logged, as Android names them and as they
+        // arrive here (a Chromebook's keys didn't move the player).
+        if cfg!(target_os = "android")
+            && let WindowEvent::KeyboardInput { event: key, is_synthetic, .. } = &event
+        {
+            static LOGGED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            if LOGGED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 40 {
+                log::info!(
+                    "Horizon Android: key {:?} {:?} {:?} (synthetic {is_synthetic}, focused {}, captured {}, playing {})",
+                    key.physical_key,
+                    key.logical_key,
+                    key.state,
+                    self.focused,
+                    self.captured,
+                    self.screen == Screen::Playing,
+                );
+            }
+        }
         // A real keyboard or mouse (a Chromebook's): the touch buttons step aside until the next
         // touch. The fingers' own clicks don't come this way.
         if cfg!(target_os = "android")
