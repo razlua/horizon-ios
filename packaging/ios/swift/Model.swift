@@ -17,6 +17,14 @@ struct LauncherState: Decodable {
     var pairing: Bool?
     /// The last run ended while playing (crates/horizon-client/src/game/crash_watch.rs).
     var last_crash: LastCrash?
+    /// Profiles (crates/horizon-client/src/game/ios_instances.rs).
+    var instances: InstancesState?
+}
+
+/// The profiles there are, and the chosen one (none: Default).
+struct InstancesState: Decodable {
+    var list: [String]
+    var current: String?
 }
 
 /// What the last run was doing when it ended while playing.

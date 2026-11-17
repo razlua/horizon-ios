@@ -28,6 +28,10 @@ at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/relea
   a computer (WASD, E, F3, chat, mod keys), and a mouse turns the view and attacks and uses in the
   world. The touch buttons step aside while one of them plays and come back at the next touch.
   Experimental: please say how it feels.
+- **Profiles.** The Play tab's profile menu keeps several sets of settings, for example one for PvP
+  and one for survival: each has its own options, keybinds, video settings, servers list and
+  offline name, and Settings changes the chosen one. Worlds, packs, mods and sign-ins stay shared.
+  A new profile starts as a copy of your settings, and Default is everything as before.
 - **Close.** Beside Extra Settings on the main menu, and Close Ferrite in the launcher's More menu:
   Ferrite ends without the app switcher.
 - **Crash catcher.** If Ferrite closes by itself while you play (usually iOS ending it for memory,

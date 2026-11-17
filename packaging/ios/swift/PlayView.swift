@@ -9,6 +9,8 @@ struct PlayView: View {
     @State private var selected = 0
     @State private var offlineName = ""
     @State private var changingSkin = false
+    @State private var makingProfile = false
+    @State private var profileName = ""
     @State private var copied = false
 
     private var state: LauncherState { model.state }
@@ -114,6 +116,7 @@ struct PlayView: View {
                     .padding(.vertical, 2)
                 }
                 HStack(spacing: 16) {
+                    profileMenu
                     Menu {
                         Button {
                             model.send("offline")
@@ -146,6 +149,18 @@ struct PlayView: View {
         }
         .sheet(isPresented: $changingSkin) {
             SkinChanger(model: model, index: index, account: account)
+        }
+        .alert("New profile", isPresented: $makingProfile) {
+            TextField("Name", text: $profileName)
+            Button("Make") {
+                model.send("instance_new:\(profileName)")
+                profileName = ""
+            }
+            Button("Cancel", role: .cancel) {
+                profileName = ""
+            }
+        } message: {
+            Text("It starts with your settings now. Worlds, packs and mods stay shared.")
         }
     }
 
@@ -214,6 +229,52 @@ struct PlayView: View {
                     .font(.footnote.monospaced())
                     .foregroundStyle(Theme.muted)
             }
+        }
+    }
+
+    /// The profile Play starts with (its own settings, keybinds and servers): choose, make, delete.
+    private var profileMenu: some View {
+        let profiles = state.instances?.list ?? []
+        let current = state.instances?.current
+        return Menu {
+            Button {
+                model.send("instance:")
+            } label: {
+                if current == nil {
+                    Label("Default", systemImage: "checkmark")
+                } else {
+                    Text("Default")
+                }
+            }
+            ForEach(profiles, id: \.self) { name in
+                Button {
+                    model.send("instance:\(name)")
+                } label: {
+                    if current == name {
+                        Label(name, systemImage: "checkmark")
+                    } else {
+                        Text(name)
+                    }
+                }
+            }
+            Divider()
+            Button {
+                makingProfile = true
+            } label: {
+                Label("New profile", systemImage: "plus")
+            }
+            if let current {
+                Button(role: .destructive) {
+                    model.send("instance_delete:\(current)")
+                } label: {
+                    Label("Delete \(current)", systemImage: "trash")
+                }
+            }
+        } label: {
+            Label(current ?? "Default", systemImage: "square.stack")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Theme.secondary)
+                .lineLimit(1)
         }
     }
 

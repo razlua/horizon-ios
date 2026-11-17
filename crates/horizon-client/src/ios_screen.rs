@@ -52,6 +52,10 @@ pub enum LauncherAction {
     Close,
     /// The Play tab's card about the last run ending while playing, dismissed.
     CrashDismiss,
+    /// Profiles: choose one (empty: Default), make one (chosen too), delete one.
+    Instance(String),
+    InstanceNew(String),
+    InstanceDelete(String),
     /// The skin changer's Upload: the PNG the launcher saved (`.skin-upload.png` in the game
     /// folder) as the skin of the saved account at `index`, on the slim or the classic model.
     SkinUpload { index: usize, slim: bool },
@@ -98,6 +102,9 @@ pub fn parse_launcher_action(text: &str) -> Option<LauncherAction> {
         "signer_refresh" => return Some(LauncherAction::SignerRefresh),
         "close" => return Some(LauncherAction::Close),
         "crash_dismiss" => return Some(LauncherAction::CrashDismiss),
+        "instance" => return Some(LauncherAction::Instance(arg.unwrap_or("").to_owned())),
+        "instance_new" => return Some(LauncherAction::InstanceNew(arg?.to_owned())),
+        "instance_delete" => return Some(LauncherAction::InstanceDelete(arg?.to_owned())),
         "skin_upload" => {
             let (index, model) = arg?.split_once(':')?;
             let slim = match model {
@@ -147,6 +154,10 @@ mod launcher_tests {
         assert_eq!(parse_launcher_action("signer_refresh"), Some(LauncherAction::SignerRefresh));
         assert_eq!(parse_launcher_action("close"), Some(LauncherAction::Close));
         assert_eq!(parse_launcher_action("crash_dismiss"), Some(LauncherAction::CrashDismiss));
+        assert_eq!(parse_launcher_action("instance:PvP"), Some(LauncherAction::Instance("PvP".into())));
+        assert_eq!(parse_launcher_action("instance:"), Some(LauncherAction::Instance(String::new())));
+        assert_eq!(parse_launcher_action("instance_new:Survival 2"), Some(LauncherAction::InstanceNew("Survival 2".into())));
+        assert_eq!(parse_launcher_action("instance_delete"), None);
         assert_eq!(parse_launcher_action("play"), None);
         assert_eq!(parse_launcher_action("play:x"), None);
         assert_eq!(parse_launcher_action("fly"), None);

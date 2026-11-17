@@ -344,6 +344,8 @@ mod crash_watch;
 #[cfg(target_os = "ios")]
 mod ios_input;
 #[cfg(target_os = "ios")]
+mod ios_instances;
+#[cfg(target_os = "ios")]
 pub mod ios_boot;
 mod ios_setup;
 #[cfg(target_os = "ios")]

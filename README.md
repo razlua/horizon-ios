@@ -102,6 +102,8 @@ On iPhones with ProMotion it runs at the screen's full 120 Hz.
   opens the download page.
 - On iPhone, saves, options, resource packs and logs are in the Files app, under
   *On My iPhone → Ferrite*.
+- Profiles on the launcher's Play tab keep separate settings, keybinds and servers lists (PvP,
+  survival...), with worlds, packs and mods shared.
 - The game pauses and saves when you leave the app. Close, beside Extra Settings on the main
   menu (or Close Ferrite in the launcher's More), ends it.
 - If Ferrite closes by itself while you play (usually iOS ending it for memory), the next start

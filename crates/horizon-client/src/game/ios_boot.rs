@@ -219,7 +219,8 @@ fn sign_in_new(state: State, attempt: u64) {
 /// Horizon's graphics settings beside it, and Extra Settings (`ios-settings.txt`).
 fn launcher_settings() -> serde_json::Value {
     use horizon_client::ios_extras;
-    let settings = horizon_client::settings::Settings::load(&super::Game::options_path());
+    // The chosen profile's settings (ios_instances.rs).
+    let settings = horizon_client::settings::Settings::load(&super::ios_instances::options_path());
     let extras: Vec<_> = ios_extras::ITEMS
         .iter()
         .map(|&item| serde_json::json!({ "label": ios_extras::label(item), "help": ios_extras::help(item) }))
@@ -873,6 +874,10 @@ impl Boot {
             "signer": ferrite_signer::state_json(),
             "pairing": pairing_file().is_some(),
             "last_crash": super::crash_watch::last(),
+            "instances": {
+                "list": super::ios_instances::list(),
+                "current": super::ios_instances::chosen(),
+            },
         })
         .to_string()
     }
@@ -880,7 +885,7 @@ impl Boot {
     /// A setting the launcher's Settings tab changed, saved in the game's own files as the
     /// game's Options would. The launcher hears the new value with the next state.
     fn launcher_setting(&mut self, key: &str, value: &str) {
-        let path = super::Game::options_path();
+        let path = super::ios_instances::options_path();
         let mut settings = horizon_client::settings::Settings::load(&path);
         let number = value.parse::<i64>().ok();
         match (key, number) {
@@ -1006,6 +1011,19 @@ impl Boot {
                     }
                 }
                 Some(LauncherAction::SkinUpload { index, slim }) => self.upload_skin(index, slim),
+                // Profiles (ios_instances.rs): the launcher hears the change with the next state.
+                Some(LauncherAction::Instance(name)) => {
+                    super::ios_instances::choose(Some(name.as_str()).filter(|n| !n.is_empty()));
+                    update(&self.state, |_| {});
+                }
+                Some(LauncherAction::InstanceNew(name)) => {
+                    super::ios_instances::create(&name);
+                    update(&self.state, |_| {});
+                }
+                Some(LauncherAction::InstanceDelete(name)) => {
+                    super::ios_instances::delete(&name);
+                    update(&self.state, |_| {});
+                }
                 Some(LauncherAction::CrashDismiss) => {
                     super::crash_watch::dismiss();
                     update(&self.state, |_| {});
@@ -1031,6 +1049,12 @@ impl Boot {
         self.renderer = None;
         self.window = None;
         *SESSION.lock().unwrap_or_else(|e| e.into_inner()) = session;
+        // The chosen profile's own folder for its settings (ios_instances.rs); Default keeps the
+        // game folder.
+        if let Some(dir) = super::ios_instances::player_dir() {
+            log::info!("Horizon iOS: playing with the profile in {}", dir.display());
+            horizon_client::logging::set_player_dir(dir);
+        }
         HANDED.with(|handed| *handed.borrow_mut() = Some(None));
         let started = super::run_with();
         self.app = HANDED.with(|handed| handed.borrow_mut().take()).flatten();
