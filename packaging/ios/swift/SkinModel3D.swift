@@ -1,100 +1,152 @@
-// The player in 3D: the skin's parts as boxes, textured pixel-sharp from the skin as the game
-// does (each face cut from its place in the 64 x 64 texture), the second layer (hat, jacket,
-// sleeves, trousers) a little bigger around them. A finger turns the player. Drawn at 30 frames a
-// second, only while the launcher is on screen.
-import SceneKit
+// The player in 3D, drawn with Core Graphics: the skin's parts as boxes, each face cut from its
+// place in the 64 x 64 texture as the game lays it out, turned and tilted, shaded by which way it
+// faces (the top lightest, as in the game's menus), and drawn back to front, pixel-sharp. The
+// second layer (hat, jacket, sleeves, trousers) is a little bigger around the first. A finger
+// turns the player. No GPU: it looks the same on a phone as in the Simulator's screenshots, and
+// it is drawn only when it turns.
 import SwiftUI
 import UIKit
 
-/// Builds the player's model from a skin.
+/// A point or a direction in the model: x to the player's left (the viewer's right), y up, z out
+/// of the screen. One unit is one skin pixel.
+struct Vec3 {
+    var x: Double
+    var y: Double
+    var z: Double
+
+    static func + (a: Vec3, b: Vec3) -> Vec3 { Vec3(x: a.x + b.x, y: a.y + b.y, z: a.z + b.z) }
+    static func - (a: Vec3, b: Vec3) -> Vec3 { Vec3(x: a.x - b.x, y: a.y - b.y, z: a.z - b.z) }
+
+    func dot(_ o: Vec3) -> Double { x * o.x + y * o.y + z * o.z }
+
+    /// Turned about the z axis by `angle` around `pivot` (an arm out from its shoulder).
+    func swung(_ angle: Double, around pivot: Vec3) -> Vec3 {
+        let (s, c) = (sin(angle), cos(angle))
+        let dx = x - pivot.x
+        let dy = y - pivot.y
+        return Vec3(x: pivot.x + dx * c - dy * s, y: pivot.y + dx * s + dy * c, z: z)
+    }
+
+    /// Turned about y by `yaw`, then tipped toward the viewer about x by `tilt`.
+    func viewed(yaw: Double, tilt: Double) -> Vec3 {
+        let x1 = x * cos(yaw) + z * sin(yaw)
+        let z1 = -x * sin(yaw) + z * cos(yaw)
+        return Vec3(x: x1, y: y * cos(tilt) - z1 * sin(tilt), z: y * sin(tilt) + z1 * cos(tilt))
+    }
+}
+
+/// One box of the model: its middle, half its size, its six faces' pictures and how it hangs.
+struct SkinBox {
+    let center: Vec3
+    let half: Vec3
+    /// Front, back, +x (the player's left), -x (the player's right), top, bottom.
+    let faces: [CGImage?]
+    let overlay: Bool
+    /// An arm turns out from its shoulder by `swing` (radians, about z).
+    let pivot: Vec3?
+    let swing: Double
+}
+
 enum SkinModel {
-    /// The whole player, its middle at the origin (y from -16 to 16), facing +z. Nil for a
-    /// texture that isn't a skin.
-    static func node(for skin: Skin) -> SCNNode? {
+    /// Each face's corners as signs of the box's half size: top left, top right and bottom left
+    /// of its picture, seen from outside the box. Then its outward direction.
+    private static let corners: [(Vec3, Vec3, Vec3, Vec3)] = [
+        (Vec3(x: -1, y: 1, z: 1), Vec3(x: 1, y: 1, z: 1), Vec3(x: -1, y: -1, z: 1), Vec3(x: 0, y: 0, z: 1)),
+        (Vec3(x: 1, y: 1, z: -1), Vec3(x: -1, y: 1, z: -1), Vec3(x: 1, y: -1, z: -1), Vec3(x: 0, y: 0, z: -1)),
+        (Vec3(x: 1, y: 1, z: 1), Vec3(x: 1, y: 1, z: -1), Vec3(x: 1, y: -1, z: 1), Vec3(x: 1, y: 0, z: 0)),
+        (Vec3(x: -1, y: 1, z: -1), Vec3(x: -1, y: 1, z: 1), Vec3(x: -1, y: -1, z: -1), Vec3(x: -1, y: 0, z: 0)),
+        (Vec3(x: -1, y: 1, z: -1), Vec3(x: 1, y: 1, z: -1), Vec3(x: -1, y: 1, z: 1), Vec3(x: 0, y: 1, z: 0)),
+        (Vec3(x: -1, y: -1, z: 1), Vec3(x: 1, y: -1, z: 1), Vec3(x: -1, y: -1, z: -1), Vec3(x: 0, y: -1, z: 0)),
+    ]
+
+    /// Where the light comes from: the front, above and a little to the left.
+    private static let light: Vec3 = {
+        let l = Vec3(x: -0.35, y: 0.75, z: 0.55)
+        let n = (l.x * l.x + l.y * l.y + l.z * l.z).squareRoot()
+        return Vec3(x: l.x / n, y: l.y / n, z: l.z / n)
+    }()
+
+    /// The last skin's boxes, so turning doesn't cut the texture again.
+    private static var cached: (image: ObjectIdentifier, slim: Bool, boxes: [SkinBox])?
+
+    /// The player's boxes, its middle at the origin (y from -16 to 16). Empty for a texture that
+    /// isn't a skin.
+    static func boxes(for skin: Skin) -> [SkinBox] {
+        let key = ObjectIdentifier(skin.image)
+        if let hit = cached, hit.image == key, hit.slim == skin.slim {
+            return hit.boxes
+        }
+        let built = build(skin)
+        cached = (key, skin.slim, built)
+        return built
+    }
+
+    private static func build(_ skin: Skin) -> [SkinBox] {
         let texture = skin.image
         let unit = texture.width / 64
         guard unit >= 1, texture.height == 64 * unit || texture.height == 32 * unit else {
-            return nil
+            return []
         }
         let legacy = texture.height == 32 * unit
         let arm = skin.slim ? 3 : 4
-        let armOffset = Float(4) + Float(arm) / 2
-        let player = SCNNode()
+        let armX = 4 + Double(arm) / 2
+        var boxes: [SkinBox] = []
 
-        func box(
-            _ u: Int, _ v: Int, _ w: Int, _ h: Int, _ d: Int,
-            grow: CGFloat, overlay: Bool, mirrored: Bool = false
-        ) -> SCNNode {
-            let geometry = SCNBox(
-                width: CGFloat(w) + grow * 2,
-                height: CGFloat(h) + grow * 2,
-                length: CGFloat(d) + grow * 2,
-                chamferRadius: 0
-            )
-            geometry.materials = faces(texture, unit: unit, u: u, v: v, w: w, h: h, d: d, mirrored: mirrored)
-                .map { material($0, overlay: overlay) }
-            let node = SCNNode(geometry: geometry)
-            // The second layer after the first, so its see-through pixels show the first.
-            node.renderingOrder = overlay ? 1 : 0
-            return node
-        }
-
-        /// A part with its second layer, `center` its middle.
+        /// A part (and its second layer at `layer`) of `w x h x d` pixels, its middle at `center`.
         func part(
-            base: (Int, Int), layer: (Int, Int)?,
+            _ base: (Int, Int), _ layer: (Int, Int)?,
             _ w: Int, _ h: Int, _ d: Int,
-            grow: CGFloat, center: SCNVector3, mirrored: Bool = false
-        ) -> SCNNode {
-            let node = SCNNode()
-            node.position = center
-            node.addChildNode(box(base.0, base.1, w, h, d, grow: 0, overlay: false, mirrored: mirrored))
+            grow: Double, center: Vec3,
+            mirrored: Bool = false, pivot: Vec3? = nil, swing: Double = 0
+        ) {
+            let half = Vec3(x: Double(w) / 2, y: Double(h) / 2, z: Double(d) / 2)
+            boxes.append(SkinBox(
+                center: center, half: half,
+                faces: faces(texture, unit: unit, u: base.0, v: base.1, w: w, h: h, d: d, mirrored: mirrored),
+                overlay: false, pivot: pivot, swing: swing
+            ))
             if let layer {
-                node.addChildNode(box(layer.0, layer.1, w, h, d, grow: grow, overlay: true, mirrored: mirrored))
+                boxes.append(SkinBox(
+                    center: center,
+                    half: Vec3(x: half.x + grow, y: half.y + grow, z: half.z + grow),
+                    faces: faces(texture, unit: unit, u: layer.0, v: layer.1, w: w, h: h, d: d, mirrored: mirrored),
+                    overlay: true, pivot: pivot, swing: swing
+                ))
             }
-            return node
-        }
-
-        /// An arm, hanging from its shoulder and turned out a little, as the inventory shows it.
-        func limb(_ child: SCNNode, shoulder: SCNVector3, outward: Float) -> SCNNode {
-            let pivot = SCNNode()
-            pivot.position = shoulder
-            child.position = SCNVector3(0, -6, 0)
-            pivot.addChildNode(child)
-            pivot.eulerAngles.z = outward
-            return pivot
         }
 
         // The head and its hat. An old skin with its hat area filled solid (Notch's is black) has
         // no hat, as the game decides (`doNotchTransparencyHack`): it would hide the whole head.
-        let hat: (Int, Int)? = legacy && !SkinModel.seeThrough(texture, unit: unit, 32, 0, 32, 16) ? nil : (32, 0)
-        player.addChildNode(part(base: (0, 0), layer: hat, 8, 8, 8, grow: 0.5, center: SCNVector3(0, 12, 0)))
+        let hat: (Int, Int)? = legacy && !seeThrough(texture, unit: unit, 32, 0, 32, 16) ? nil : (32, 0)
+        part((0, 0), hat, 8, 8, 8, grow: 0.5, center: Vec3(x: 0, y: 12, z: 0))
         // The body and its jacket.
-        player.addChildNode(part(
-            base: (16, 16), layer: legacy ? nil : (16, 32), 8, 12, 4,
-            grow: 0.25, center: SCNVector3(0, 2, 0)
-        ))
-        // The player's right arm and leg are on the viewer's left (-x).
-        let rightArm = part(base: (40, 16), layer: legacy ? nil : (40, 32), arm, 12, 4, grow: 0.25, center: SCNVector3(0, 0, 0))
-        let leftArm = legacy
-            ? part(base: (40, 16), layer: nil, arm, 12, 4, grow: 0.25, center: SCNVector3(0, 0, 0), mirrored: true)
-            : part(base: (32, 48), layer: (48, 48), arm, 12, 4, grow: 0.25, center: SCNVector3(0, 0, 0))
-        player.addChildNode(limb(rightArm, shoulder: SCNVector3(-armOffset, 8, 0), outward: -0.06))
-        player.addChildNode(limb(leftArm, shoulder: SCNVector3(armOffset, 8, 0), outward: 0.06))
-        player.addChildNode(part(
-            base: (0, 16), layer: legacy ? nil : (0, 32), 4, 12, 4,
-            grow: 0.25, center: SCNVector3(-2, -10, 0)
-        ))
-        player.addChildNode(legacy
-            ? part(base: (0, 16), layer: nil, 4, 12, 4, grow: 0.25, center: SCNVector3(2, -10, 0), mirrored: true)
-            : part(base: (16, 48), layer: (0, 48), 4, 12, 4, grow: 0.25, center: SCNVector3(2, -10, 0)))
-        return player
+        part((16, 16), legacy ? nil : (16, 32), 8, 12, 4, grow: 0.25, center: Vec3(x: 0, y: 2, z: 0))
+        // The player's right arm and leg are on the viewer's left (-x). Arms hang from their
+        // shoulders turned out a little, as the inventory shows the player.
+        let rightShoulder = Vec3(x: -armX, y: 8, z: 0)
+        let leftShoulder = Vec3(x: armX, y: 8, z: 0)
+        part((40, 16), legacy ? nil : (40, 32), arm, 12, 4, grow: 0.25,
+             center: Vec3(x: -armX, y: 2, z: 0), pivot: rightShoulder, swing: -0.06)
+        if legacy {
+            part((40, 16), nil, arm, 12, 4, grow: 0.25,
+                 center: Vec3(x: armX, y: 2, z: 0), mirrored: true, pivot: leftShoulder, swing: 0.06)
+        } else {
+            part((32, 48), (48, 48), arm, 12, 4, grow: 0.25,
+                 center: Vec3(x: armX, y: 2, z: 0), pivot: leftShoulder, swing: 0.06)
+        }
+        part((0, 16), legacy ? nil : (0, 32), 4, 12, 4, grow: 0.25, center: Vec3(x: -2, y: -10, z: 0))
+        if legacy {
+            part((0, 16), nil, 4, 12, 4, grow: 0.25, center: Vec3(x: 2, y: -10, z: 0), mirrored: true)
+        } else {
+            part((16, 48), (0, 48), 4, 12, 4, grow: 0.25, center: Vec3(x: 2, y: -10, z: 0))
+        }
+        return boxes
     }
 
-    /// A box's six faces from the skin, in SCNBox's order: front (+z), right (+x, the player's
-    /// left), back, left (-x, the player's right), top, bottom. A part at `u, v` of `w x h x d`
-    /// pixels lies in the texture as the game lays it out: top and bottom above, then the right
-    /// side, front, left side and back in a row. A mirrored part (an old skin's left arm and leg)
-    /// is its right one flipped.
+    /// A box's faces from the skin, in `corners`' order. A part at `u, v` of `w x h x d` pixels
+    /// lies in the texture as the game lays it out: top and bottom above, then the right side,
+    /// front, left side and back in a row. A mirrored part (an old skin's left arm and leg) is
+    /// its right one flipped.
     private static func faces(
         _ texture: CGImage, unit: Int,
         u: Int, v: Int, w: Int, h: Int, d: Int,
@@ -114,9 +166,29 @@ enum SkinModel {
         let playerLeft = cut(u + d + w, v + d, d, h)
         let back = cut(u + d + w + d, v + d, w, h)
         if mirrored {
-            return [front, playerRight, back, playerLeft, top, bottom]
+            return [front, back, playerRight, playerLeft, top, bottom]
         }
-        return [front, playerLeft, back, playerRight, top, bottom]
+        return [front, back, playerLeft, playerRight, top, bottom]
+    }
+
+    /// `image` mirrored left to right.
+    private static func flipped(_ image: CGImage) -> CGImage? {
+        guard let context = CGContext(
+            data: nil,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+        context.interpolationQuality = .none
+        context.translateBy(x: CGFloat(image.width), y: 0)
+        context.scaleBy(x: -1, y: 1)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
     }
 
     /// Whether the texture's area at `x, y` (`w` x `h` skin pixels) has a see-through pixel.
@@ -152,12 +224,16 @@ enum SkinModel {
         }
     }
 
-    /// `image` mirrored left to right.
-    private static func flipped(_ image: CGImage) -> CGImage? {
-        guard let context = CGContext(
+    /// The player drawn into a picture of `size` points at `scale` pixels a point, turned by
+    /// `yaw` and seen a little from above.
+    static func render(_ skin: Skin, yaw: Double, tilt: Double = 0.14, size: CGSize, scale: CGFloat) -> CGImage? {
+        let parts = SkinModel.boxes(for: skin)
+        let width = Int(size.width * scale)
+        let height = Int(size.height * scale)
+        guard !parts.isEmpty, width > 0, height > 0, let context = CGContext(
             data: nil,
-            width: image.width,
-            height: image.height,
+            width: width,
+            height: height,
             bitsPerComponent: 8,
             bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
@@ -166,121 +242,93 @@ enum SkinModel {
             return nil
         }
         context.interpolationQuality = .none
-        context.translateBy(x: CGFloat(image.width), y: 0)
-        context.scaleBy(x: -1, y: 1)
-        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        context.setAllowsAntialiasing(false)
+        context.setShouldAntialias(false)
+
+        // Skin pixels to picture pixels: the player (33 tall with the hat) fills most of it.
+        let pixel = Double(height) / 38
+        let middle = (x: Double(width) / 2, y: Double(height) / 2 + pixel * 0.5)
+        func onScreen(_ p: Vec3) -> CGPoint {
+            CGPoint(x: middle.x + p.x * pixel, y: middle.y + p.y * pixel)
+        }
+
+        struct Drawn {
+            let image: CGImage
+            let topLeft: CGPoint
+            let topRight: CGPoint
+            let bottomLeft: CGPoint
+            let depth: Double
+            let shade: Double
+        }
+        var drawn: [Drawn] = []
+        for box in parts {
+            func place(_ signs: Vec3) -> Vec3 {
+                var p = box.center + Vec3(x: signs.x * box.half.x, y: signs.y * box.half.y, z: signs.z * box.half.z)
+                if let pivot = box.pivot {
+                    p = p.swung(box.swing, around: pivot)
+                }
+                return p.viewed(yaw: yaw, tilt: tilt)
+            }
+            for (index, corner) in corners.enumerated() {
+                guard let image = box.faces[index] else {
+                    continue
+                }
+                var normal = corner.3
+                if box.pivot != nil {
+                    normal = normal.swung(box.swing, around: Vec3(x: 0, y: 0, z: 0))
+                }
+                normal = normal.viewed(yaw: yaw, tilt: tilt)
+                // Only the faces turned toward the viewer.
+                if normal.z <= 0.001 {
+                    continue
+                }
+                let topLeft = place(corner.0)
+                let topRight = place(corner.1)
+                let bottomLeft = place(corner.2)
+                let bottomRight = topRight + bottomLeft - topLeft
+                let depth = (topLeft.z + bottomRight.z) / 2 + (box.overlay ? 0.01 : 0)
+                let shade = 0.48 + 0.52 * max(0, normal.dot(light))
+                drawn.append(Drawn(
+                    image: image,
+                    topLeft: onScreen(topLeft),
+                    topRight: onScreen(topRight),
+                    bottomLeft: onScreen(bottomLeft),
+                    depth: depth,
+                    shade: shade
+                ))
+            }
+        }
+        // Back to front.
+        drawn.sort { $0.depth < $1.depth }
+        let unitSquare = CGRect(x: 0, y: 0, width: 1, height: 1)
+        for face in drawn {
+            // The unit square onto the face: (0, 0) its bottom left, (1, 0) its bottom right,
+            // (0, 1) its top left. Core Graphics draws a picture upright in the square.
+            let bottomRight = CGPoint(
+                x: face.topRight.x + face.bottomLeft.x - face.topLeft.x,
+                y: face.topRight.y + face.bottomLeft.y - face.topLeft.y
+            )
+            let transform = CGAffineTransform(
+                a: bottomRight.x - face.bottomLeft.x,
+                b: bottomRight.y - face.bottomLeft.y,
+                c: face.topLeft.x - face.bottomLeft.x,
+                d: face.topLeft.y - face.bottomLeft.y,
+                tx: face.bottomLeft.x,
+                ty: face.bottomLeft.y
+            )
+            context.saveGState()
+            context.concatenate(transform)
+            context.clip(to: unitSquare)
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+            context.draw(face.image, in: unitSquare)
+            // Darker the more it faces away from the light, only where the face has pixels.
+            context.setBlendMode(.sourceAtop)
+            context.setFillColor(gray: 0, alpha: CGFloat(1 - face.shade))
+            context.fill(unitSquare)
+            context.endTransparencyLayer()
+            context.restoreGState()
+        }
         return context.makeImage()
-    }
-
-    /// A face's material: its pixels sharp. The first layer is solid, as in the game; the second
-    /// shows only its drawn pixels.
-    private static func material(_ image: CGImage?, overlay: Bool) -> SCNMaterial {
-        let material = SCNMaterial()
-        material.lightingModel = .lambert
-        if let image {
-            material.diffuse.contents = image
-        } else {
-            material.diffuse.contents = UIColor.clear
-        }
-        material.diffuse.magnificationFilter = .nearest
-        material.diffuse.minificationFilter = .nearest
-        material.diffuse.mipFilter = .none
-        if overlay {
-            material.isDoubleSided = true
-            material.shaderModifiers = [
-                .fragment: "if (_output.color.a < 0.5) { discard_fragment(); }",
-            ]
-        } else {
-            material.blendMode = .replace
-        }
-        return material
-    }
-}
-
-/// The SceneKit view: the player, a camera looking at it straight on, and soft light from the
-/// front and above. `yaw` turns the player.
-struct SkinSceneView: UIViewRepresentable {
-    let skin: Skin
-    let yaw: Double
-
-    final class Coordinator {
-        var image: CGImage?
-        var slim = false
-        let turn = SCNNode()
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIView(context: Context) -> SCNView {
-        let scene = SCNScene()
-        scene.background.contents = UIColor.clear
-
-        let camera = SCNCamera()
-        camera.usesOrthographicProjection = true
-        camera.orthographicScale = 18
-        camera.zNear = 1
-        camera.zFar = 400
-        let cameraNode = SCNNode()
-        cameraNode.camera = camera
-        cameraNode.position = SCNVector3(0, 0, 120)
-        scene.rootNode.addChildNode(cameraNode)
-
-        let ambient = SCNNode()
-        ambient.light = SCNLight()
-        ambient.light?.type = .ambient
-        ambient.light?.intensity = 620
-        ambient.light?.color = UIColor.white
-        scene.rootNode.addChildNode(ambient)
-
-        let key = SCNNode()
-        key.light = SCNLight()
-        key.light?.type = .directional
-        key.light?.intensity = 520
-        key.light?.color = UIColor.white
-        // From the front, above and a little to the left, as the inventory's light.
-        key.eulerAngles = SCNVector3(-0.55, -0.35, 0)
-        scene.rootNode.addChildNode(key)
-
-        // Seen a little from above.
-        let tilt = SCNNode()
-        tilt.eulerAngles.x = 0.12
-        tilt.addChildNode(context.coordinator.turn)
-        scene.rootNode.addChildNode(tilt)
-
-        let view = SCNView(frame: .zero)
-        view.scene = scene
-        view.pointOfView = cameraNode
-        view.backgroundColor = UIColor.clear
-        view.isOpaque = false
-        view.antialiasingMode = .multisampling4X
-        // Drawn every frame (30 a second) while the launcher shows: drawing only on changes left
-        // it blank, as the model was placed before the view had a size and nothing changed after.
-        // The launcher goes away when the game starts, and this view with it.
-        view.rendersContinuously = true
-        view.preferredFramesPerSecond = 30
-        view.allowsCameraControl = false
-        view.isUserInteractionEnabled = false
-        place(skin, in: context.coordinator)
-        context.coordinator.turn.eulerAngles.y = Float(yaw)
-        return view
-    }
-
-    func updateUIView(_ view: SCNView, context: Context) {
-        if context.coordinator.image !== skin.image || context.coordinator.slim != skin.slim {
-            place(skin, in: context.coordinator)
-        }
-        context.coordinator.turn.eulerAngles.y = Float(yaw)
-    }
-
-    private func place(_ skin: Skin, in coordinator: Coordinator) {
-        coordinator.turn.childNodes.forEach { $0.removeFromParentNode() }
-        if let player = SkinModel.node(for: skin) {
-            coordinator.turn.addChildNode(player)
-        }
-        coordinator.image = skin.image
-        coordinator.slim = skin.slim
     }
 }
 
@@ -289,29 +337,31 @@ struct SkinStage: View {
     let skin: Skin?
     var height: CGFloat = 220
     /// Three quarters: the face and one side, as players are shown in the game's menus.
-    @State private var yaw: Double = -0.45
+    @State private var yaw: Double = -0.5
     @State private var dragged: Double = 0
 
     var body: some View {
+        let size = CGSize(width: (height * 0.62).rounded(), height: height)
         ZStack(alignment: .bottom) {
             Ellipse()
                 .fill(Color.black.opacity(0.35))
-                .frame(width: height * 0.32, height: height * 0.05)
+                .frame(width: height * 0.3, height: height * 0.05)
                 .blur(radius: 4)
-                .offset(y: -height * 0.02)
-            if let skin {
-                SkinSceneView(skin: skin, yaw: yaw + dragged)
-                    .frame(width: height * 0.62, height: height)
+                .offset(y: -height * 0.03)
+            if let skin, let picture = SkinModel.render(skin, yaw: yaw + dragged, size: size, scale: 3) {
+                Image(decorative: picture, scale: 3)
+                    .interpolation(.none)
+                    .frame(width: size.width, height: size.height)
             } else {
                 Image(systemName: "figure.stand")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .foregroundStyle(Color.white.opacity(0.2))
                     .padding(height * 0.08)
-                    .frame(width: height * 0.62, height: height)
+                    .frame(width: size.width, height: size.height)
             }
         }
-        .frame(width: height * 0.62, height: height)
+        .frame(width: size.width, height: size.height)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 2)

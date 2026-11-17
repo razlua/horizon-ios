@@ -47,7 +47,7 @@ fn main() {
             println!("cargo:rustc-link-lib=static:-bundle={name}");
         }
     }
-    for framework in ["SwiftUI", "UIKit", "Foundation", "UserNotifications", "SceneKit"] {
+    for framework in ["SwiftUI", "UIKit", "Foundation", "UserNotifications"] {
         println!("cargo:rustc-link-lib=framework={framework}");
     }
 }
