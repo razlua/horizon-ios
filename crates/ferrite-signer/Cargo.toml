@@ -10,7 +10,7 @@ description = "Ferrite (iOS): signs Ferrite again with the player's Apple ID, so
 [target.'cfg(target_os = "ios")'.dependencies]
 # Apple ID sign-in (SRP, 2FA, anisette), certificates, App IDs and profiles, code signing. MIT.
 # `install`: idevice, which talks to the phone's installer (the refresh itself).
-isideload = { version = "=0.3.17", default-features = false, features = ["install", "keyring-storage", "tokio-mt"] }
+isideload = { version = "=0.5.2", default-features = false, features = ["install", "keyring-storage", "tokio-mt"] }
 # Updates: the release's .ipa, downloaded as the game's update check reads the source.
 ureq = { version = "2", default-features = false, features = ["tls"] }
 # The iPhone's own installer over LocalDevVPN (10.7.0.1) with the player's pairing file: isideload
@@ -22,6 +22,8 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 # isideload logs through tracing: with no subscriber, its events go to the game's log.
 tracing = { version = "0.1", features = ["log"] }
+# isideload's error reports (named for the certificate callback's type).
+rootcause = "0.12"
 log = "0.4"
 plist = "1.8"
 serde_json = "1"

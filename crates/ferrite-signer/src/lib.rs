@@ -42,6 +42,12 @@ use isideload::dev::teams::{DeveloperTeam, TeamsApi};
 use isideload::sideload::application::{Application, SpecialApp};
 use isideload::sideload::builder::MaxCertsBehavior;
 use isideload::sideload::cert_identity::CertificateIdentity;
+use isideload::dev::certificates::DevelopmentCertificate;
+
+/// [`MaxCertsBehavior::Error`] never asks which certificate to revoke; its callback's type.
+type NoPrompt = fn(
+    Vec<DevelopmentCertificate>,
+) -> std::future::Ready<Result<Option<Vec<String>>, rootcause::Report>>;
 use isideload::util::device::IdeviceInfo;
 use isideload::util::storage::new_storage;
 
@@ -306,11 +312,26 @@ pub extern "C" fn hz_signer_code(code: *const c_char) {
     }
 }
 
-/// The first line of an error, for the screen; the whole of it goes to the log.
+/// An error for the screen: its first message and its deepest cause; the whole of it goes to
+/// the log. isideload's reports start on an empty line, put each cause on a line of its own
+/// behind a tree's marks (●, ├, ╰, │) and the source file under it.
 fn short(e: &impl std::fmt::Display) -> String {
     let text = e.to_string();
     log::warn!("Ferrite signer: {text}");
-    text.lines().next().unwrap_or("It didn't work.").trim().to_owned()
+    summary(&text)
+}
+
+fn summary(text: &str) -> String {
+    let messages: Vec<&str> = text
+        .lines()
+        .map(|line| line.trim_start_matches(|c: char| c.is_whitespace() || "●├╰│─".contains(c)).trim())
+        .filter(|line| !line.is_empty() && !line.contains(".rs:"))
+        .collect();
+    match messages.as_slice() {
+        [] => "It didn't work. Send the log (About, Send logs).".to_owned(),
+        [only] => (*only).to_owned(),
+        [first, .., last] => format!("{first}: {last}"),
+    }
 }
 
 /// The worker: one Apple session at a time, its commands in order.
@@ -632,7 +653,7 @@ async fn install_with(
     step("Getting Ferrite's certificate", 0.08);
     let storage = new_storage();
     let certificate =
-        CertificateIdentity::retrieve(MACHINE_NAME, email, dev, &team, &storage, &MaxCertsBehavior::Error)
+        CertificateIdentity::retrieve(MACHINE_NAME, email, dev, &team, &storage, &MaxCertsBehavior::<NoPrompt>::Error)
             .await
             .map_err(|e| short(&e))?;
 
@@ -688,6 +709,8 @@ async fn install_with(
         &mut signed,
         &certificate,
         &profile,
+        // Ferrite has no extensions: no other bundle needs a profile of its own.
+        &mut Vec::new(),
         &special,
         &team,
         Some(|done: f32| async move {
@@ -793,7 +816,7 @@ async fn check_signature(
         .next()
         .ok_or_else(|| "This Apple ID has no developer team.".to_owned())?;
     let storage = new_storage();
-    CertificateIdentity::retrieve(MACHINE_NAME, email, dev, &team, &storage, &MaxCertsBehavior::Error)
+    CertificateIdentity::retrieve(MACHINE_NAME, email, dev, &team, &storage, &MaxCertsBehavior::<NoPrompt>::Error)
         .await
         .map_err(|e| short(&e))?;
     let listed = dev.list_app_ids(&team, None).await.map_err(|e| short(&e))?;
