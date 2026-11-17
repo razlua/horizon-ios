@@ -88,6 +88,13 @@ struct State {
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
 static VERSION: AtomicU64 = AtomicU64::new(1);
+/// A Test connection, Refresh now or update is queued or running: a second tap does nothing.
+static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Claims the worker for a connection job; false while another is queued or running.
+fn claim() -> bool {
+    !BUSY.swap(true, Relaxed)
+}
 
 enum Command {
     SignIn { email: String, password: String },
@@ -153,6 +160,7 @@ pub fn state_json() -> serde_json::Value {
 
 /// A Test connection or Refresh now ended: the Apple ID stays as it was, the note says how.
 fn finish(signed_in: bool, ok: bool, note: String) {
+    BUSY.store(false, Relaxed);
     change(|s| {
         s.progress = None;
         s.refresh_note = Some((ok, note));
@@ -191,12 +199,17 @@ fn channels() -> Option<&'static Channels> {
 }
 
 fn send(command: Command) {
-    if let Some(channels) = channels() {
-        let _ = channels
+    let sent = channels().is_some_and(|channels| {
+        channels
             .commands
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .send(command);
+            .send(command)
+            .is_ok()
+    });
+    // No worker to run it: nothing is queued, so nothing is busy.
+    if !sent {
+        BUSY.store(false, Relaxed);
     }
 }
 
@@ -211,6 +224,9 @@ pub fn check(bundle_id: &str) {
 /// Tries to reach the iPhone's installer with the pairing file at `pairing` (LocalDevVPN on):
 /// the iPhone's name shows when it works. Needs no Apple ID.
 pub fn test_connection(pairing: Option<&Path>) {
+    if !claim() {
+        return;
+    }
     send(Command::Test {
         pairing: pairing.map(Path::to_owned),
     });
@@ -219,6 +235,9 @@ pub fn test_connection(pairing: Option<&Path>) {
 /// Signs the app at `app` (the running one's bundle) again under `bundle_id` and installs it
 /// over itself, with `work` as the folder for the signed copy. Needs the Apple ID signed in.
 pub fn refresh(bundle_id: &str, app: &Path, work: &Path, pairing: Option<&Path>) {
+    if !claim() {
+        return;
+    }
     send(Command::Refresh {
         bundle_id: bundle_id.to_owned(),
         app: app.to_owned(),
@@ -230,6 +249,9 @@ pub fn refresh(bundle_id: &str, app: &Path, work: &Path, pairing: Option<&Path>)
 /// Downloads the release at `url` (its `.ipa`), signs it under `bundle_id` (the running app's)
 /// and installs it over this app, as SideStore updates an app. Needs what Refresh now needs.
 pub fn update(url: &str, bundle_id: &str, work: &Path, pairing: Option<&Path>) {
+    if !claim() {
+        return;
+    }
     send(Command::Update {
         url: url.to_owned(),
         bundle_id: bundle_id.to_owned(),

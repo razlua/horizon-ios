@@ -36,8 +36,9 @@ fn step_up(cap: i32, chosen: i32) -> i32 {
 }
 
 fn phone_step_up(cap: i32, chosen: i32) -> i32 {
-    // A third of the way, rounded up: 8, 15, 20, 23, 25, 27, 28, 29.
-    cap + ((chosen - cap + 2) / 3).max(1)
+    // A third of the way, rounded up, at most 5 a step (each step's chunks come at once, and the
+    // guard's margin is thin): 8, 13, 18, 23, 25, 27, 28, 29.
+    cap + ((chosen - cap + 2) / 3).clamp(1, 5)
 }
 /// Under this share of what it holds, a step down doesn't wait for the last one to free its
 /// memory: the system is about to end the game.

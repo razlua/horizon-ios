@@ -252,6 +252,12 @@ fn pairing_file() -> Option<std::path::PathBuf> {
     files.into_iter().next()
 }
 
+/// The folder the game will take as its player folder when Play starts it: the chosen
+/// profile's, else the game folder's.
+fn profile_dir() -> std::path::PathBuf {
+    super::ios_instances::player_dir().unwrap_or_else(horizon_client::logging::player_dir)
+}
+
 /// Starts a thread for a sign-in.
 fn spawn(name: &str, job: impl FnOnce() + Send + 'static) {
     if let Err(e) = std::thread::Builder::new().name(name.into()).spawn(job) {
@@ -722,9 +728,8 @@ impl Boot {
             Action::RetrySetup => self.start_setup(),
             // The name to play offline with first (horizon-player.txt, as the game keeps it).
             Action::Offline => {
-                let name = horizon_client::offline_name::load_or_create(
-                    &horizon_client::logging::player_dir(),
-                );
+                // The chosen profile's offline name (ios_instances.rs), as the game will read it.
+                let name = horizon_client::offline_name::load_or_create(&profile_dir());
                 begin_attempt(
                     &state,
                     Account::OfflineName {
@@ -764,7 +769,7 @@ impl Boot {
                 };
                 if let Some(name) = chosen {
                     if horizon_client::offline_name::is_chosen_valid(&name) {
-                        let dir = horizon_client::logging::player_dir();
+                        let dir = profile_dir();
                         if let Err(e) = horizon_client::offline_name::save(&dir, &name) {
                             log::warn!("Horizon iOS: the offline name could not be kept: {e}");
                         }
