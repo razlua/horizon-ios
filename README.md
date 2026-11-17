@@ -102,7 +102,10 @@ On iPhones with ProMotion it runs at the screen's full 120 Hz.
   opens the download page.
 - On iPhone, saves, options, resource packs and logs are in the Files app, under
   *On My iPhone → Ferrite*.
-- The game pauses and saves when you leave the app.
+- The game pauses and saves when you leave the app. Close, beside Extra Settings on the main
+  menu (or Close Ferrite in the launcher's More), ends it.
+- If Ferrite closes by itself while you play (usually iOS ending it for memory), the next start
+  says so, with the render distance and memory at the time, and Send report shares what happened.
 
 ## Installing on iPhone and iPad
 
@@ -115,6 +118,7 @@ ID for signing. Pick one of the two ways below.
    and working. AltStore PAL, the EU version, only installs notarized apps, so it can't install
    this one.
 2. Add the source. In AltStore, go to *Browse → Sources → +*. In SideStore, open *Sources → +*.
+   [Feather](https://github.com/khcrysalis/Feather) takes the same source too.
    Paste this address:
    ```
    https://raw.githubusercontent.com/razlua/horizon-ios/ios-port/altstore-source.json

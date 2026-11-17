@@ -368,6 +368,8 @@ pub enum Action {
     Quit,
     /// Extra Settings (Ferrite), the iOS port's own Options page.
     IosExtras,
+    /// iOS: Close, beside Extra Settings: the app ends (no world is open on the title screen).
+    IosClose,
     Options,
     Accessibility,
     Language,
@@ -1764,16 +1766,19 @@ impl Title {
                         2,
                     ),
                 ];
-                // iOS: the port's own settings, right under Options and Edit HUD.
+                // iOS: the port's own settings, right under Options and Edit HUD, and Close
+                // beside them: Quit Game's place is Edit HUD's, and the app switcher was the only
+                // other way out.
                 if cfg!(target_os = "ios") {
                     buttons.push(b(
                         cx - 100.0,
                         y + 120.0,
-                        200.0,
+                        146.0,
                         "Extra Settings (Ferrite)",
                         true,
                         9,
                     ));
+                    buttons.push(b(cx + 50.0, y + 120.0, 50.0, "Close", true, 10));
                 }
                 // CommonButtons' icon buttons; Horizon's Join a Friend (an
                 // invite code) sits behind vanilla's Friends button.
@@ -3440,6 +3445,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             }
             (Mode::Main, Some(2)) => Action::Quit,
             (Mode::Main, Some(9)) => Action::IosExtras,
+            (Mode::Main, Some(10)) => Action::IosClose,
             (Mode::BanNotice(_), Some(id @ 120..=122)) => {
                 // BanNoticeScreens' callback: Open in Browser opens the link, Copy copies it
                 // and answers no; all of them run `next`.

@@ -1208,6 +1208,9 @@ impl Game<'_> {
             let now = Instant::now();
             self.focus_lost = Some(now.checked_sub(Duration::from_secs(1)).unwrap_or(now));
             self.pause_if_inactive();
+            // Off the screen, paused and saved: an end now isn't a crash.
+            #[cfg(target_os = "ios")]
+            super::crash_watch::clear();
         }
     }
 

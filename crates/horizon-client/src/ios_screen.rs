@@ -48,6 +48,10 @@ pub enum LauncherAction {
     SignerTest,
     /// The Refresh tab's Refresh now: sign Ferrite again and install it over itself.
     SignerRefresh,
+    /// More, then Close Ferrite: the app ends (the launcher shows before any world opens).
+    Close,
+    /// The Play tab's card about the last run ending while playing, dismissed.
+    CrashDismiss,
     /// The skin changer's Upload: the PNG the launcher saved (`.skin-upload.png` in the game
     /// folder) as the skin of the saved account at `index`, on the slim or the classic model.
     SkinUpload { index: usize, slim: bool },
@@ -92,6 +96,8 @@ pub fn parse_launcher_action(text: &str) -> Option<LauncherAction> {
         "signer_sign_out" => return Some(LauncherAction::SignerSignOut),
         "signer_test" => return Some(LauncherAction::SignerTest),
         "signer_refresh" => return Some(LauncherAction::SignerRefresh),
+        "close" => return Some(LauncherAction::Close),
+        "crash_dismiss" => return Some(LauncherAction::CrashDismiss),
         "skin_upload" => {
             let (index, model) = arg?.split_once(':')?;
             let slim = match model {
@@ -139,6 +145,8 @@ mod launcher_tests {
         assert_eq!(parse_launcher_action("signer_check"), Some(LauncherAction::SignerCheck));
         assert_eq!(parse_launcher_action("signer_test"), Some(LauncherAction::SignerTest));
         assert_eq!(parse_launcher_action("signer_refresh"), Some(LauncherAction::SignerRefresh));
+        assert_eq!(parse_launcher_action("close"), Some(LauncherAction::Close));
+        assert_eq!(parse_launcher_action("crash_dismiss"), Some(LauncherAction::CrashDismiss));
         assert_eq!(parse_launcher_action("play"), None);
         assert_eq!(parse_launcher_action("play:x"), None);
         assert_eq!(parse_launcher_action("fly"), None);

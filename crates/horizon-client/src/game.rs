@@ -340,6 +340,8 @@ mod voice_chat;
 #[cfg(target_os = "ios")]
 mod ios_account;
 #[cfg(target_os = "ios")]
+mod crash_watch;
+#[cfg(target_os = "ios")]
 pub mod ios_boot;
 mod ios_setup;
 #[cfg(target_os = "ios")]
@@ -12162,6 +12164,15 @@ impl Game<'_> {
             Action::Options => self.open_options(true),
             Action::IosExtras => {
                 self.open_options_at(true, horizon_client::options_ui::Page::IosExtras)
+            }
+            // The title screen holds no world, and settings are saved as they change: the
+            // process ends, as the app switcher would end it.
+            Action::IosClose => {
+                log::info!("Horizon iOS: closed from the main menu");
+                #[cfg(target_os = "ios")]
+                crash_watch::clear();
+                log::logger().flush();
+                std::process::exit(0);
             }
             Action::Accessibility => {
                 self.open_options_at(true, horizon_client::options_ui::Page::Accessibility)

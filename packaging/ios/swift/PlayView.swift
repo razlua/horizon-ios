@@ -77,6 +77,7 @@ struct PlayView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 header(subtitle: nil)
+                crashCard
                 Button {
                     feelTap()
                     model.send("play:\(index)")
@@ -124,6 +125,12 @@ struct PlayView: View {
                             model.send("remove_mode")
                         } label: {
                             Label("Remove an account", systemImage: "person.crop.circle.badge.minus")
+                        }
+                        Divider()
+                        Button {
+                            model.send("close")
+                        } label: {
+                            Label("Close Ferrite", systemImage: "xmark.circle")
                         }
                     } label: {
                         Label("More", systemImage: "ellipsis")
@@ -208,6 +215,58 @@ struct PlayView: View {
                     .foregroundStyle(Theme.muted)
             }
         }
+    }
+
+    /// The last run ended while playing (iOS ends an app over its memory without a word): what
+    /// it was doing, a guess at why, Send report and Dismiss.
+    @ViewBuilder private var crashCard: some View {
+        if let crash = state.last_crash {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Ferrite closed while you played", systemImage: "exclamationmark.triangle")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.bad)
+                Text(crashSummary(crash))
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Button {
+                        feelTap(.light)
+                        shareCrashReport()
+                    } label: {
+                        Text("Send report")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .ferriteButton(prominent: false)
+                    Button {
+                        model.send("crash_dismiss")
+                    } label: {
+                        Text("Dismiss")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .ferriteButton(prominent: false)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card(cornerRadius: 12)
+        }
+    }
+
+    /// "Render distance 24 on a server, 180 MB left. Probably memory: ..."
+    private func crashSummary(_ crash: LastCrash) -> String {
+        var parts: [String] = []
+        if let distance = crash.distance {
+            parts.append("Render distance \(distance) \(crash.where ?? "in a world")")
+        }
+        if let left = crash.left_mb {
+            parts.append("\(Int(left)) MB left")
+        }
+        let what = parts.isEmpty ? "" : parts.joined(separator: ", ") + ". "
+        if let left = crash.left_mb, left < 300 {
+            return what + "Probably memory: a lower render distance should hold."
+        }
+        return what + "Send the report to @4rnz on Discord, it says what went wrong."
     }
 
     /// Two days or less before Ferrite stops opening: when, under Play.

@@ -804,6 +804,8 @@ impl Boot {
         if !ios_launcher::available() || self.launcher {
             return;
         }
+        // Whether the last run ended while playing: the Play tab says so.
+        super::crash_watch::take_last();
         self.launcher = ios_launcher::show();
         if self.launcher {
             ios_launcher::update(&self.launcher_state());
@@ -870,6 +872,7 @@ impl Boot {
             "settings": launcher_settings(),
             "signer": ferrite_signer::state_json(),
             "pairing": pairing_file().is_some(),
+            "last_crash": super::crash_watch::last(),
         })
         .to_string()
     }
@@ -980,6 +983,14 @@ impl Boot {
                     }
                 }
                 Some(LauncherAction::SignerSignOut) => ferrite_signer::sign_out(),
+                // No world is open while the launcher shows: the process ends, as the app
+                // switcher would end it.
+                Some(LauncherAction::Close) => {
+                    log::info!("Horizon iOS: closed from the launcher");
+                    super::crash_watch::clear();
+                    log::logger().flush();
+                    std::process::exit(0);
+                }
                 // Refresh now (crates/ferrite-signer): LocalDevVPN, the pairing file from the
                 // game folder's `pairing`, and the app's own bundle, signed again over itself.
                 Some(LauncherAction::SignerTest) => ferrite_signer::test_connection(pairing_file().as_deref()),
@@ -995,6 +1006,10 @@ impl Boot {
                     }
                 }
                 Some(LauncherAction::SkinUpload { index, slim }) => self.upload_skin(index, slim),
+                Some(LauncherAction::CrashDismiss) => {
+                    super::crash_watch::dismiss();
+                    update(&self.state, |_| {});
+                }
                 None => log::warn!("Horizon iOS: the launcher sent an unknown action {text:?}"),
             }
         }

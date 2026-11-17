@@ -504,6 +504,22 @@ struct AboutView: View {
     }
 }
 
+/// The share sheet with the report of the last run that ended while playing
+/// (Documents/home/last-crash.txt), or the log without one.
+@discardableResult
+func shareCrashReport() -> Bool {
+    guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+    else { return false }
+    let report = documents.appendingPathComponent("home/last-crash.txt")
+    guard FileManager.default.fileExists(atPath: report.path), let top = topController() else {
+        return shareLog()
+    }
+    let sheet = UIActivityViewController(activityItems: [report], applicationActivities: nil)
+    sheet.popoverPresentationController?.sourceView = top.view
+    top.present(sheet, animated: true)
+    return true
+}
+
 /// The share sheet with the game's log (Documents/home/logs/latest.log). False without a log.
 @discardableResult
 func shareLog() -> Bool {

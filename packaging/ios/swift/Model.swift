@@ -15,6 +15,18 @@ struct LauncherState: Decodable {
     var skin: SkinUploadState?
     /// A pairing file is in Files > Ferrite > pairing (Refresh now needs one).
     var pairing: Bool?
+    /// The last run ended while playing (crates/horizon-client/src/game/crash_watch.rs).
+    var last_crash: LastCrash?
+}
+
+/// What the last run was doing when it ended while playing.
+struct LastCrash: Decodable {
+    var time: Double?
+    var in_ram_mb: Double?
+    var left_mb: Double?
+    var distance: Int?
+    var chosen_distance: Int?
+    var `where`: String?
 }
 
 /// A saved Microsoft account: its Minecraft name and uuid (without dashes), for its skin.

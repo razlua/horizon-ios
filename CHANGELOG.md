@@ -22,6 +22,13 @@ at [horizon-rust/horizon releases](https://github.com/horizon-rust/horizon/relea
 - **Speed Trade.** A >> button next to a trade's result keeps making the selected trade until you
   stop it or the villager runs out. Speed (4, 10 or 20 a second) and Hold or Tap are in Extra
   Settings. Works in single player and on servers.
+- **Close.** Beside Extra Settings on the main menu, and Close Ferrite in the launcher's More menu:
+  Ferrite ends without the app switcher.
+- **Crash catcher.** If Ferrite closes by itself while you play (usually iOS ending it for memory,
+  which leaves nothing in the log), the next start says so on the Play tab, with the render
+  distance and memory left at the time and a guess at why. Send report shares it with the end of
+  that run's log.
+- **Feather.** The AltStore / SideStore source works in Feather too.
 - **Inventory by finger.** Hold a stack and slide across slots to split it evenly, as a mouse
   drag does on PC. Hold still on the first slot before sliding to put one item in each. Lists
   (creative tabs, recipe book, JEI, packs) keep gliding after a quick swipe and slow down, and a
