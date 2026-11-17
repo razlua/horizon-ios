@@ -203,6 +203,65 @@ pub fn mouse() -> Option<Mouse> {
     }
 }
 
+/// The game wants the iPad's pointer locked: in the world, with a mouse.
+static POINTER_LOCKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// winit's view controller's `prefersPointerLocked`, added to its class (`lock_pointer`).
+extern "C-unwind" fn prefers_pointer_locked(
+    _this: &objc2::runtime::AnyObject,
+    _sel: objc2::runtime::Sel,
+) -> objc2::runtime::Bool {
+    objc2::runtime::Bool::new(POINTER_LOCKED.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Locks the iPad's pointer to the game (hidden; the mouse only turns the view) or frees it.
+/// iPadOS asks the window's view controller (winit's `WinitUIViewController`), which is given a
+/// `prefersPointerLocked` the first time, then is told to ask again. iPadOS locks it only while
+/// the app fills the screen. Nothing happens on an iPhone or without winit's class.
+pub fn lock_pointer(lock: bool) {
+    use objc2::runtime::{AnyClass, AnyObject, Imp};
+    use objc2::{class, msg_send, sel};
+    static ADDED: std::sync::Once = std::sync::Once::new();
+    ADDED.call_once(|| {
+        let Some(controller) = AnyClass::get(c"WinitUIViewController") else {
+            return;
+        };
+        let answer: extern "C-unwind" fn(&AnyObject, objc2::runtime::Sel) -> objc2::runtime::Bool =
+            prefers_pointer_locked;
+        // SAFETY: an `(id, SEL) -> BOOL` method ("B@:" on 64-bit iOS) added to winit's view
+        // controller class, which doesn't have one of its own; the cast is to the runtime's
+        // untyped `IMP`.
+        unsafe {
+            let imp: Imp = std::mem::transmute(answer);
+            objc2::ffi::class_addMethod(
+                controller as *const AnyClass as *mut AnyClass,
+                sel!(prefersPointerLocked),
+                imp,
+                c"B@:".as_ptr(),
+            );
+        }
+    });
+    if POINTER_LOCKED.swap(lock, std::sync::atomic::Ordering::Relaxed) == lock {
+        return;
+    }
+    // SAFETY: UIKit calls on the main thread, where the game's loop runs; each pointer is checked.
+    unsafe {
+        let app: *mut AnyObject = msg_send![class!(UIApplication), sharedApplication];
+        if app.is_null() {
+            return;
+        }
+        let window: *mut AnyObject = msg_send![app, keyWindow];
+        if window.is_null() {
+            return;
+        }
+        let controller: *mut AnyObject = msg_send![window, rootViewController];
+        if controller.is_null() {
+            return;
+        }
+        let _: () = msg_send![controller, setNeedsUpdateOfPrefersPointerLocked];
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

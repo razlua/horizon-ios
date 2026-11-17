@@ -243,8 +243,8 @@ Built with assistance from Claude (Anthropic's AI). It isn't vibecoded.
 
 ## Known issues
 
-- Controllers, keyboards and mice are new and lightly tested. The mouse isn't locked to the game
-  on iPad yet, so its pointer still moves over the screen while you look around.
+- Controllers, keyboards and mice are new and lightly tested. On iPad the pointer locks to the
+  game in the world only while Ferrite fills the screen (not in Split View or Stage Manager).
 - There's no narrator (text-to-speech).
 - In voice chat, the phone's speaker can be heard through the microphone. Headphones, or push to
   talk, avoid the echo.

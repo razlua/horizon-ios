@@ -76,9 +76,12 @@ impl Game<'_> {
 
     fn ios_mouse_frame(&mut self, event_loop: &dyn EventLoopCtl) {
         let Some(mouse) = gc::mouse() else {
+            gc::lock_pointer(false);
             return;
         };
         let world = self.touch_world();
+        // iPad: the pointer hides and stays put while the mouse turns the view.
+        gc::lock_pointer(world);
         if world && mouse.moved != [0.0, 0.0] && self.pending_save.is_none() {
             self.mouse.add_motion(mouse.moved[0], mouse.moved[1]);
             self.touch.hardware = true;
