@@ -236,20 +236,60 @@ fn launcher_settings() -> serde_json::Value {
 /// The pairing file Refresh now uses: the first `.mobiledevicepairing` or `.plist` in the game
 /// folder's `pairing` (Files > Ferrite > pairing), which is made here so the player can find it.
 fn pairing_file() -> Option<std::path::PathBuf> {
-    let dir = std::env::current_dir().ok()?.join("pairing");
+    let documents = std::env::current_dir().ok()?;
+    let dir = documents.join("pairing");
     let _ = std::fs::create_dir_all(&dir);
-    let mut files: Vec<_> = std::fs::read_dir(&dir)
-        .ok()?
-        .filter_map(|entry| entry.ok().map(|e| e.path()))
-        .filter(|path| {
-            matches!(
-                path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref(),
-                Some("mobiledevicepairing" | "plist")
-            )
-        })
-        .collect();
-    files.sort();
-    files.into_iter().next()
+    // The pairing folder first, then its folders (a copy that brought its own), then the
+    // game folder itself: the Files app renames files on the way in (".txt", "(1)", no ending),
+    // so a pairing file is known by what it holds, not by its name.
+    let mut places = vec![dir.clone()];
+    places.extend(subfolders(&dir));
+    places.push(documents);
+    let found = places.iter().find_map(|place| {
+        let mut files: Vec<_> = std::fs::read_dir(place)
+            .ok()?
+            .filter_map(|entry| entry.ok().map(|e| e.path()))
+            .filter(|path| path.is_file() && is_pairing_file(path))
+            .collect();
+        files.sort();
+        files.into_iter().next()
+    });
+    if found.is_none() {
+        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            let names: Vec<String> = std::fs::read_dir(&dir)
+                .into_iter()
+                .flatten()
+                .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+                .collect();
+            log::info!("Horizon iOS: no pairing file; {} holds {names:?}", dir.display());
+        }
+    }
+    found
+}
+
+fn subfolders(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.is_dir())
+        .collect()
+}
+
+/// A pairing file (jitterbugpair's, iloader's): a property list under 64 KB with the iPhone's
+/// pairing keys, in XML or binary.
+fn is_pairing_file(path: &std::path::Path) -> bool {
+    if std::fs::metadata(path).map_or(true, |m| m.len() > 64 * 1024) {
+        return false;
+    }
+    let Ok(bytes) = std::fs::read(path) else {
+        return false;
+    };
+    let holds = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
+    (bytes.starts_with(b"bplist") || holds(b"<plist"))
+        && holds(b"HostPrivateKey")
+        && holds(b"DeviceCertificate")
 }
 
 /// The folder the game will take as its player folder when Play starts it: the chosen
